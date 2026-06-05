@@ -9,6 +9,7 @@ import { Lock, Mail, ShieldAlert, CheckCircle, RefreshCw, Eye, EyeOff } from 'lu
 export default function LoginPage() {
   const router = useRouter();
   const { db } = usePaymentState();
+  const [mounted, setMounted] = useState(false);
   
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('yudeyou0118@gmail.com');
@@ -23,6 +24,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
+      setMounted(true);
       setCaptchaCode(Math.floor(1000 + Math.random() * 9000).toString());
     }, 0);
     return () => clearTimeout(timer);
@@ -71,8 +73,12 @@ export default function LoginPage() {
     }
   };
 
+  if (!mounted) {
+    return <div className="min-h-screen bg-[#070A12]" />;
+  }
+
   return (
-    <div className="min-h-screen bg-[#070A12] text-slate-100 flex items-center justify-center p-4 relative selection:bg-blue-500 selection:text-white" id="login-container">
+    <div className="min-h-screen bg-[#070A12] text-slate-100 flex items-center justify-center p-4 relative selection:bg-blue-500 selection:text-white" id="login-container" suppressHydrationWarning>
       {/* Background visual graphics */}
       <div className="absolute top-[20%] left-[20%] w-96 h-96 bg-blue-950/20 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[20%] right-[20%] w-96 h-96 bg-indigo-950/20 rounded-full blur-[120px] pointer-events-none" />

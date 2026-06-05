@@ -35,43 +35,58 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
   const [deviceId, setDeviceId] = useState(devices[0]?.id || '');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
 
+  // Loader state
+  const [isLoadingCodeOperation, setIsLoadingCodeOperation] = useState(false);
+
   const handleCreateCode = (e: React.FormEvent) => {
     e.preventDefault();
     
+    setIsLoadingCodeOperation(true);
     // Auto populate image URL if empty for easy demo mockups visual
     const finalUrl = imageUrl || `https://picsum.photos/seed/${type === 'wechat' ? 'wxpay' : 'alipay'}-${Date.now()}/400/400`;
 
-    db.createPaymentCode({
-      type,
-      codeType,
-      amount: codeType === 'any' ? 0 : Number(amount),
-      imageUrl: finalUrl,
-      deviceId,
-      status
-    });
+    setTimeout(() => {
+      db.createPaymentCode({
+        type,
+        codeType,
+        amount: codeType === 'any' ? 0 : Number(amount),
+        imageUrl: finalUrl,
+        deviceId,
+        status
+      });
 
-    onTriggerToast(`成功配置并挂载首个${type === 'wechat' ? '微信' : '支付宝'}个人收款码！`, 'success');
-    
-    // Reset Form
-    setType('wechat');
-    setCodeType('any');
-    setAmount(0);
-    setImageUrl('');
-    setDeviceId(devices[0]?.id || '');
-    setStatus('active');
-    setActiveTab('list');
+      onTriggerToast(`成功配置并挂载首个${type === 'wechat' ? '微信' : '支付宝'}个人收款码！`, 'success');
+      
+      // Reset Form
+      setType('wechat');
+      setCodeType('any');
+      setAmount(0);
+      setImageUrl('');
+      setDeviceId(devices[0]?.id || '');
+      setStatus('active');
+      setIsLoadingCodeOperation(false);
+      setActiveTab('list');
+    }, 750);
   };
 
   const handleToggleCodeStatus = (code: PaymentCode) => {
-    const nextStatus = code.status === 'active' ? 'inactive' : 'active';
-    db.updatePaymentCode(code.id, { status: nextStatus });
-    onTriggerToast(`收款码状态已变更为: [${nextStatus === 'active' ? '启用中' : '已停用'}]`, 'warning');
+    setIsLoadingCodeOperation(true);
+    setTimeout(() => {
+      const nextStatus = code.status === 'active' ? 'inactive' : 'active';
+      db.updatePaymentCode(code.id, { status: nextStatus });
+      onTriggerToast(`收款码状态已变更为: [${nextStatus === 'active' ? '启用中' : '已停用'}]`, 'warning');
+      setIsLoadingCodeOperation(false);
+    }, 600);
   };
 
   const handleDeleteCode = (code: PaymentCode) => {
     if (confirm(`您确定要删除此笔收款码吗？此操作不可撤销，且会解除绑定设备。`)) {
-      db.deletePaymentCode(code.id);
-      onTriggerToast(`收款码已成功从系统中移除。`, 'warning');
+      setIsLoadingCodeOperation(true);
+      setTimeout(() => {
+        db.deletePaymentCode(code.id);
+        onTriggerToast(`收款码已成功从系统中移除。`, 'warning');
+        setIsLoadingCodeOperation(false);
+      }, 700);
     }
   };
 
@@ -348,6 +363,19 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
               <p className="text-[10px] text-slate-500 max-w-[180px] text-center">可绑定微信/支付宝独立固码、无额万能码以满足多通道负载均衡。</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Reusable Loading/Sync Backdrop Overlay for High-latency feeling */}
+      {isLoadingCodeOperation && (
+        <div className="fixed inset-0 z-50 bg-[#070A12]/70 backdrop-blur-xs flex flex-col items-center justify-center gap-3">
+          <div className="relative w-12 h-12">
+            <div className="absolute inset-0 rounded-full border-4 border-blue-500/10" />
+            <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+          </div>
+          <span className="text-xs font-semibold text-slate-200 animate-pulse font-mono bg-slate-900/80 px-4 py-2 rounded-2xl border border-[rgba(255,255,255,0.05)]">
+            正在向安全通道广播收款码变动并同步云端数据库...
+          </span>
         </div>
       )}
 

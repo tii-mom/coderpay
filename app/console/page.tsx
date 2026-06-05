@@ -5,17 +5,17 @@ import { useRouter } from 'next/navigation';
 import { usePaymentState } from '@/hooks/use-payment-state';
 import { ToastContainer } from '@/components/Toast';
 
-// Imported modular components tabs
-import { OverviewTab } from '@/components/console/OverviewTab';
-import { AppsTab } from '@/components/console/AppsTab';
-import { CodesTab } from '@/components/console/CodesTab';
-import { DevicesTab } from '@/components/console/DevicesTab';
-import { OrdersTab } from '@/components/console/OrdersTab';
-import { EventsTab } from '@/components/console/EventsTab';
-import { ExceptionsTab } from '@/components/console/ExceptionsTab';
-import { WebhooksTab } from '@/components/console/WebhooksTab';
-import { DocsTab } from '@/components/console/DocsTab';
-import { BillingTab } from '@/components/console/BillingTab';
+// Modular components loaded dynamically with lazy-splitting
+const OverviewTab = React.lazy(() => import('@/components/console/OverviewTab').then(m => ({ default: m.OverviewTab })));
+const AppsTab = React.lazy(() => import('@/components/console/AppsTab').then(m => ({ default: m.AppsTab })));
+const CodesTab = React.lazy(() => import('@/components/console/CodesTab').then(m => ({ default: m.CodesTab })));
+const DevicesTab = React.lazy(() => import('@/components/console/DevicesTab').then(m => ({ default: m.DevicesTab })));
+const OrdersTab = React.lazy(() => import('@/components/console/OrdersTab').then(m => ({ default: m.OrdersTab })));
+const EventsTab = React.lazy(() => import('@/components/console/EventsTab').then(m => ({ default: m.EventsTab })));
+const ExceptionsTab = React.lazy(() => import('@/components/console/ExceptionsTab').then(m => ({ default: m.ExceptionsTab })));
+const WebhooksTab = React.lazy(() => import('@/components/console/WebhooksTab').then(m => ({ default: m.WebhooksTab })));
+const DocsTab = React.lazy(() => import('@/components/console/DocsTab').then(m => ({ default: m.DocsTab })));
+const BillingTab = React.lazy(() => import('@/components/console/BillingTab').then(m => ({ default: m.BillingTab })));
 
 import { 
   LayoutDashboard, 
@@ -49,6 +49,14 @@ function getUniqueToastId(): string {
 
 export default function ConsolePage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMounted(true);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
   
   // Custom states usePaymentState hook
   const { state, db } = usePaymentState();
@@ -89,29 +97,65 @@ export default function ConsolePage() {
     }
   };
 
+  // Render professional dashboard chunk placeholders during asynchronous load
+  const TabSkeleton = () => {
+    return (
+      <div className="w-full flex flex-col gap-6 animate-pulse" id="console-tab-skeleton">
+        <div className="flex items-center justify-between">
+          <div className="h-8 w-48 bg-slate-800 rounded-lg" />
+          <div className="h-8 w-32 bg-slate-800 rounded-lg" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="h-28 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-2xl" />
+          <div className="h-28 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-2xl" />
+          <div className="h-28 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-2xl" />
+        </div>
+        <div className="h-96 bg-[rgba(255,255,255,0.01)] border border-[rgba(255,255,255,0.03)] rounded-3xl p-6 flex flex-col gap-4">
+          <div className="h-6 w-1/4 bg-slate-800 rounded" />
+          <div className="h-px bg-[rgba(255,255,255,0.05)] w-full" />
+          <div className="h-4 bg-[rgba(255,255,255,0.015)] rounded w-full animate-pulse" />
+          <div className="h-4 bg-[rgba(255,255,255,0.015)] rounded w-5/6" />
+          <div className="h-4 bg-[rgba(255,255,255,0.015)] rounded w-full" />
+          <div className="h-4 bg-[rgba(255,255,255,0.015)] rounded w-2/3" />
+        </div>
+      </div>
+    );
+  };
+
   // Render correct Active Tab content
   const renderTabContent = () => {
     if (!state) return null;
 
+    let element: React.ReactNode = null;
+
     switch (activeTab) {
       case 'overview':
-        return <OverviewTab state={state} onSwitchTab={handleSwitchTab} />;
+        element = <OverviewTab state={state} onSwitchTab={handleSwitchTab} />;
+        break;
       case 'apps':
-        return <AppsTab apps={state.apps} onTriggerToast={triggerToast} db={db} />;
+        element = <AppsTab apps={state.apps} onTriggerToast={triggerToast} db={db} />;
+        break;
       case 'codes':
-        return <CodesTab paymentCodes={state.paymentCodes} devices={state.devices} onTriggerToast={triggerToast} db={db} />;
+        element = <CodesTab paymentCodes={state.paymentCodes} devices={state.devices} onTriggerToast={triggerToast} db={db} />;
+        break;
       case 'devices':
-        return <DevicesTab devices={state.devices} paymentCodes={state.paymentCodes} onTriggerToast={triggerToast} db={db} />;
+        element = <DevicesTab devices={state.devices} paymentCodes={state.paymentCodes} onTriggerToast={triggerToast} db={db} />;
+        break;
       case 'orders':
-        return <OrdersTab orders={state.orders} apps={state.apps} onTriggerToast={triggerToast} db={db} />;
+        element = <OrdersTab orders={state.orders} apps={state.apps} onTriggerToast={triggerToast} db={db} />;
+        break;
       case 'events':
-        return <EventsTab events={state.events} orders={state.orders} devices={state.devices} onTriggerToast={triggerToast} db={db} />;
+        element = <EventsTab events={state.events} orders={state.orders} devices={state.devices} onTriggerToast={triggerToast} db={db} />;
+        break;
       case 'exceptions':
-        return <ExceptionsTab exceptions={state.exceptions} onTriggerToast={triggerToast} onSwitchTab={handleSwitchTab} db={db} />;
+        element = <ExceptionsTab exceptions={state.exceptions} onTriggerToast={triggerToast} onSwitchTab={handleSwitchTab} db={db} />;
+        break;
       case 'webhooks':
-        return <WebhooksTab webhookLogs={state.webhookLogs} orders={state.orders} onTriggerToast={triggerToast} db={db} />;
+        element = <WebhooksTab webhookLogs={state.webhookLogs} orders={state.orders} onTriggerToast={triggerToast} db={db} />;
+        break;
       case 'docs':
-        return <DocsTab apps={state.apps} onTriggerToast={triggerToast} db={db} />;
+        element = <DocsTab apps={state.apps} onTriggerToast={triggerToast} db={db} />;
+        break;
       case 'billing': {
         const computedPlan = {
           id: state.currentPlanId,
@@ -122,14 +166,22 @@ export default function ConsolePage() {
           features: [],
           balance: state.feeBalance
         };
-        return <BillingTab plan={computedPlan} billingRecords={state.billingRecords} onTriggerToast={triggerToast} db={db} />;
+        element = <BillingTab plan={computedPlan} billingRecords={state.billingRecords} onTriggerToast={triggerToast} db={db} />;
+        break;
       }
       default:
-        return <OverviewTab state={state} onSwitchTab={handleSwitchTab} />;
+        element = <OverviewTab state={state} onSwitchTab={handleSwitchTab} />;
+        break;
     }
+
+    return (
+      <React.Suspense fallback={<TabSkeleton />}>
+        {element}
+      </React.Suspense>
+    );
   };
 
-  if (!state) {
+  if (!mounted || !state) {
     return (
       <div className="min-h-screen bg-[#070A12] flex flex-col items-center justify-center text-slate-100 gap-4">
         <div className="w-12 h-12 rounded-full border-4 border-blue-500/20 border-t-blue-500 animate-spin" />
@@ -156,7 +208,7 @@ export default function ConsolePage() {
   const currentSelectedApp = state.apps.find(a => a.appId === state.currentAppId);
 
   return (
-    <div className="min-h-screen w-full bg-[#070A12] text-slate-100 flex flex-col relative" id="console-root">
+    <div className="min-h-screen w-full bg-[#070A12] text-slate-100 flex flex-col relative" id="console-root" suppressHydrationWarning>
       
       {/* Toast Alert overlay notifications */}
       <ToastContainer toasts={toasts} onClose={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />

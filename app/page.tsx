@@ -21,6 +21,18 @@ import {
 
 export default function HomePage() {
   const router = useRouter();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setMounted(true);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!mounted) {
+    return <div className="min-h-screen bg-[#070A12]" />;
+  }
 
   const handleNavigateConsole = () => {
     router.push('/console');
@@ -162,7 +174,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#070A12] text-slate-100 flex flex-col selection:bg-blue-500 selection:text-white" id="cp-root">
+    <div className="min-h-screen bg-[#070A12] text-slate-100 flex flex-col selection:bg-blue-500 selection:text-white" id="cp-root" suppressHydrationWarning>
       
       {/* Top Header */}
       <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.06)] bg-[#070A12]/80 backdrop-blur-md">

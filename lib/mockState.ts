@@ -941,6 +941,22 @@ export const mockDb = {
   },
 
   // Ignore / Resolve Exception
+  createException: (type: ExceptionItem['type'], title: string, description: string, refId: string) => {
+    const s = getInitialState();
+    const newExc: ExceptionItem = {
+      id: `exc-${Date.now()}`,
+      type,
+      title,
+      description,
+      createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      refId,
+      status: 'active'
+    };
+    s.exceptions.unshift(newExc);
+    saveState(s);
+    return s;
+  },
+
   resolveException: (id: string) => {
     const s = getInitialState();
     s.exceptions = s.exceptions.map(exc => exc.id === id ? { ...exc, status: 'resolved' as const } : exc);

@@ -33,11 +33,36 @@ interface DevicesTabProps {
 export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: DevicesTabProps) {
   const [activeView, setActiveView] = useState<'list' | 'details'>('list');
   const [selectedDevId, setSelectedDevId] = useState<string | null>(null);
+  const [activeGuideTab, setActiveGuideTab] = useState<'steps' | 'keepalive'>('steps');
+  const [activeBrand, setActiveBrand] = useState<'xiaomi' | 'huawei' | 'oppo' | 'vivo' | 'samsung' | 'oneplus' | 'general'>('xiaomi');
 
   // Bind new device dialog
   const [isBinding, setIsBinding] = useState(false);
   const [newDevName, setNewDevName] = useState('');
   const [todayLimit, setTodayLimit] = useState(5000);
+
+  // Unified loading overlay state for simulated latency
+  const [isLoadingOperation, setIsLoadingOperation] = useState(false);
+
+  // Health assessment Bento state variables
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+  const [healthData, setHealthData] = useState<{
+    batteryLevel: number;
+    batteryTemp: number;
+    delayMs: number;
+    signalDb: number;
+    cpuUsage: number;
+    ramAvailable: string;
+    lastCheckTime: string | null;
+  }>({
+    batteryLevel: 94,
+    batteryTemp: 32.5,
+    delayMs: 14,
+    signalDb: -68,
+    cpuUsage: 12,
+    ramAvailable: '3.4 GB / 8 GB',
+    lastCheckTime: '16:59:22'
+  });
 
   // Simulated device log rows for debugging details
   const [mockLogs, setMockLogs] = useState<string[]>([
@@ -58,15 +83,45 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
       return;
     }
 
-    const dev = db.createDevice(newDevName, Number(todayLimit));
-    onTriggerToast(`成功绑定 CP Watcher 探针终端 [${dev.name}] ！设备令牌及专属 API Key 已生成并输出到终端，请扫码绑定您的旧手机。`, 'success');
+    setIsLoadingOperation(true);
+    setTimeout(() => {
+      const dev = db.createDevice(newDevName, Number(todayLimit));
+      onTriggerToast(`成功绑定 CP Watcher 探针终端 [${dev.name}] ！设备令牌及专属 API Key 已生成并输出到终端，请扫码绑定您的旧手机。`, 'success');
+      setNewDevName('');
+      setTodayLimit(5000);
+      setIsBinding(false);
+      setIsLoadingOperation(false);
+    }, 700);
+  };
+
+  const handleRunHealthCheck = () => {
+    setIsCheckingHealth(true);
+    onTriggerToast('正在向 Android 终端口碑物理探针推送全矩阵健康检测指令...', 'warning');
     
-    setNewDevName('');
-    setTodayLimit(5000);
-    setIsBinding(false);
+    setTimeout(() => {
+      const mockResult = {
+        batteryLevel: Math.floor(65 + Math.random() * 30),
+        batteryTemp: Number((29 + Math.random() * 9).toFixed(1)),
+        delayMs: Math.floor(8 + Math.random() * 25),
+        signalDb: Math.floor(-82 + Math.random() * 24),
+        cpuUsage: Math.floor(5 + Math.random() * 30),
+        ramAvailable: `${(2.2 + Math.random() * 2.5).toFixed(1)} GB / 8 GB`,
+        lastCheckTime: new Date().toLocaleTimeString()
+      };
+      setHealthData(mockResult);
+      setIsCheckingHealth(false);
+      onTriggerToast('物理硬件全矩阵健康检查分析包回传完毕，数据工况监控面板已刷新！', 'success');
+      
+      setMockLogs(prev => [
+        `[Health Check] Battery: ${mockResult.batteryLevel}%, Temp: ${mockResult.batteryTemp}°C, Read Latency: ${mockResult.delayMs}ms.`,
+        `[Health Check] Network Signal Strength: ${mockResult.signalDb} dBm. Resource Usage: CPU ${mockResult.cpuUsage}%, RAM ${mockResult.ramAvailable}.`,
+        ...prev
+      ]);
+    }, 1200);
   };
 
   const handleTestPingListener = (dev: Device) => {
+    setIsLoadingOperation(true);
     onTriggerToast(`正在向 CP Watcher [${dev.name}] 传送测试心跳包并激发虚拟收款到账通知...`, 'warning');
     setTimeout(() => {
       // Create random simulated arrival to check matcher
@@ -76,7 +131,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
       const selectAmt = randomAmounts[Math.floor(Math.random() * randomAmounts.length)];
       
       db.uploadPaymentEvent(dev.id, selectChan, selectAmt);
-      
+      setIsLoadingOperation(false);
       onTriggerToast(`心跳连通率 100%！设备响应延迟: 14ms。CP Watcher 探针到账 ¥${selectAmt.toFixed(2)} [${selectChan === 'wechat' ? '微信' : '支付宝'}] 微信通知匹配流成功上报CP核心！`, 'success');
       
       // Add custom log line inside details
@@ -84,10 +139,11 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
         `System Event: Successfully broadcast payment arrive event ¥${selectAmt.toFixed(2)} on client OS.`,
         ...prev
       ]);
-    }, 1500);
+    }, 1000);
   };
 
   const handleDiagnostics = (dev: Device) => {
+    setIsLoadingOperation(true);
     onTriggerToast(`正在对设备 [${dev.name}] 进行物理状态及底层 OS 运行权限体检...`, 'warning');
     setTimeout(() => {
       db.updateDevice(dev.id, {
@@ -98,22 +154,31 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
         notificationPermission: true,
         batteryOptimization: 'ignored'
       });
+      setIsLoadingOperation(false);
       onTriggerToast(`体检通过！[${dev.name}] 物理探针连接正常。微信 & 支付宝通知读取、锁屏后台白名单、OS 电池优化已配置无误！`, 'success');
-    }, 2000);
+    }, 1200);
   };
 
   const handleToggleActive = (dev: Device) => {
-    db.toggleDeviceStatus(dev.id);
-    onTriggerToast(`已${dev.status === 'active' ? '停用' : '激活'}设备 Watcher 的收款匹配任务。`, 'warning');
+    setIsLoadingOperation(true);
+    setTimeout(() => {
+      db.toggleDeviceStatus(dev.id);
+      setIsLoadingOperation(false);
+      onTriggerToast(`已${dev.status === 'active' ? '停用' : '激活'}设备 Watcher 的收款匹配任务。`, 'warning');
+    }, 600);
   };
 
   const handleDeleteDevice = (dev: Device) => {
     if (confirm(`警告：确定要永久解绑设备 [${dev.name}] 吗？解绑后，该手机将无法上传任何扫码付款流水通知，且配套码流水也会失效。`)) {
-      db.deleteDevice(dev.id);
-      onTriggerToast(`设备 [${dev.name}] 解绑解离完毕。`, 'warning');
-      if (selectedDevId === dev.id) {
-        setActiveView('list');
-      }
+      setIsLoadingOperation(true);
+      setTimeout(() => {
+        db.deleteDevice(dev.id);
+        setIsLoadingOperation(false);
+        onTriggerToast(`设备 [${dev.name}] 解绑解离完毕。`, 'warning');
+        if (selectedDevId === dev.id) {
+          setActiveView('list');
+        }
+      }, 800);
     }
   };
 
@@ -252,8 +317,119 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                   </div>
                 </div>
 
+                {/* Simulated Physical Device Health check Bento Grid */}
+                <div className="flex flex-col gap-3 text-xs border-t border-[rgba(255,255,255,0.04)] pt-4" id="bento-grid-health-check">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                      <Activity className="w-4 h-4 text-emerald-400" />
+                      物理设备健康巡检状态 (Real-time Physical Conditions)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleRunHealthCheck}
+                      disabled={isCheckingHealth}
+                      className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 transition-all hover:scale-105"
+                    >
+                      {isCheckingHealth ? (
+                        <>
+                          <RotateCw className="w-3 h-3 animate-spin" /> 执行诊断中...
+                        </>
+                      ) : (
+                        <>一键刷新硬件体检</>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Bento Grid Layout */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" id="physical-bento-grid">
+                    
+                    {/* Bento Box 1: Battery & Temperature */}
+                    <div className="bg-[#0B1020]/30 border border-cp hover:border-blue-500/30 transition-all p-4 rounded-2xl flex flex-col justify-between gap-3 group relative overflow-hidden" id="bento-battery">
+                      <div className="absolute top-[-10px] right-[-10px] w-20 h-20 bg-blue-500/5 rounded-full blur-lg" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-400">电池与温控</span>
+                        <Zap className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+                      </div>
+                      <div>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-2xl font-extrabold text-white font-mono">{healthData.batteryLevel}%</span>
+                          <span className="text-[10px] text-slate-500">剩余电量</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="flex-1 h-1.5 bg-[#030712] rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-1000 ${
+                                healthData.batteryLevel > 30 ? 'bg-emerald-500' : 'bg-rose-500'
+                              }`}
+                              style={{ width: `${healthData.batteryLevel}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-mono font-bold leading-none">{healthData.batteryTemp}°C</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bento Box 2: Latency Assessment */}
+                    <div className="bg-[#0B1020]/30 border border-cp hover:border-emerald-500/30 transition-all p-4 rounded-2xl flex flex-col justify-between gap-3 group relative overflow-hidden" id="bento-latency">
+                      <div className="absolute top-[-10px] right-[-10px] w-20 h-20 bg-emerald-500/5 rounded-full blur-lg" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-400">通知栏延迟</span>
+                        <Terminal className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+                      </div>
+                      <div>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-2xl font-extrabold text-emerald-400 font-mono">{healthData.delayMs} ms</span>
+                          <span className="text-[10px] text-emerald-500 font-bold">极速感应</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-2 leading-tight">底层 OS 捕获框架在毫秒内回传 notify 广播包通道</p>
+                      </div>
+                    </div>
+
+                    {/* Bento Box 3: Network Signal & Signal Strength */}
+                    <div className="bg-[#0B1020]/30 border border-cp hover:border-indigo-500/30 transition-all p-4 rounded-2xl flex flex-col justify-between gap-3 group relative overflow-hidden" id="bento-signal">
+                      <div className="absolute top-[-10px] right-[-10px] w-20 h-20 bg-indigo-500/5 rounded-full blur-lg" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-400">基站信号强度</span>
+                        <Wifi className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
+                      </div>
+                      <div>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-2xl font-extrabold text-indigo-300 font-mono">{healthData.signalDb} dBm</span>
+                          <span className={`text-[10px] font-bold ${healthData.signalDb > -75 ? 'text-indigo-400' : 'text-amber-400'}`}>
+                            {healthData.signalDb > -75 ? '优 (Good)' : '普通'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-2 leading-tight">物理摆放及 WiFi / 行动网络丢包率: 0.0%</p>
+                      </div>
+                    </div>
+
+                    {/* Bento Box 4: Load Status */}
+                    <div className="bg-[#0B1020]/30 col-span-1 sm:col-span-3 border border-cp hover:border-purple-500/30 transition-all p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3.5 group" id="bento-resources">
+                      <div className="flex-1 text-left">
+                        <span className="text-xs font-semibold text-slate-400 block">系统内核总负载与驻留资源</span>
+                        <div className="flex items-baseline gap-4 mt-1.5 flex-wrap">
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-base font-extrabold text-white font-mono">CPU: {healthData.cpuUsage}%</span>
+                          </div>
+                          <div className="flex items-baseline gap-1 border-l border-[rgba(255,255,255,0.1)] pl-4">
+                            <span className="text-xs text-slate-500 font-normal">RAM 驻留:</span>
+                            <span className="text-sm font-bold text-indigo-300 font-mono">{healthData.ramAvailable}</span>
+                          </div>
+                          {healthData.lastCheckTime && (
+                            <span className="text-[9px] text-slate-600 font-mono">上次体检: {healthData.lastCheckTime}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full sm:w-auto bg-[#070A12] border border-cp rounded-xl px-3.5 py-2 font-mono text-[10px] text-slate-400 text-left">
+                        安全监控层：CP Watcher Daemon 物理探头连接绿灯
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
                 {/* Bound QR Payment Codes of this device watch node */}
-                <div className="flex flex-col gap-3 text-xs">
+                <div className="flex flex-col gap-3 text-xs border-t border-[rgba(255,255,255,0.04)] pt-4">
                   <span className="text-xs font-bold text-slate-400 border-b border-[rgba(255,255,255,0.04)] pb-2 block">已绑定并在此设备轮询的收款码 ({paymentCodes.filter(c => c.deviceId === selectedDev.id).length})</span>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -307,6 +483,289 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
             </div>
 
           </div>
+
+          {/* Interactive Setup Wizard & Keeping Alive Guide (v1.1 PRD Align) */}
+          <div className="bg-cp-card border border-cp rounded-2xl p-6.5 flex flex-col gap-5 text-left font-sans mt-2" id="watcher-guide-panel">
+            
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[rgba(255,255,255,0.06)] pb-4.5">
+              <div className="flex flex-col text-left">
+                <span className="text-sm font-extrabold text-white flex items-center gap-2">
+                  <Zap className="w-4.5 h-4.5 text-amber-500 fill-amber-500 animate-pulse" />
+                  CP Watcher 挂载保活与权限校准指引 (PRD v1.1)
+                </span>
+                <span className="text-[10px] text-slate-500 block mt-1">请为作为物理监控监控节点的 Android 旧手机严格配置以下权限与保活项，否则系统将在息屏后休眠被杀，导致漏单</span>
+              </div>
+
+              {/* Guide Sub tabs */}
+              <div className="flex p-0.5 bg-[#0B1020] border border-[rgba(255,255,255,0.06)] rounded-xl shrink-0 self-stretch sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setActiveGuideTab('steps')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    activeGuideTab === 'steps' 
+                      ? 'bg-blue-600 text-white shadow-sm' 
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  核心配置 10 步法门
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveGuideTab('keepalive')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    activeGuideTab === 'keepalive' 
+                      ? 'bg-blue-600 text-white shadow-sm' 
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  主流手机系统保活指引
+                </button>
+              </div>
+            </div>
+
+            {activeGuideTab === 'steps' ? (
+              /* Steps Content */
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  {
+                    step: '01',
+                    title: '下载并安装客户端 App',
+                    desc: '在旧手机中扫描绑定页面显示的专属二维码下载最新的 CP Watcher App (.apk)。客户端仅兼容 Android 8.0 及以上版本手机系统，推荐使用闲置备用机（勿插主力SIM卡，挂在安静位置）。'
+                  },
+                  {
+                    step: '02',
+                    title: '通信授权与密钥配对',
+                    desc: '启动 Watcher 客户端后，扫描网页中此设备的配对二维码进行一键免手输配对。系统会根据设备的专属 Token API 金钥与 Coder Pay 核心云服务器建立高频 Socket 端对端心跳连接。'
+                  },
+                  {
+                    step: '03',
+                    title: '开启微信到账通知监听',
+                    desc: '在 App 左侧开启【微信收款挂载监听】开关。系统会自动弹出系统无障碍层引导，请在系统服务列表中找到 "CP Watcher 收款辅助" 并授予「无障碍模式 / 同步辅助（Accessibility）」辅助权限。'
+                  },
+                  {
+                    step: '04',
+                    title: '开启支付宝到账通知监听',
+                    desc: '在客户端 App 开启【支付宝收款挂载监听】开关。按照系统引导，进入「通知服务权限」或「通知读取读取通道（NotificationListenerService）」，授予 CP 相应读取限权，允许提取消息体。'
+                  },
+                  {
+                    step: '05',
+                    title: '保持微信/支付宝原生推送',
+                    desc: '微信/支付宝的设置中，必须开启“新消息通知”、“到奖伴随语音”，且手机通知栏必须允许展现支付到账横幅。如果通知栏静默或被折叠，Watcher 底层将无法通过系统通知捕捉付款。'
+                  },
+                  {
+                    step: '06',
+                    title: '豁免省电模式与电池优化',
+                    desc: '进入系统[设置] -> [电池 optimization] / [省电策略] 找到 CP Watcher，将其强行配置为【无限制】/【不锁定/不优化后台活动】。这可以防止手机强制进入低耗深度休眠而断连。'
+                  },
+                  {
+                    step: '07',
+                    title: '启动前台特权守护服务',
+                    desc: '打开客户端 App 内的“常驻前台保活服务”开关。勾选成功后，您将在安卓手机通知栏的最上方看到一个锁定、无法滑动的「CP Watcher 常驻系统后台监听服务中」的黑金色特权通知卡。'
+                  },
+                  {
+                    step: '08',
+                    title: '多任务后台挂锁保留',
+                    desc: '按手机任务键进入近期应用控制台，按住民捷向下轻划或长按 CP Watcher 的卡片。点击弹出的「小锁头 (Lock app)」标志锁死，这样在使用系统「一键加速/内存释放」时不会意外强杀进程。'
+                  },
+                  {
+                    step: '09',
+                    title: '一键安全双端握手自测',
+                    desc: '点击本页顶部的“调试收款到账”或在 App 中点击「握手连通测试」。如果您的测试日志终端或手机状态日志上实时打印出 "System Request Webhook PING-PONG 200 OK"，则说明通知通道极度通顺！'
+                  },
+                  {
+                    step: '10',
+                    title: '长期插线保持活性屏幕',
+                    desc: '在 Watcher 设置中打开「智能屏幕微光防灭」和「静音保温模式」。建议将挂机机长期直插充电器连接稳定的 2.4GHz/5GHz 专设局域网 WiFi，避免手机断电或者由于网络重置被下线。'
+                  }
+                ].map((item, index) => (
+                  <div key={index} className="flex gap-3.5 p-4 rounded-xl bg-[#090D1A]/50 border border-[rgba(255,255,255,0.03)] hover:border-blue-500/10 hover:bg-[#0B1020]/20 transition-all text-xs items-start">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-950/80 border border-blue-500/20 text-blue-400 font-extrabold font-mono text-[13px] shrink-0">
+                      {item.step}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <span className="font-bold text-slate-200 block text-xs">{item.title}</span>
+                      <p className="text-slate-500 mt-1 leading-relaxed text-[11px]">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* Brand Policy Content */
+              <div className="flex flex-col gap-5">
+                {/* Brand selection line */}
+                <div className="flex flex-wrap gap-2 border-b border-[rgba(255,255,255,0.03)] pb-3">
+                  {[
+                    { id: 'xiaomi', name: '小米/澎湃OS/MIUI' },
+                    { id: 'huawei', name: '华为/荣耀/鸿蒙OS' },
+                    { id: 'oppo', name: 'OPPO/一加/ColorOS' },
+                    { id: 'vivo', name: 'vivo/iQOO/OriginOS' },
+                    { id: 'samsung', name: '三星/One UI' },
+                    { id: 'oneplus', name: '一加原生/真我' },
+                    { id: 'general', name: '通用安卓自控' }
+                  ].map(brand => (
+                    <button
+                      key={brand.id}
+                      type="button"
+                      onClick={() => setActiveBrand(brand.id as any)}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-bold cursor-pointer transition-all border ${
+                        activeBrand === brand.id
+                          ? 'bg-blue-950/40 border-blue-500/50 text-blue-400 font-bold shadow-inner'
+                          : 'bg-[#0B1020]/45 border-[rgba(255,255,255,0.04)] text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {brand.name}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Selected brand notes block */}
+                <div className="p-5.5 rounded-2xl bg-[#090D1A]/50 border border-cp text-xs leading-relaxed text-slate-300">
+                  {activeBrand === 'xiaomi' && (
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.04)] pb-2">
+                        <Smartphone className="w-4 h-4 text-blue-400" />
+                        小米 (Xiaomi) / 红米 (Redmi) / 澎湃OS (HyperOS) / MIUI 深度保活机制
+                      </h4>
+                      <p className="text-[11px] text-slate-400 leading-normal mb-2">MIUI/澎湃系统对后台挂机策略极其苛刻，必须手动完成这 4 步以解除限制：</p>
+                      <ul className="list-decimal pl-4.5 space-y-3.5 text-slate-300 text-[11px]">
+                        <li>
+                          <strong>自启动放行授权：</strong>进入系统自带的【手机管家】或【安全中心】 -&gt; [应用管理] -&gt; [授权管理] -&gt; [自启动管理]，找到 CP Watcher 打开自启动开关。
+                        </li>
+                        <li>
+                          <strong>开启省电无限制：</strong>在桌面长按 CP Watcher 图标 -&gt; [应用信息] -&gt; [省电策略]，默认为“智能省电（会静默锁屏断连）”，请务必强制更改为<strong>「无限制」</strong>。
+                        </li>
+                        <li>
+                          <strong>多任务挂头大锁：</strong>从底栏上划停留进入正在使用列表，长按 CP Watcher 卡片，点击弹出列表中的<strong>「锁头标识」</strong>，让其锁定。
+                        </li>
+                        <li>
+                          <strong>开启前台锁屏显示：</strong>应用信息 -&gt; [其他权限] -&gt; 打开「显示悬浮窗」、「后台弹出界面」以及「锁屏显示」三个高级开关。
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {activeBrand === 'huawei' && (
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.04)] pb-2">
+                        <Smartphone className="w-4 h-4 text-emerald-400" />
+                        华为 (Huawei) / 荣耀 (Honor) / 鸿蒙系统 (HarmonyOS) 专属后台托管设置
+                      </h4>
+                      <ul className="list-decimal pl-4.5 space-y-3.5 text-[11px]">
+                        <li>
+                          <strong>移除系统自动管理：</strong>进入[设置] -&gt; [应用] -&gt; [应用启动管理]，找到 CP Watcher，<strong>关闭“自动管理”</strong>。在立刻弹出的控制组中，手动把 【允许自启动】、【允许关联启动】、以及【允许后台活动】三项全部点亮并确认。
+                        </li>
+                        <li>
+                          <strong>加入忽略电池优化：</strong>打开手机的[设置] -&gt; [应用和服务] -&gt; [高级应用管理 / 特殊访问权限] -&gt; [忽略电池优化]，点击上面的选择框更改为 “所有应用” ，然后找到 CP Watcher 并设为<strong>「允许 / 忽略」</strong>。
+                        </li>
+                        <li>
+                          <strong>卡屏大挂锁：</strong>进入多任务列表页，长按或者向下轻滑 CP Watcher 的大卡片，使其头部展现小挂锁图标，阻止一键优化强行清理。
+                        </li>
+                        <li>
+                          <strong>网络连接不休眠：</strong>进入[设置] -&gt; [电池]，确保“休眠时始终保持网络连接”处于点亮状态，防止锁屏后 WiFi 深度低功耗假死。
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {activeBrand === 'oppo' && (
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.04)] pb-2">
+                        <Smartphone className="w-4 h-4 text-orange-400" />
+                        OPPO / 一加 (OnePlus) / realme / ColorOS 挂机自保活校准
+                      </h4>
+                      <ul className="list-decimal pl-4.5 space-y-3.5 text-[11px]">
+                        <li>
+                          <strong>应用启动权限解锁：</strong>进入[手机管家] 或手机里的 [设置] -&gt; [应用] -&gt; [自启动管理] / [应用启动管理]，允许 CP Watcher 常驻后台。
+                        </li>
+                        <li>
+                          <strong>完全允许后台活动：</strong>进入[设置] -&gt; [电池] -&gt; [应用耗电管理] -&gt; 找到并点击 CP Watcher 进程，开启<strong>「允许完全后台行为」</strong>并允许关联启动，同时关闭底下的「后台冻结」机制。
+                        </li>
+                        <li>
+                          <strong>多任务锁保护：</strong>上划进入多任务管理视窗，点击 CP Watcher 任务卡片右上角的“三个点”，选择<strong>「锁定」</strong>将该卡片卡住。
+                        </li>
+                        <li>
+                          <strong>通知显示特权：</strong>检查通知管理，把微信、支付宝和 CP Watcher 均列为“重要通知通道”以防止它们被折叠从而截断系统 notify。
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {activeBrand === 'vivo' && (
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.04)] pb-2">
+                        <Smartphone className="w-4 h-4 text-indigo-400" />
+                        vivo / iQOO / 澎湃 OriginOS 挂机防睡眠配置
+                      </h4>
+                      <ul className="list-decimal pl-4.5 space-y-3.5 text-[11px]">
+                        <li>
+                          <strong>自启动使能开启：</strong>进入 [i管家] -&gt; [应用管理] -&gt; [权限管理] -&gt; [自启动] 列表中把 CP Watcher 的开关打开。
+                        </li>
+                        <li>
+                          <strong>高耗电常驻白名单：</strong>vivo 对后台常挂的应用有限流强杀政策。请进入[设置] -&gt; [电池] -&gt; [后台高耗电] / [高耗电管理]，勾选 CP Watcher 为<strong>「允许后台高耗电行为」</strong>。
+                        </li>
+                        <li>
+                          <strong>双击卡加锁：</strong>按手机左手任务键进入多任务层，卡片向下拉或者点击锁图解锁，完成<strong>「加锁」</strong>，避免一键内存杀。
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {activeBrand === 'samsung' && (
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.04)] pb-2">
+                        <Smartphone className="w-4 h-4 text-teal-400" />
+                        三星 (Samsung) One UI 驻留挂件校准
+                      </h4>
+                      <ul className="list-decimal pl-4.5 space-y-3.5 text-[11px]">
+                        <li>
+                          <strong>加入“从不休眠的应用程序”：</strong>进入手机的[设置] -&gt; [常规管理/电池维护] -&gt; [背景使用限制]，在<strong>「从不休眠应用程序」</strong>列表中点击右上角添加按钮，把 CP Watcher App 放进去，绝不能放到深度休眠中。
+                        </li>
+                        <li>
+                          <strong>后台保持开启：</strong>打开最近使用的应用程序界面，轻点 CP Watcher 图标，在选择中勾选<strong>「保持开启以便快速启动」</strong>，One UI 将不会释放它的主进程。
+                        </li>
+                        <li>
+                          <strong>未受限用电设置：</strong>按住 App 桌面图标 -&gt; 应用详情 -&gt; 电池 -&gt; 选择【未受限】。
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {activeBrand === 'oneplus' && (
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.04)] pb-2">
+                        <Smartphone className="w-4 h-4 text-red-500" />
+                        一加 (OnePlus) / realme / 魅族 额外保活指引
+                      </h4>
+                      <ul className="list-decimal pl-4.5 space-y-3 text-[11px]">
+                        <li>开启系统[应用信息] -&gt; [完全自动启动管理] 许可。</li>
+                        <li>电源性能管理中，将电池优化设为「不优化/特殊优化豁免」。</li>
+                        <li>在任务栈下拉卡片完成卡锁定即可。</li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {activeBrand === 'general' && (
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.04)] pb-2">
+                        <Smartphone className="w-4 h-4 text-slate-400" />
+                        万能通用 Android 回调保活与流自查手记
+                      </h4>
+                      <div className="space-y-3.5 text-[11px]">
+                        <p className="font-semibold text-slate-200">如果您的设备出现了无法到账的情况，请立即参考以下三个关键问题进行系统自查：</p>
+                        <ul className="list-disc pl-4.5 space-y-2">
+                          <li><strong>无障碍（AccessibilityService）断开：</strong>微信到账完全依赖客户端在辅助服务中对通知和界面的 DOM 辅助监控，部分安卓系统在升级或者运行游戏高载时，会自动关闭该服务。如果没到账，请先点入 Watcher App 查看它是否仍然绿灯在线。</li>
+                          <li><strong>通知读取权被拦截：</strong>支付宝通知到账使用 NotificationListenerService 读取接收。请确认您未在手机上安装各种第三方手机助手（如腾讯手机管家、360卫士等），这些助手包含通知静默和折叠，容易拦阻系统通知转发。</li>
+                          <li><strong>保持手机屏幕微温微闪：</strong>备用监控机最好是直插 USB 供电。手机屏幕睡眠后，系统的应用活跃等级（Bucket Level）会迅速调低。开启 App 内的息屏常亮微光保温可长效解决此状态。</li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+          </div>
+
         </div>
       ) : (
         /* Standard Watcher Lists Cards */
@@ -482,6 +941,19 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Reusable Loading/Sync Backdrop Overlay for High-latency feeling */}
+      {isLoadingOperation && (
+        <div className="fixed inset-0 z-50 bg-[#070A12]/70 backdrop-blur-xs flex flex-col items-center justify-center gap-3">
+          <div className="relative w-12 h-12">
+            <div className="absolute inset-0 rounded-full border-4 border-blue-500/10" />
+            <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+          </div>
+          <span className="text-xs font-semibold text-slate-200 animate-pulse font-mono bg-slate-900/80 px-4 py-2 rounded-2xl border border-[rgba(255,255,255,0.05)]">
+            正在向安全通道广播物理指令变动并同步云端数据库...
+          </span>
         </div>
       )}
 

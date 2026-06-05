@@ -25,6 +25,14 @@ export default function PayPage({ params }: PayPageProps) {
   const resolvedParams = use(params);
   const orderId = resolvedParams.id;
   const { state, db } = usePaymentState();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMounted(true);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const order = state.orders.find(o => o.id === orderId);
 
@@ -44,6 +52,31 @@ export default function PayPage({ params }: PayPageProps) {
   const [isSimulatingWallet, setIsSimulatingWallet] = useState(false);
   const [queryCount, setQueryCount] = useState(0);
 
+  // Signature verification mock state representing cloud-based hmac integrity
+  const [isVerifyingSign, setIsVerifyingSign] = useState(true);
+  const [signVerificationLog, setSignVerificationLog] = useState('Calculating secure merchant handshake payload...');
+
+  // Webhook retry simulator status at client side
+  const [webhookStatusSim, setWebhookStatusSim] = useState<'failed_ready' | 'retrying' | 'success'>('failed_ready');
+
+  // Trigger signature check on hydration/refresh state changes
+  useEffect(() => {
+    if (!order) return;
+    
+    const token = setTimeout(() => {
+      // Mock unique HMAC-SHA256 signature
+      const randomHexChars = 'abcdef0123456789';
+      let hmac = '';
+      for (let i = 0; i < 40; i++) {
+        hmac += randomHexChars[Math.floor(Math.random() * randomHexChars.length)];
+      }
+      setSignVerificationLog(`hmac_sha256_${hmac}`);
+      setIsVerifyingSign(false);
+    }, 700);
+
+    return () => clearTimeout(token);
+  }, [orderId, queryCount, order]);
+
   // Countdown clock loop
   useEffect(() => {
     if (!order || order.status !== 'pending' || secondsLeft <= 0) return;
@@ -61,6 +94,10 @@ export default function PayPage({ params }: PayPageProps) {
 
     return () => clearInterval(timer);
   }, [order, secondsLeft, orderId, db]);
+
+  if (!mounted) {
+    return <div className="min-h-screen bg-[#F1F5F9]" />;
+  }
 
   if (!order) {
     return (
@@ -112,12 +149,14 @@ export default function PayPage({ params }: PayPageProps) {
 
   // User click "Paid / Refresh Link"
   const handleManualRefresh = () => {
+    setIsVerifyingSign(true);
+    setSignVerificationLog('Calculating secure merchant handshake payload...');
     setQueryCount(prev => prev + 1);
     db.saveState(db.getState());
   };
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] text-slate-800 font-sans flex flex-col items-center py-4 px-4 sm:py-10" id="checkout-view">
+    <div className="min-h-screen bg-[#F1F5F9] text-slate-800 font-sans flex flex-col items-center py-4 px-4 sm:py-10" id="checkout-view" suppressHydrationWarning>
       
       {/* Visual Header */}
       <div className="w-full max-w-md flex items-center justify-between mb-4 px-1" id="checkout-header">
@@ -153,28 +192,91 @@ export default function PayPage({ params }: PayPageProps) {
               </span>
             )}
           </div>
+
+          {/* Signature Verification Mock Indicator */}
+          <div className="mx-2 bg-slate-100/60 border border-slate-200/40 rounded-xl px-3 py-2 flex items-center justify-between text-[11px] text-slate-500 font-sans mt-3">
+            <span className="font-semibold flex items-center gap-1">
+              <ShieldCheck className={`w-3.5 h-3.5 ${isVerifyingSign ? 'text-amber-500 animate-pulse' : 'text-emerald-500'}`} />
+              API 鉴权方式: HMAC-SHA256
+            </span>
+            {isVerifyingSign ? (
+              <span className="font-mono text-slate-400 flex items-center gap-1 select-none">
+                <RotateCw className="w-3 h-3 animate-spin text-amber-500" /> 正在验签...
+              </span>
+            ) : (
+              <span className="font-mono font-bold text-emerald-600 truncate max-w-[140px]" title={signVerificationLog}>
+                验证通过: {signVerificationLog.slice(-10)}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* State Alerts Indicator */}
         {order.status === 'success' ? (
-          <div className="p-8 text-center flex flex-col items-center flex-1 justify-center bg-emerald-50/25">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
-              <CheckCircle2 className="w-9 h-9" />
+          <div className="p-6 text-center flex flex-col items-center flex-1 justify-center bg-emerald-50/25">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+              <CheckCircle2 className="w-8 h-8" />
             </div>
-            <h3 className="text-lg font-bold text-emerald-800">支付成功！</h3>
-            <p className="text-xs text-slate-500 mt-2 max-w-xs leading-relaxed">
-              您的款项已直接进入开发者个人微信/支付宝账户。系统已成功激发 API 通知，商户发货模块已正常触发。
+            <h3 className="text-base font-bold text-emerald-800">支付已核销入账</h3>
+            <p className="text-[11px] text-slate-500 mt-1 max-w-xs leading-relaxed">
+              您的款项已直达开发者个人账户。免签心跳探针已成功激发到账上报。
             </p>
+
+            {/* Webhook Callback Simulation Status & Retry UI */}
+            <div className="mt-4 p-4 rounded-xl border w-full text-left font-sans text-xs bg-white shadow-xs border-slate-200" id="webhook-retry-panel">
+              <span className="font-bold text-slate-700 block text-[10px] uppercase tracking-wider mb-2">📢 异步回调通知网关监测 (Webhook Hub)</span>
+              
+              {webhookStatusSim === 'failed_ready' && (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2 bg-rose-50 border border-rose-100 rounded-lg p-2.5 text-rose-800 text-[11px]">
+                    <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5 animate-pulse" />
+                    <div>
+                      <span className="font-bold block text-xs">商户接收阻断：处理延迟超时 (HTTP 502)</span>
+                      <p className="text-[10px] text-rose-500/80 mt-0.5">商户系统当前响应缓慢，HMAC 签名已经过安全信道校验，该笔订单当前未在商户端完成发货。</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWebhookStatusSim('retrying');
+                      setTimeout(() => {
+                        setWebhookStatusSim('success');
+                      }, 1200);
+                    }}
+                    className="w-full py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-[0.98]"
+                  >
+                    <RotateCw className="w-3 h-3 animate-spin duration-3000" /> 手动补发 HMAC 安全回调 (Force Webhook Retry)
+                  </button>
+                </div>
+              )}
+
+              {webhookStatusSim === 'retrying' && (
+                <div className="flex flex-col items-center justify-center py-4 gap-2 text-slate-500 font-mono text-[10px]">
+                  <RotateCw className="w-4 h-4 animate-spin text-rose-500" />
+                  <span>重算 HMAC-SHA256 密钥指纹，强制补划投递中...</span>
+                </div>
+              )}
+
+              {webhookStatusSim === 'success' && (
+                <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-emerald-800 text-[11px]">
+                  <div className="flex items-center gap-1.5 font-bold text-emerald-700">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>投递状态: HTTP 200 OK (补发成功)</span>
+                  </div>
+                  <p className="text-[10px] text-emerald-600/80 mt-1">商户端已成功接收并返回 {"\"success\""} 回执，主站商品已自动即时处理发货！</p>
+                </div>
+              )}
+            </div>
             
             {/* Action complete row */}
-            <div className="mt-8 flex flex-col gap-2.5 w-full">
+            <div className="mt-5 flex flex-col gap-2.5 w-full">
               <button
                 onClick={() => {
                   const s = db.getState();
                   const app = s.apps.find(a => a.appId === order.appId);
                   window.location.href = app ? app.returnUrl : '/';
                 }}
-                className="w-full py-3 bg-slate-950 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm hover:bg-slate-800 hover:scale-[1.01] transition-all flex items-center justify-center gap-1.5"
+                className="w-full py-2.5 bg-slate-950 text-white rounded-xl text-xs font-bold shadow-sm hover:bg-slate-800 hover:scale-[1.01] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 返回商家网站 <ExternalLink className="w-4 h-4" />
               </button>
@@ -271,8 +373,8 @@ export default function PayPage({ params }: PayPageProps) {
         )}
 
         {/* Footer warning */}
-        <div className="bg-slate-50 border-t border-slate-100 p-4 text-center text-[10px] text-slate-400 font-sans leading-relaxed">
-          资金安全由微信/支付宝钱包原生加密通道保护。CP 云端及 Watcher 仅读取并校验收款流水，不接触收付款安全密钥及技术提现，资金直达。
+        <div className="bg-slate-50 border-t border-slate-100 p-4 text-center text-[10px] text-slate-500 font-sans leading-relaxed">
+          <b>资金直达保证：</b>用户付款后，资金直接进入开发者自己的个人微信/支付宝账户。CP 不代收、不托管、不清算资金，只提供订单托管、二维码调度、到账通知识别、订单匹配和安全回调通知服务。
         </div>
 
       </div>
