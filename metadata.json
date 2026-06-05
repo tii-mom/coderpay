@@ -1,0 +1,6 @@
+{
+  "name": "Coder Pay",
+  "description": "个人开发者的全自动个人微信/支付宝网站收款平台，支持微信和支付宝扫码自识别到账，零佣金，资金直达个人账户",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
