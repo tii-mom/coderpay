@@ -206,7 +206,7 @@ export default function PayPage({ params }: PayPageProps) {
       <div className="w-full max-w-md flex items-center justify-between mb-4 px-1" id="checkout-header">
         <div className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Logo" className="w-7 h-7 object-contain rounded" />
+          <img src="/logo.png" alt="Logo" className="w-7 h-7 object-contain rounded-full border border-slate-200 shadow-sm" />
           <span className="font-bold text-sm text-slate-800">收银台</span>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-white shadow-xs px-2.5 py-1 rounded-full border border-slate-200">

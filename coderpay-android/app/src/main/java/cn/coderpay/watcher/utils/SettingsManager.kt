@@ -14,6 +14,18 @@ class SettingsManager(context: Context) {
         get() = prefs.getString("device_code", "") ?: ""
         set(value) = prefs.edit().putString("device_code", value).apply()
 
+    var deviceSecret: String
+        get() = prefs.getString("device_secret", "") ?: ""
+        set(value) = prefs.edit().putString("device_secret", value).apply()
+
+    var wechatRegex: String
+        get() = prefs.getString("wechat_regex", "微信支付收款|微信收款|收到付款|微信支付.*元") ?: "微信支付收款|微信收款|收到付款|微信支付.*元"
+        set(value) = prefs.edit().putString("wechat_regex", value).apply()
+
+    var alipayRegex: String
+        get() = prefs.getString("alipay_regex", "支付宝成功收款|收钱码收款|成功往账户转入|你已成功收款|支付宝.*元.*(收款|到账)") ?: "支付宝成功收款|收钱码收款|成功往账户转入|你已成功收款|支付宝.*元.*(收款|到账)"
+        set(value) = prefs.edit().putString("alipay_regex", value).apply()
+
     var deviceName: String
         get() = prefs.getString("device_name", Build.MODEL) ?: Build.MODEL
         set(value) = prefs.edit().putString("device_name", value).apply()
@@ -29,7 +41,9 @@ class SettingsManager(context: Context) {
     fun clearBinding() {
         prefs.edit()
             .putString("device_code", "")
+            .putString("device_secret", "")
             .putBoolean("is_bound", false)
             .apply()
     }
 }
+

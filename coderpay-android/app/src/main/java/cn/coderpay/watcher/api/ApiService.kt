@@ -18,12 +18,17 @@ data class HeartbeatRequest(
     val wechatListener: String,     // "running" or "stopped"
     val alipayListener: String,     // "running" or "stopped"
     val notificationPermission: Boolean,
-    val batteryOptimization: String // "optimized" or "ignored"
+    val batteryOptimization: String, // "optimized" or "ignored"
+    val timestamp: Long,
+    val sign: String? = null
 )
 
 data class HeartbeatResponse(
     val status: String,
-    val online: Boolean
+    val online: Boolean,
+    val deviceSecret: String? = null,
+    val wechatRegex: String? = null,
+    val alipayRegex: String? = null
 )
 
 data class EventRequest(
@@ -32,7 +37,9 @@ data class EventRequest(
     val amount: Double,
     val receivedAt: String,         // ISO 8601 string
     val notificationHash: String,   // MD5 idempotent identifier
-    val rawNotification: String     // Original notification body text
+    val rawNotification: String,    // Original notification body text
+    val timestamp: Long,
+    val sign: String? = null
 )
 
 data class EventResponse(
@@ -40,3 +47,4 @@ data class EventResponse(
     val matchStatus: String,        // "matched" or "unmatched"
     val matchedOrderId: String?
 )
+

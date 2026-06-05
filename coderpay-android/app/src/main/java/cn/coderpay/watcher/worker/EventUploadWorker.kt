@@ -44,13 +44,21 @@ class EventUploadWorker(
                 sdf.timeZone = TimeZone.getTimeZone("UTC")
                 val isoDate = sdf.format(Date(event.receivedAt))
 
+                val timestamp = System.currentTimeMillis()
+                val secret = settings.deviceSecret
+                val sign = if (secret.isNotEmpty()) {
+                    cn.coderpay.watcher.utils.SignatureHelper.calculateSignature(settings.deviceCode, timestamp, secret)
+                } else null
+
                 val request = EventRequest(
                     deviceCode = settings.deviceCode,
                     payType = event.payType,
                     amount = event.amount,
                     receivedAt = isoDate,
                     notificationHash = event.notificationHash,
-                    rawNotification = event.rawText
+                    rawNotification = event.rawText,
+                    timestamp = timestamp,
+                    sign = sign
                 )
 
                 val response = apiService.uploadEvent(request)

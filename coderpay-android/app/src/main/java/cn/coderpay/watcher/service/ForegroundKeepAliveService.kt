@@ -83,18 +83,36 @@ class ForegroundKeepAliveService : Service() {
                 pm.isIgnoringBatteryOptimizations(packageName)
             } else true
 
+            val timestamp = System.currentTimeMillis()
+            val secret = settings.deviceSecret
+            val sign = if (secret.isNotEmpty()) {
+                cn.coderpay.watcher.utils.SignatureHelper.calculateSignature(settings.deviceCode, timestamp, secret)
+            } else null
+
             val request = HeartbeatRequest(
                 deviceCode = settings.deviceCode,
                 wechatListener = "running",
                 alipayListener = "running",
                 notificationPermission = isNotificationGranted,
-                batteryOptimization = if (isIgnoringBattery) "ignored" else "optimized"
+                batteryOptimization = if (isIgnoringBattery) "ignored" else "optimized",
+                timestamp = timestamp,
+                sign = sign
             )
 
             val apiService = RetrofitClient.getService(applicationContext)
             val response = apiService.sendHeartbeat(request)
+            val body = response.body()
             
-            if (response.isSuccessful && response.body()?.status == "success") {
+            if (response.isSuccessful && body?.status == "success") {
+                body.deviceSecret?.let {
+                    if (it.isNotEmpty()) settings.deviceSecret = it
+                }
+                body.wechatRegex?.let {
+                    if (it.isNotEmpty()) settings.wechatRegex = it
+                }
+                body.alipayRegex?.let {
+                    if (it.isNotEmpty()) settings.alipayRegex = it
+                }
                 val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
                 updateNotification("监控正常运行中 | 上次心跳: $time")
                 LogTracker.log("探针心跳上报成功。状态: 在线，电池忽略: $isIgnoringBattery, 通知授权: $isNotificationGranted")

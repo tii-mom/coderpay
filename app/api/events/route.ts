@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { triggerWebhook } from "@/lib/webhook";
+import { verifyDeviceSignature } from "@/lib/signature";
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,7 +27,16 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { deviceCode, payType, amount, receivedAt, notificationHash, rawNotification } = body;
+    const { 
+      deviceCode, 
+      payType, 
+      amount, 
+      receivedAt, 
+      notificationHash, 
+      rawNotification,
+      timestamp,
+      sign
+    } = body;
     
     if (!deviceCode || !payType || !amount || !notificationHash) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -51,6 +61,17 @@ export async function POST(req: NextRequest) {
     
     if (!device) {
       return NextResponse.json({ error: "Device not registered" }, { status: 404 });
+    }
+
+    // HMAC signature validation
+    if (device.deviceSecret) {
+      if (!timestamp || !sign) {
+        return NextResponse.json({ error: "Authentication credentials (timestamp and sign) required" }, { status: 401 });
+      }
+      const isSignValid = verifyDeviceSignature(deviceCode, String(timestamp), device.deviceSecret, sign);
+      if (!isSignValid) {
+        return NextResponse.json({ error: "Device signature verification failed" }, { status: 401 });
+      }
     }
     
     const numAmount = Number(amount);

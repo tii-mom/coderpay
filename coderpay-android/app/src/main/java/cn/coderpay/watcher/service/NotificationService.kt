@@ -58,20 +58,32 @@ class NotificationService : NotificationListenerService() {
     private fun isWeChatConfirm(title: String, text: String, isWeChat: Boolean): Boolean {
         if (!isWeChat) return false
         val content = "$title $text"
-        return content.contains("微信支付收款") || 
-               content.contains("微信收款") || 
-               content.contains("收到付款") || 
-               (content.contains("微信支付") && content.contains("元"))
+        val regexStr = settings.wechatRegex
+        return try {
+            val pattern = Pattern.compile(regexStr)
+            pattern.matcher(content).find()
+        } catch (e: Exception) {
+            content.contains("微信支付收款") || 
+            content.contains("微信收款") || 
+            content.contains("收到付款") || 
+            (content.contains("微信支付") && content.contains("元"))
+        }
     }
 
     private fun isAlipayConfirm(title: String, text: String, isAlipay: Boolean): Boolean {
         if (!isAlipay) return false
         val content = "$title $text"
-        return content.contains("支付宝成功收款") || 
-               content.contains("收钱码收款") || 
-               content.contains("成功往账户转入") || 
-               content.contains("你已成功收款") ||
-               (content.contains("支付宝") && content.contains("元") && (content.contains("收款") || content.contains("到账")))
+        val regexStr = settings.alipayRegex
+        return try {
+            val pattern = Pattern.compile(regexStr)
+            pattern.matcher(content).find()
+        } catch (e: Exception) {
+            content.contains("支付宝成功收款") || 
+            content.contains("收钱码收款") || 
+            content.contains("成功往账户转入") || 
+            content.contains("你已成功收款") ||
+            (content.contains("支付宝") && content.contains("元") && (content.contains("收款") || content.contains("到账")))
+        }
     }
 
     private fun extractAmount(text: String): Double? {

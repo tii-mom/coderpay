@@ -196,11 +196,19 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
                     r="4"
                     className="fill-[#3B82F6] stroke-[#070A12] stroke-[2px] transition-all group-hover/dot:r-6 group-hover/dot:fill-white"
                   />
+                  {/* Visual hover glow circle */}
                   <circle
                     cx={dot.cx}
                     cy={dot.cy}
                     r="10"
                     className="fill-blue-500/20 opacity-0 group-hover/dot:opacity-100 transition-opacity"
+                  />
+                  {/* Large invisible hit target circle for smooth hovering */}
+                  <circle
+                    cx={dot.cx}
+                    cy={dot.cy}
+                    r="24"
+                    className="fill-transparent opacity-0"
                   />
                   
                   {/* Tooltip on Hover */}
@@ -239,80 +247,111 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
           
           <div className="flex items-center justify-around py-4 my-auto">
             {/* Channel distribution SVG Doughnut Chart */}
-            <div className="relative w-24 h-24 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="3.5" />
-                
-                {/* WeChat pay segment (emerald) - e.g. 60% */}
-                <circle
-                  cx="18"
-                  cy="18"
-                  r="15.915"
-                  fill="none"
-                  stroke="#10B981"
-                  strokeWidth="3.5"
-                  strokeDasharray="60 40"
-                  strokeDashoffset="0"
-                />
-                
-                {/* Alipay segment (blue) - e.g. 40% */}
-                <circle
-                  cx="18"
-                  cy="18"
-                  r="15.915"
-                  fill="none"
-                  stroke="#3B82F6"
-                  strokeWidth="3.5"
-                  strokeDasharray="40 60"
-                  strokeDashoffset="-60"
-                />
-              </svg>
-              <div className="absolute flex flex-col items-center leading-none text-center">
-                <span className="text-[10px] font-extrabold text-white">支付比</span>
-                <span className="text-[9px] text-slate-500 mt-1 font-mono">WX/ZFB</span>
-              </div>
-            </div>
+            {(() => {
+              const totalSuccess = successOrders.length;
+              const wechatSuccess = successOrders.filter(o => o.payType === 'wechat').length;
+              const alipaySuccess = successOrders.filter(o => o.payType === 'alipay').length;
+              
+              const wechatPct = totalSuccess > 0 ? (wechatSuccess / totalSuccess) * 100 : 60;
+              const alipayPct = totalSuccess > 0 ? (alipaySuccess / totalSuccess) * 100 : 40;
 
-            {/* Webhook Success Ring */}
-            <div className="relative w-24 h-24 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="3.5" />
-                {/* 99.8% Success rate path */}
-                <circle
-                  cx="18"
-                  cy="18"
-                  r="15.915"
-                  fill="none"
-                  stroke="#22C55E"
-                  strokeWidth="3.5"
-                  strokeDasharray="99.8 0.2"
-                  strokeDashoffset="0"
-                  className="transition-all duration-1000"
-                />
-              </svg>
-              <div className="absolute flex flex-col items-center leading-none text-center">
-                <span className="text-[13px] font-extrabold text-emerald-400 font-mono">99.8%</span>
-                <span className="text-[9px] text-slate-500 mt-1">回调成功</span>
-              </div>
-            </div>
+              const filteredWebhookLogs = state.webhookLogs.filter(log => {
+                const o = state.orders.find(ord => ord.id === log.orderId);
+                return o && filterApp(o);
+              });
+              const totalWebhook = filteredWebhookLogs.length;
+              const successWebhook = filteredWebhookLogs.filter(log => log.result === 'success').length;
+              const webhookSuccessRate = totalWebhook > 0 ? (successWebhook / totalWebhook) * 100 : 99.8;
+
+              return (
+                <>
+                  <div className="relative w-24 h-24 flex items-center justify-center">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="3.5" />
+                      
+                      {/* WeChat pay segment (emerald) */}
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="15.915"
+                        fill="none"
+                        stroke="#10B981"
+                        strokeWidth="3.5"
+                        strokeDasharray={`${wechatPct} ${100 - wechatPct}`}
+                        strokeDashoffset="0"
+                      />
+                      
+                      {/* Alipay segment (blue) */}
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="15.915"
+                        fill="none"
+                        stroke="#3B82F6"
+                        strokeWidth="3.5"
+                        strokeDasharray={`${alipayPct} ${100 - alipayPct}`}
+                        strokeDashoffset={-wechatPct}
+                      />
+                    </svg>
+                    <div className="absolute flex flex-col items-center leading-none text-center">
+                      <span className="text-[10px] font-extrabold text-white">支付比</span>
+                      <span className="text-[9px] text-slate-500 mt-1 font-mono">WX/ZFB</span>
+                    </div>
+                  </div>
+
+                  {/* Webhook Success Ring */}
+                  <div className="relative w-24 h-24 flex items-center justify-center">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="3.5" />
+                      {/* Success rate path */}
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="15.915"
+                        fill="none"
+                        stroke="#22C55E"
+                        strokeWidth="3.5"
+                        strokeDasharray={`${webhookSuccessRate} ${100 - webhookSuccessRate}`}
+                        strokeDashoffset="0"
+                        className="transition-all duration-1000"
+                      />
+                    </svg>
+                    <div className="absolute flex flex-col items-center leading-none text-center">
+                      <span className="text-[13px] font-extrabold text-emerald-400 font-mono">{webhookSuccessRate.toFixed(1)}%</span>
+                      <span className="text-[9px] text-slate-500 mt-1">回调成功</span>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
-          <div className="flex flex-col gap-2.5 mt-2 pt-2 border-t border-[rgba(255,255,255,0.04)]">
-            <div className="flex justify-between items-center text-xs">
-              <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                微信收款比例
-              </span>
-              <span className="font-mono text-slate-300 font-bold">60.0%</span>
-            </div>
-            <div className="flex justify-between items-center text-xs">
-              <span className="flex items-center gap-1.5 text-blue-400 font-medium">
-                <span className="w-2 h-2 rounded-full bg-blue-500" />
-                支付宝收款比例
-              </span>
-              <span className="font-mono text-slate-300 font-bold">40.0%</span>
-            </div>
-          </div>
+          {(() => {
+            const totalSuccess = successOrders.length;
+            const wechatSuccess = successOrders.filter(o => o.payType === 'wechat').length;
+            const alipaySuccess = successOrders.filter(o => o.payType === 'alipay').length;
+            const wechatPct = totalSuccess > 0 ? (wechatSuccess / totalSuccess) * 100 : 60;
+            const alipayPct = totalSuccess > 0 ? (alipaySuccess / totalSuccess) * 100 : 40;
+
+            return (
+              <div className="flex flex-col gap-2.5 mt-2 pt-2 border-t border-[rgba(255,255,255,0.04)]">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    微信收款比例
+                  </span>
+                  <span className="font-mono text-slate-300 font-bold">{wechatPct.toFixed(1)}%</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="flex items-center gap-1.5 text-blue-400 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-blue-500" />
+                    支付宝收款比例
+                  </span>
+                  <span className="font-mono text-slate-300 font-bold">{alipayPct.toFixed(1)}%</span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

@@ -63,6 +63,12 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 // Auto seed function
 export async function autoSeed() {
+  // Guard for production environment
+  if (process.env.NODE_ENV === "production" && process.env.ENABLE_SEED !== "true") {
+    console.log("Production environment detected. Auto-seed skipped.");
+    return;
+  }
+
   try {
     const userCount = await prisma.user.count();
     if (userCount === 0) {
@@ -109,6 +115,7 @@ export async function autoSeed() {
       const dev1 = await prisma.device.create({
         data: {
           deviceCode: "dev-1",
+          deviceSecret: "dev_secret_1_secure",
           name: "Redmi Note 10",
           online: true,
           wechatListener: "running",
@@ -123,6 +130,7 @@ export async function autoSeed() {
       const dev2 = await prisma.device.create({
         data: {
           deviceCode: "dev-2",
+          deviceSecret: "dev_secret_2_secure",
           name: "Redmi Note 10 (备用监控)",
           online: false,
           wechatListener: "stopped",

@@ -243,8 +243,11 @@ export default function ConsolePage() {
           <div className="flex flex-col gap-6 p-5">
             {/* Logo platform */}
             <div className="flex items-center gap-3 cursor-pointer w-full" onClick={() => router.push('/')}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain rounded-lg shadow-[0_0_15px_rgba(59,130,246,0.1)]" />
+              <div className="relative w-8 h-8 flex items-center justify-center group">
+                <div className="absolute inset-0 rounded-full bg-blue-500/20 blur-[3px] scale-95 group-hover:scale-110 transition-all duration-300" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain rounded-full relative z-10 border border-white/10 group-hover:scale-105 transition-all duration-300" />
+              </div>
 
               {mobileSidebarOpen && (
                 <button 

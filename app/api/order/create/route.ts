@@ -43,7 +43,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Duplicate out_order_no" }, { status: 400 });
     }
     
-    const numAmount = Number(amount);
+    // Strict input validation
+    if (pay_type !== "wechat" && pay_type !== "alipay") {
+      return NextResponse.json({ error: "Invalid pay_type. Must be 'wechat' or 'alipay'" }, { status: 400 });
+    }
+
+    const amountStr = String(amount).trim();
+    if (!/^\d+(\.\d{1,2})?$/.test(amountStr)) {
+      return NextResponse.json({ error: "Invalid amount format. Must be a positive number with up to 2 decimal places" }, { status: 400 });
+    }
+    const numAmount = Number(amountStr);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      return NextResponse.json({ error: "Amount must be a positive number greater than 0" }, { status: 400 });
+    }
     
     // Find active payment codes for this user & pay_type, including their device info
     const activeCodes = await prisma.paymentCode.findMany({
@@ -172,7 +184,17 @@ export async function POST(req: NextRequest) {
       }
     });
     
-    const paymentUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/pay/${newOrder.id}`;
+    // Dynamic fallback for APP URL to avoid broken links
+    let origin = process.env.NEXT_PUBLIC_APP_URL;
+    if (!origin) {
+      const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "localhost:3000";
+      const proto = req.headers.get("x-forwarded-proto") || "http";
+      origin = `${proto}://${host}`;
+    }
+    if (origin.endsWith("/")) {
+      origin = origin.slice(0, -1);
+    }
+    const paymentUrl = `${origin}/pay/${newOrder.id}`;
     
     return NextResponse.json({
       code: 200,

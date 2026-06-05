@@ -190,18 +190,36 @@ class MainActivity : ComponentActivity() {
                                         settings.serverUrl = serverUrl
                                         settings.deviceCode = deviceCode
 
+                                        val timestamp = System.currentTimeMillis()
+                                        val secret = settings.deviceSecret
+                                        val sign = if (secret.isNotEmpty()) {
+                                            cn.coderpay.watcher.utils.SignatureHelper.calculateSignature(deviceCode, timestamp, secret)
+                                        } else null
+
                                         val request = HeartbeatRequest(
                                             deviceCode = deviceCode,
                                             wechatListener = "running",
                                             alipayListener = "running",
                                             notificationPermission = isNotificationServiceEnabled(),
-                                            batteryOptimization = if (isBatteryOptimizationIgnored()) "ignored" else "optimized"
+                                            batteryOptimization = if (isBatteryOptimizationIgnored()) "ignored" else "optimized",
+                                            timestamp = timestamp,
+                                            sign = sign
                                         )
 
                                         val response = RetrofitClient.getService(this@MainActivity).sendHeartbeat(request)
-                                        if (response.isSuccessful && response.body()?.status == "success") {
+                                        val body = response.body()
+                                        if (response.isSuccessful && body?.status == "success") {
                                             settings.isBound = true
                                             isBound = true
+                                            body.deviceSecret?.let {
+                                                if (it.isNotEmpty()) settings.deviceSecret = it
+                                            }
+                                            body.wechatRegex?.let {
+                                                if (it.isNotEmpty()) settings.wechatRegex = it
+                                            }
+                                            body.alipayRegex?.let {
+                                                if (it.isNotEmpty()) settings.alipayRegex = it
+                                            }
                                             withContext(Dispatchers.Main) {
                                                 ForegroundKeepAliveService.startService(this@MainActivity)
                                             }

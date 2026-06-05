@@ -1,10 +1,20 @@
-// export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyDeviceSignature } from "@/lib/signature";
 
 export async function POST(req: NextRequest) {
   try {
-    const { deviceCode, wechatListener, alipayListener, notificationPermission, batteryOptimization } = await req.json();
+    const body = await req.json();
+    const { 
+      deviceCode, 
+      wechatListener, 
+      alipayListener, 
+      notificationPermission, 
+      batteryOptimization,
+      timestamp,
+      sign
+    } = body;
+    
     if (!deviceCode) {
       return NextResponse.json({ error: "Device code is required" }, { status: 400 });
     }
@@ -15,6 +25,26 @@ export async function POST(req: NextRequest) {
     
     if (!device) {
       return NextResponse.json({ error: "Device not registered" }, { status: 404 });
+    }
+
+    let generatedSecret = "";
+    
+    // HMAC signature validation
+    if (device.deviceSecret) {
+      if (!timestamp || !sign) {
+        return NextResponse.json({ error: "Authentication credentials (timestamp and sign) required" }, { status: 401 });
+      }
+      const isSignValid = verifyDeviceSignature(deviceCode, String(timestamp), device.deviceSecret, sign);
+      if (!isSignValid) {
+        return NextResponse.json({ error: "Device signature verification failed" }, { status: 401 });
+      }
+    } else {
+      // First time pairing / binding: generate a high-strength secret
+      generatedSecret = "sec_" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      device = await prisma.device.update({
+        where: { id: device.id },
+        data: { deviceSecret: generatedSecret }
+      });
     }
     
     device = await prisma.device.update({
@@ -29,7 +59,17 @@ export async function POST(req: NextRequest) {
       }
     });
     
-    return NextResponse.json({ status: "success", online: true });
+    // Regex configuration rules returned to Android Watcher
+    const wechatRegex = "微信支付收款|微信收款|收到付款|微信支付.*元";
+    const alipayRegex = "支付宝成功收款|收钱码收款|成功往账户转入|你已成功收款|支付宝.*元.*(收款|到账)";
+    
+    return NextResponse.json({ 
+      status: "success", 
+      online: true, 
+      deviceSecret: generatedSecret || undefined,
+      wechatRegex,
+      alipayRegex
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

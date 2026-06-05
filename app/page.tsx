@@ -179,9 +179,18 @@ export default function HomePage() {
       {/* Top Header */}
       <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.06)] bg-[#070A12]/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between" id="header-container">
-          <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => router.push('/')} id="brand-logo">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain rounded-xl shadow-[0_0_15px_rgba(59,130,246,0.15)]" />
+          <div className="flex items-center gap-2.5 cursor-pointer group" onClick={() => router.push('/')} id="brand-logo">
+            <div className="relative w-10 h-10 flex items-center justify-center">
+              {/* Dual-color premium ambient glow behind circular logo */}
+              <div className="absolute inset-0 rounded-full bg-blue-500/20 blur-sm scale-95 group-hover:scale-110 group-hover:bg-blue-500/30 transition-all duration-300" />
+              <div className="absolute inset-0 rounded-full bg-orange-500/15 blur-sm scale-90 translate-x-1 group-hover:scale-105 group-hover:bg-orange-500/25 transition-all duration-300" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img 
+                src="/logo.png" 
+                alt="Logo" 
+                className="w-10 h-10 object-contain rounded-full relative z-10 border border-white/10 group-hover:scale-105 group-hover:border-white/20 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.15)]" 
+              />
+            </div>
           </div>
 
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300" id="header-nav">
@@ -222,12 +231,12 @@ export default function HomePage() {
             <div className="lg:col-span-7 flex flex-col items-start text-left" id="hero-left">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400 font-semibold mb-6">
                 <Sparkles className="w-3.5 h-3.5 text-blue-400 animate-pulse" /> 
-                面向个人的全渠道自建收款平台
+                面向个人开发者的全渠道收款平台
               </div>
               <h1 className="font-sans font-extrabold text-4xl sm:text-5xl xl:text-6xl text-white tracking-tight leading-[1.1] mb-6">
-                个人开发者的网站
+                Vibe Coder 商业化的
                 <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-sky-400 to-indigo-400">
-                  自动收款平台
+                  自动收款系统
                 </span>
               </h1>
               <p className="text-base sm:text-lg text-[#94A3B8] leading-relaxed mb-8 max-w-xl">
@@ -248,20 +257,38 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {/* Status metrics micro table */}
-              <div className="mt-12 pt-8 border-t border-[rgba(255,255,255,0.06)] grid grid-cols-3 gap-6 sm:gap-12 text-left w-full max-w-lg">
+              {/* Status metrics micro table - 3x2 Layout */}
+              <div className="mt-12 pt-8 border-t border-[rgba(255,255,255,0.06)] grid grid-cols-3 gap-y-6 gap-x-6 sm:gap-x-12 text-left w-full max-w-lg">
                 <div>
-                  <span className="block text-2xl font-bold text-white tracking-tight font-mono font-sans">0%</span>
-                  <span className="text-xs text-gray-500 font-sans block mt-1">资金中介扣留</span>
+                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">0%</span>
+                  <span className="text-xs text-gray-500 block mt-1">资金中介扣留</span>
                 </div>
                 <div>
-                  <span className="block text-2xl font-bold text-white tracking-tight font-mono font-sans">&lt; 1s</span>
-                  <span className="text-xs text-gray-500 font-sans block mt-1">云端匹配及回调</span>
+                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">&lt; 1s</span>
+                  <span className="text-xs text-gray-500 block mt-1">云端匹配及回调</span>
                 </div>
                 <div>
-                  <span className="block text-2xl font-bold text-white tracking-tight font-mono font-sans">100%</span>
-                  <span className="text-xs text-gray-500 font-sans block mt-1">自有账户收款</span>
+                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">100%</span>
+                  <span className="text-xs text-gray-500 block mt-1">自有账户收款</span>
                 </div>
+                <div>
+                  <span className="block text-2xl font-bold text-blue-400 tracking-tight font-mono">超1万</span>
+                  <span className="text-xs text-gray-500 block mt-1">开发者已加入</span>
+                </div>
+                <div>
+                  <span className="block text-2xl font-bold text-blue-400 tracking-tight font-mono">超1亿</span>
+                  <span className="text-xs text-gray-500 block mt-1">安全资金保障</span>
+                </div>
+                <div>
+                  <span className="block text-2xl font-bold text-blue-400 tracking-tight font-mono">超1亿笔</span>
+                  <span className="text-xs text-gray-500 block mt-1">稳定到账订单</span>
+                </div>
+              </div>
+
+              {/* Security Highlight Banner */}
+              <div className="mt-6 flex items-center gap-2 px-4 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs sm:text-sm font-semibold w-full max-w-lg shadow-[0_4px_20px_rgba(16,185,129,0.05)]">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span>资金直达账户，不代收，更安全</span>
               </div>
             </div>
 
@@ -584,7 +611,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-500" id="footer-container">
           <div className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain rounded" />
+            <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain rounded-full border border-white/5" />
             <span>© 2026 Coder Pay. 所有资金进入个人安全账户。</span>
           </div>
           <div className="flex items-center gap-6">
