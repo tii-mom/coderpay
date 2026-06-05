@@ -34,6 +34,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
   const [imageUrl, setImageUrl] = useState('');
   const [deviceId, setDeviceId] = useState(devices[0]?.id || '');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
+  const [alipayUserId, setAlipayUserId] = useState('');
 
   // Loader state
   const [isLoadingCodeOperation, setIsLoadingCodeOperation] = useState(false);
@@ -52,7 +53,8 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
         amount: codeType === 'any' ? 0 : Number(amount),
         imageUrl: finalUrl,
         deviceId,
-        status
+        status,
+        alipayUserId: type === 'alipay' ? alipayUserId : null
       });
 
       onTriggerToast(`成功配置并挂载首个${type === 'wechat' ? '微信' : '支付宝'}个人收款码！`, 'success');
@@ -64,6 +66,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
       setImageUrl('');
       setDeviceId(devices[0]?.id || '');
       setStatus('active');
+      setAlipayUserId('');
       setIsLoadingCodeOperation(false);
       setActiveTab('list');
     }, 750);
@@ -234,6 +237,24 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
 
             </div>
 
+            {type === 'alipay' && (
+              <div className="flex flex-col gap-1.5 max-w-md">
+                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
+                  支付宝商户 PID (alipayUserId) <span className="text-[10px] text-slate-500 font-normal">(选填，用于极速拉起支付)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="一串 2088 开头的 16 位数字"
+                  value={alipayUserId}
+                  onChange={(e) => setAlipayUserId(e.target.value)}
+                  className="px-4 py-2.5 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
+                />
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  配置后，收银台可自动为您生成极速拉起链接，买家无需在手机上手动输入付款金额和收款人。可在支付宝“我的 - 商家服务 - 商家工具 - 收钱码”或支付宝商家中心查询。
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-3 justify-end border-t border-[rgba(255,255,255,0.06)] pt-5 mt-3">
               <button
                 type="button"
@@ -317,6 +338,12 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
                         {dev ? dev.name.split(' ')[0] : '无在线探针负载'}
                       </span>
                     </div>
+                    {code.type === 'alipay' && code.alipayUserId && (
+                      <div className="flex justify-between text-[10px] border-t border-[rgba(255,255,255,0.04)] pt-1 mt-1 text-slate-400">
+                        <span>极速 PID:</span>
+                        <span className="font-mono text-blue-400">{code.alipayUserId}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

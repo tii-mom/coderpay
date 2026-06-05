@@ -59,11 +59,16 @@ export function DocsTab({ apps, onTriggerToast, db }: DocsTabProps) {
     }, 1200);
   };
 
+  const [sdkLanguage, setSdkLanguage] = useState<'nodejs' | 'python' | 'go' | 'php'>('nodejs');
+
   // Code snippets generator based on active configuration
   const curAppId = selectedApp?.appId || 'CP_APP_ID_A38G90B';
-  const curSecret = selectedApp?.appSecret || 'CP_SECRET_KEY_891JKSLKJW92';
+  const curSecret = 'YOUR_APP_SECRET';
+  
+  // Resolve current host dynamically in browser, default to 3api.shop
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://3api.shop';
 
-  const curlCreateOrder = `curl -X POST https://api.coderpay.cn/v1/order/create \\
+  const curlCreateOrder = `curl -X POST ${currentOrigin}/api/order/create \\
   -H "Content-Type: application/json" \\
   -d '{
     "app_id": "${curAppId}",
@@ -94,17 +99,165 @@ const params = {
 const sortedKeys = Object.keys(params).sort();
 let queryStr = sortedKeys.map(k => \`\${k}=\${params[k]}\`).join('&');
 
-// 3. 追加 App Secret 后计算 SHA256 签名哈希值
+// 3. 追加 App Secret 后计算 HMAC-SHA256 签名哈希值
 const stringToSign = queryStr + '&key=${curSecret}';
 const sign = crypto.createHmac('sha256', '${curSecret}')
                    .update(stringToSign)
                    .digest('hex');
 
 // 4. 发起接口调用
-axios.post('https://api.coderpay.cn/v1/order/create', { ...params, sign })
+axios.post('${currentOrigin}/api/order/create', { ...params, sign })
   .then(res => {
-    console.log("支付收银台定向地址:", res.data.payment_url);
+    console.log("支付收银台定向地址:", res.data.data.payment_url);
   });`;
+
+  const pythonPayloadString = `import requests
+import hashlib
+import hmac
+
+# 1. 整理业务参数
+params = {
+    "app_id": "${curAppId}",
+    "out_order_no": "ORDER_920194839",
+    "title": "${sandboxTitle}",
+    "amount": "${sandboxAmount}",
+    "pay_type": "${sandboxPayType}",
+    "notify_url": "${selectedApp?.notifyUrl || 'https://your-domain.com/notify-api'}",
+    "return_url": "${selectedApp?.returnUrl || 'https://your-domain.com/landing'}",
+}
+
+# 2. 升序排列并生成待签名字符串
+sorted_keys = sorted(params.keys())
+query_str = "&".join([f"{k}={params[k]}" for k in sorted_keys])
+
+# 3. 追加 App Secret 后计算 SHA256 签名哈希值
+string_to_sign = f"{query_str}&key=${curSecret}"
+sign = hmac.new(
+    "${curSecret}".encode("utf-8"),
+    string_to_sign.encode("utf-8"),
+    hashlib.sha256
+).hexdigest()
+
+# 4. 发起接口调用
+payload = {**params, "sign": sign}
+response = requests.post("${currentOrigin}/api/order/create", json=payload)
+print("支付收银台定向地址:", response.json()["data"]["payment_url"])`;
+
+  const goPayloadString = `package main
+
+import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"sort"
+)
+
+func main() {
+	appId := "${curAppId}"
+	appSecret := "${curSecret}"
+	origin := "${currentOrigin}"
+
+	params := map[string]string{
+		"app_id":       appId,
+		"out_order_no": "ORDER_920194839",
+		"title":        "${sandboxTitle}",
+		"amount":       "${sandboxAmount}",
+		"pay_type":      "${sandboxPayType}",
+		"notify_url":   "${selectedApp?.notifyUrl || "https://your-domain.com/notify-api"}",
+		"return_url":   "${selectedApp?.returnUrl || "https://your-domain.com/landing"}",
+	}
+
+	var keys []string
+	for k := range params {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var queryStr string
+	for i, k := range keys {
+		if i > 0 {
+			queryStr += "&"
+		}
+		queryStr += fmt.Sprintf("%s=%s", k, params[k])
+	}
+	stringToSign := queryStr + "&key=" + appSecret
+
+	h := hmac.New(sha256.New, []byte(appSecret))
+	h.Write([]byte(stringToSign))
+	sign := hex.EncodeToString(h.Sum(nil))
+
+	payload := make(map[string]interface{})
+	for k, v := range params {
+		payload[k] = v
+	}
+	payload["sign"] = sign
+
+	jsonBody, _ := json.Marshal(payload)
+	resp, _ := http.Post(origin+"/api/order/create", "application/json", bytes.NewBuffer(jsonBody))
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	fmt.Println("Payment URL:", result["data"].(map[string]interface{})["payment_url"])
+}`;
+
+  const phpPayloadString = `<?php
+$appSecret = '${curSecret}';
+$origin = '${currentOrigin}';
+
+$params = [
+    'app_id' => '${curAppId}',
+    'out_order_no' => 'ORDER_920194839',
+    'title' => '${sandboxTitle}',
+    'amount' => '${sandboxAmount}',
+    'pay_type' => '${sandboxPayType}',
+    'notify_url' => '${selectedApp?.notifyUrl || "https://your-domain.com/notify-api"}',
+    'return_url' => '${selectedApp?.returnUrl || "https://your-domain.com/landing"}'
+];
+
+ksort($params);
+$queryParts = [];
+foreach ($params as $k => $v) {
+    $queryParts[] = "$k=$v";
+}
+$queryStr = implode('&', $queryParts);
+$stringToSign = $queryStr . '&key=' . $appSecret;
+
+$sign = hash_hmac('sha256', $stringToSign, $appSecret);
+$params['sign'] = $sign;
+
+$ch = curl_init("$origin/api/order/create");
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+
+$response = curl_exec($ch);
+$data = json_decode($response, true);
+echo "支付收银台定向地址: " . $data['data']['payment_url'];
+?>`;
+
+  const getActivePayloadString = () => {
+    switch (sdkLanguage) {
+      case 'python': return pythonPayloadString;
+      case 'go': return goPayloadString;
+      case 'php': return phpPayloadString;
+      default: return nodejsPayloadString;
+    }
+  };
+
+  const getLanguageLabel = () => {
+    switch (sdkLanguage) {
+      case 'python': return 'Python 签名及发单示例';
+      case 'go': return 'Go 签名及发单示例';
+      case 'php': return 'PHP 签名及发单示例';
+      default: return 'Node.js (TypeScript) 签名及发单示例';
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start text-left animate-fade-in" id="docs-tab-panel">
@@ -153,7 +306,7 @@ axios.post('https://api.coderpay.cn/v1/order/create', { ...params, sign })
           <div className="bg-cp-card border border-cp rounded-2xl p-6 flex flex-col gap-4 text-xs font-sans leading-relaxed text-slate-300">
             <h3 className="text-sm font-bold text-white flex items-center gap-1.5 pb-2.5 border-b border-[rgba(255,255,255,0.04)]">
               <Database className="w-4.5 h-4.5 text-blue-400" />
-              创建免签收银订单 API 端点: <code>/v1/order/create</code>
+              创建免签收银订单 API 端点: <code>/api/order/create</code>
             </h3>
 
             <p>
@@ -175,19 +328,35 @@ axios.post('https://api.coderpay.cn/v1/order/create', { ...params, sign })
               <div className="col-span-2 text-slate-300">支付核对通道类型：<code>wechat</code> (微信扫码) 或 <code>alipay</code> (支付宝扫码)</div>
             </div>
 
+            {/* SDK Language Tabs */}
+            <div className="flex gap-1 bg-[#0B1020] p-1 rounded-lg border border-[rgba(255,255,255,0.04)] mt-3">
+              {(['nodejs', 'python', 'go', 'php'] as const).map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  onClick={() => setSdkLanguage(lang)}
+                  className={`flex-1 py-1 rounded text-[10px] font-bold transition-all ${
+                    sdkLanguage === lang ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {lang === 'nodejs' ? 'Node.js' : lang === 'python' ? 'Python' : lang === 'go' ? 'Go' : 'PHP'}
+                </button>
+              ))}
+            </div>
+
             {/* Code sample block wrapper */}
-            <div className="flex flex-col gap-1.5 mt-3">
+            <div className="flex flex-col gap-1.5 mt-2">
               <div className="flex items-center justify-between text-[11px] font-mono">
-                <span className="text-slate-400">Node.js (TypeScript) 签名及调用流程代码段:</span>
+                <span className="text-slate-400">{getLanguageLabel()}</span>
                 <button 
-                  onClick={() => handleCopyText(nodejsPayloadString, 'TypeScript 发单段')}
+                  onClick={() => handleCopyText(getActivePayloadString(), '发单集成代码段')}
                   className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-bold"
                 >
                   <Copy className="w-3.5 h-3.5" /> 复制模块
                 </button>
               </div>
               <pre className="bg-[#0B1020] border border-[rgba(255,255,255,0.08)] p-4 rounded-xl text-[10px] text-zinc-300 font-mono overflow-auto max-h-72 whitespace-pre leading-relaxed select-all">
-                {nodejsPayloadString}
+                {getActivePayloadString()}
               </pre>
             </div>
 
@@ -198,11 +367,11 @@ axios.post('https://api.coderpay.cn/v1/order/create', { ...params, sign })
           <div className="bg-cp-card border border-cp rounded-2xl p-6 flex flex-col gap-4 text-xs font-sans leading-relaxed text-slate-300">
             <h3 className="text-sm font-bold text-white flex items-center gap-1.5 pb-2.5 border-b border-[rgba(255,255,255,0.04)]">
               <Database className="w-4.5 h-4.5 text-blue-400" />
-              查询支付订单到账状态: <code>/v1/order/query</code>
+              查询支付订单到账状态: <code>/api/order/query</code>
             </h3>
 
             <p>
-              同步页面跳转可能由于意外的网络刷新而被阻断。我们强烈提倡在您收发货完成前，由客户端客户端以 WebSocket 轮询或 ajax 短轮询形式，调拨此状态查询接口以确认交易核销情况。
+              同步页面跳转可能由于意外的网络刷新而被阻断。我们强烈提倡在您收发货完成前，由您的服务器或者前端以 POST 形式，调拨此状态查询接口以确认交易核销情况。
             </p>
 
             <span className="font-bold text-slate-200 mt-2">HTTP POST 查询参数:</span>

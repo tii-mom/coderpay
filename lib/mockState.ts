@@ -48,6 +48,7 @@ const DEFAULT_APPS: App[] = [
 const DEFAULT_DEVICES: Device[] = [
   {
     id: 'dev-1',
+    deviceCode: 'dev-1',
     name: 'Xiaomi MI 11 (CP Watcher Pro)',
     online: true,
     lastHeartbeat: '2026-06-05 16:59:22',
@@ -65,6 +66,7 @@ const DEFAULT_DEVICES: Device[] = [
   },
   {
     id: 'dev-2',
+    deviceCode: 'dev-2',
     name: 'Redmi Note 10 (Spare)',
     online: false,
     lastHeartbeat: '2026-06-04 12:00:15',
@@ -537,8 +539,10 @@ export const mockDb = {
   // Device Management
   createDevice: (name: string, todayLimit = 5000) => {
     const s = getInitialState();
+    const id = `dev-${Date.now()}`;
     const newDev: Device = {
-      id: `dev-${Date.now()}`,
+      id,
+      deviceCode: id,
       name,
       online: true,
       lastHeartbeat: new Date().toISOString().slice(0, 19).replace('T', ' '),

@@ -22,10 +22,12 @@ export interface PaymentCode {
   todayOrders: number;
   lastUsedAt: string | null;
   createdAt: string;
+  alipayUserId?: string | null;
 }
 
 export interface Device {
   id: string;
+  deviceCode: string;
   name: string;
   online: boolean;
   lastHeartbeat: string;

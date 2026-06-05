@@ -180,13 +180,8 @@ export default function HomePage() {
       <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.06)] bg-[#070A12]/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between" id="header-container">
           <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => router.push('/')} id="brand-logo">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.5)] font-bold text-white text-lg tracking-wider">
-              CP
-            </div>
-            <div>
-              <span className="font-sans font-bold text-lg text-white block leading-none">Coder Pay</span>
-              <span className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">AUTOMATED WALLET</span>
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain rounded-xl shadow-[0_0_15px_rgba(59,130,246,0.15)]" />
           </div>
 
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300" id="header-nav">
@@ -303,6 +298,29 @@ export default function HomePage() {
                     </div>
                   ))}
                 </div>
+
+                {/* Realtime Watcher Latency Sparkline */}
+                <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)] flex flex-col gap-2">
+                  <div className="flex justify-between items-center text-[10px]">
+                    <span className="text-slate-500 font-mono">CP WATCHER LATENCY SHIELD</span>
+                    <span className="text-emerald-400 font-mono font-bold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                      PING: 24ms (NORMAL)
+                    </span>
+                  </div>
+                  <div className="h-8 w-full bg-[#0B1020] rounded-xl border border-[rgba(255,255,255,0.03)] p-1 flex items-center overflow-hidden">
+                    <svg className="w-full h-full overflow-visible" viewBox="0 0 300 24" preserveAspectRatio="none">
+                      <path
+                        d="M 0,12 L 20,10 L 40,14 L 60,11 L 80,13 L 100,5 L 120,20 L 140,8 L 160,12 L 180,10 L 200,14 L 220,11 L 240,12 L 260,6 L 280,16 L 300,10"
+                        fill="none"
+                        stroke="#10B981"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </div>
+                </div>
+
               </div>
             </div>
 
@@ -321,6 +339,84 @@ export default function HomePage() {
             <p className="text-slate-400 text-base">
               您仅需准备一个退休的备用安卓手机，安装极简的 CP Watcher 探针 app。它将全自动、零延误地监听您的微信和支付宝到账通知，并向 CP 云推送，无需复杂的服务器挂钩。
             </p>
+          </div>
+
+          {/* Direct Route Flow Animation */}
+          <div className="max-w-4xl mx-auto mb-16 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-3xl p-6 sm:p-8 text-left shadow-[0_0_30px_rgba(59,130,246,0.02)]">
+            <h3 className="text-sm font-bold text-slate-300 mb-6 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+              直观对比：资金直达流光路径图
+            </h3>
+            
+            <div className="space-y-8">
+              {/* Route 1: Traditional */}
+              <div className="relative">
+                <div className="flex justify-between text-xs text-slate-400 mb-2 font-medium">
+                  <span>传统聚合支付模式 (资金中转)</span>
+                  <span className="text-red-400">耗时 1-3 天 · 扣费 3% - 15%</span>
+                </div>
+                <div className="h-12 rounded-xl bg-[#0B1020] border border-[rgba(255,255,255,0.04)] flex items-center justify-between px-4 sm:px-6 relative overflow-hidden">
+                  <span className="text-xs font-bold text-slate-300 z-10 shrink-0">1. 用户付款</span>
+                  
+                  {/* Flow Path */}
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+                    <line x1="15%" y1="50%" x2="85%" y2="50%" stroke="rgba(239, 68, 68, 0.2)" strokeWidth="2" strokeDasharray="5,5" />
+                    {/* Flow pulse */}
+                    <circle r="4" fill="#EF4444">
+                      <animateMotion path="M 100,24 L 380,24" dur="4s" repeatCount="indefinite" />
+                    </circle>
+                  </svg>
+                  
+                  <span className="text-[10px] text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full z-10 font-bold max-w-[120px] sm:max-w-none truncate flex items-center gap-1">
+                    <Shield className="w-3 h-3 text-red-400 shrink-0" /> 三方平台代收扣率
+                  </span>
+                  
+                  <span className="text-xs font-bold text-slate-300 z-10 shrink-0">2. 提现结算</span>
+                </div>
+              </div>
+
+              {/* Route 2: Coder Pay Direct */}
+              <div className="relative">
+                <div className="flex justify-between text-xs text-slate-400 mb-2 font-medium">
+                  <span>Coder Pay 模式 (直达钱包)</span>
+                  <span className="text-emerald-400 font-bold">秒级到账 · 0% 资金扣留</span>
+                </div>
+                <div className="h-16 rounded-xl bg-gradient-to-r from-blue-950/20 to-emerald-950/20 border border-blue-500/20 flex items-center justify-between px-4 sm:px-6 relative overflow-hidden">
+                  {/* Glowing background flow */}
+                  <div className="absolute inset-0 bg-blue-500/5 blur-xl opacity-30" />
+                  
+                  <span className="text-xs font-bold text-white z-10 shrink-0">用户付款</span>
+                  
+                  {/* Realtime flowing gradient paths */}
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="flowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#3B82F6" />
+                        <stop offset="50%" stopColor="#10B981" />
+                        <stop offset="100%" stopColor="#3B82F6" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M 80,32 L 380,32" stroke="url(#flowGrad)" strokeWidth="3" strokeDasharray="100 500" strokeDashoffset="100" className="animate-[dash_3s_linear_infinite]" />
+                    <style>{`
+                      @keyframes dash {
+                        to {
+                          stroke-dashoffset: -500;
+                        }
+                      }
+                    `}</style>
+                  </svg>
+
+                  <div className="flex flex-col items-center z-10">
+                    <span className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full animate-bounce flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-emerald-400 shrink-0" /> 资金直达
+                    </span>
+                    <span className="text-[9px] text-slate-500 font-mono mt-1">无需中间代理账户</span>
+                  </div>
+                  
+                  <span className="text-xs font-bold text-white z-10 shrink-0">个人微信/支付宝</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left" id="capabilities-grid">
@@ -487,8 +583,9 @@ export default function HomePage() {
       <footer className="mt-auto border-t border-[rgba(255,255,255,0.05)] bg-[#070A12] py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-500" id="footer-container">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-sm text-white flex items-center justify-center w-6 h-6 rounded bg-blue-600">CP</span>
-            <span>© 2026 Coder Pay (CP). 所有资金进入个人安全账户。</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain rounded" />
+            <span>© 2026 Coder Pay. 所有资金进入个人安全账户。</span>
           </div>
           <div className="flex items-center gap-6">
             <a href="#product-flow" className="hover:text-slate-400">服务条款</a>

@@ -121,6 +121,201 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
         ))}
       </div>
 
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Today's Transaction Trend */}
+        <div className="lg:col-span-8 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6 flex flex-col gap-4 text-left shadow-[0_0_20px_rgba(59,130,246,0.02)]">
+          <div className="flex items-center justify-between pb-3 border-b border-[rgba(255,255,255,0.06)]">
+            <div>
+              <h3 className="text-base font-bold text-white">今日交易额趋势</h3>
+              <p className="text-xs text-slate-500">24小时到账流水与订单量动态分布</p>
+            </div>
+            <div className="flex gap-4 text-xs font-semibold">
+              <span className="flex items-center gap-1.5 text-blue-400">
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+                交易金额 (¥)
+              </span>
+              <span className="flex items-center gap-1.5 text-indigo-400">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                订单量 (笔)
+              </span>
+            </div>
+          </div>
+          {/* Native SVG Line/Area Chart */}
+          <div className="relative h-64 w-full flex items-end pt-4" id="trend-chart-container">
+            {/* Y Axis Grid lines */}
+            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-slate-600 font-mono select-none">
+              <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥1,200</span></div>
+              <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥900</span></div>
+              <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥600</span></div>
+              <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥300</span></div>
+              <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥0</span></div>
+            </div>
+
+            {/* SVG Drawing */}
+            <svg className="w-full h-[90%] overflow-visible z-10" viewBox="0 0 600 180" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+
+              {/* Grid Lines */}
+              <line x1="0" y1="180" x2="600" y2="180" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+
+              {/* Area path */}
+              <path
+                d="M 0 160 C 60 150, 100 80, 150 70 C 200 60, 250 140, 300 110 C 350 80, 400 30, 450 40 C 500 50, 540 120, 600 90 L 600 180 L 0 180 Z"
+                fill="url(#chartGradient)"
+              />
+
+              {/* Line path */}
+              <path
+                d="M 0 160 C 60 150, 100 80, 150 70 C 200 60, 250 140, 300 110 C 350 80, 400 30, 450 40 C 500 50, 540 120, 600 90"
+                fill="none"
+                stroke="#3B82F6"
+                strokeWidth="3"
+                strokeLinecap="round"
+                className="transition-all duration-500"
+              />
+
+              {/* Interactive Data Dots & Hover effects */}
+              {[
+                { cx: 0, cy: 160, val: "0.00", time: "00:00", count: 0 },
+                { cx: 100, cy: 80, val: "780.00", time: "04:00", count: 8 },
+                { cx: 150, cy: 70, val: "880.00", time: "08:00", count: 12 },
+                { cx: 300, cy: 110, val: "540.00", time: "12:00", count: 6 },
+                { cx: 450, cy: 40, val: "1120.00", time: "16:00", count: 15 },
+                { cx: 600, cy: 90, val: "720.00", time: "20:00", count: 10 }
+              ].map((dot, dIdx) => (
+                <g key={dIdx} className="group/dot cursor-pointer">
+                  <circle
+                    cx={dot.cx}
+                    cy={dot.cy}
+                    r="4"
+                    className="fill-[#3B82F6] stroke-[#070A12] stroke-[2px] transition-all group-hover/dot:r-6 group-hover/dot:fill-white"
+                  />
+                  <circle
+                    cx={dot.cx}
+                    cy={dot.cy}
+                    r="10"
+                    className="fill-blue-500/20 opacity-0 group-hover/dot:opacity-100 transition-opacity"
+                  />
+                  
+                  {/* Tooltip on Hover */}
+                  <foreignObject
+                    x={dot.cx > 500 ? dot.cx - 110 : dot.cx - 50}
+                    y={dot.cy - 75}
+                    width="110"
+                    height="65"
+                    className="opacity-0 group-hover/dot:opacity-100 transition-all pointer-events-none z-50 duration-200"
+                  >
+                    <div className="bg-[#1E293B] border border-blue-500/30 rounded-lg p-2 shadow-xl text-[10px] text-slate-300 font-sans flex flex-col gap-0.5">
+                      <span className="font-bold text-slate-100 block">{dot.time} 到账</span>
+                      <span className="text-blue-400 font-mono font-bold block">金额: ¥{dot.val}</span>
+                      <span className="text-slate-400 block">订单: {dot.count} 笔</span>
+                    </div>
+                  </foreignObject>
+                </g>
+              ))}
+            </svg>
+          </div>
+          {/* Time axis */}
+          <div className="flex justify-between text-[10px] text-slate-500 font-mono px-1">
+            <span>00:00</span>
+            <span>04:00</span>
+            <span>08:00</span>
+            <span>12:00</span>
+            <span>16:00</span>
+            <span>20:00</span>
+            <span>24:00</span>
+          </div>
+        </div>
+
+        {/* Right Column: Channels Distribution & Callbacks */}
+        <div className="lg:col-span-4 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6 flex flex-col justify-between text-left shadow-[0_0_20px_rgba(59,130,246,0.02)]">
+          <h3 className="text-base font-bold text-white border-b border-[rgba(255,255,255,0.06)] pb-3">渠道占比与成功率</h3>
+          
+          <div className="flex items-center justify-around py-4 my-auto">
+            {/* Channel distribution SVG Doughnut Chart */}
+            <div className="relative w-24 h-24 flex items-center justify-center">
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="3.5" />
+                
+                {/* WeChat pay segment (emerald) - e.g. 60% */}
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="15.915"
+                  fill="none"
+                  stroke="#10B981"
+                  strokeWidth="3.5"
+                  strokeDasharray="60 40"
+                  strokeDashoffset="0"
+                />
+                
+                {/* Alipay segment (blue) - e.g. 40% */}
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="15.915"
+                  fill="none"
+                  stroke="#3B82F6"
+                  strokeWidth="3.5"
+                  strokeDasharray="40 60"
+                  strokeDashoffset="-60"
+                />
+              </svg>
+              <div className="absolute flex flex-col items-center leading-none text-center">
+                <span className="text-[10px] font-extrabold text-white">支付比</span>
+                <span className="text-[9px] text-slate-500 mt-1 font-mono">WX/ZFB</span>
+              </div>
+            </div>
+
+            {/* Webhook Success Ring */}
+            <div className="relative w-24 h-24 flex items-center justify-center">
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="3.5" />
+                {/* 99.8% Success rate path */}
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="15.915"
+                  fill="none"
+                  stroke="#22C55E"
+                  strokeWidth="3.5"
+                  strokeDasharray="99.8 0.2"
+                  strokeDashoffset="0"
+                  className="transition-all duration-1000"
+                />
+              </svg>
+              <div className="absolute flex flex-col items-center leading-none text-center">
+                <span className="text-[13px] font-extrabold text-emerald-400 font-mono">99.8%</span>
+                <span className="text-[9px] text-slate-500 mt-1">回调成功</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2.5 mt-2 pt-2 border-t border-[rgba(255,255,255,0.04)]">
+            <div className="flex justify-between items-center text-xs">
+              <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                微信收款比例
+              </span>
+              <span className="font-mono text-slate-300 font-bold">60.0%</span>
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="flex items-center gap-1.5 text-blue-400 font-medium">
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+                支付宝收款比例
+              </span>
+              <span className="font-mono text-slate-300 font-bold">40.0%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Columns layout */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         
@@ -247,7 +442,7 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
                 <div key={dev.id} className="flex items-center justify-between">
                   <div className="flex flex-col min-w-0">
                     <span className="text-xs font-semibold text-slate-200 truncate">{dev.name}</span>
-                    <span className="text-[10px] text-slate-500 font-mono mt-0.5">心跳: {dev.lastHeartbeat.split(' ')[1] || dev.lastHeartbeat}</span>
+                    <span className="text-[10px] text-slate-500 font-mono mt-0.5">心跳: {dev.lastHeartbeat ? (dev.lastHeartbeat.split(' ')[1] || dev.lastHeartbeat) : '未记录'}</span>
                   </div>
                   <span className={`px-2 py-0.5 rounded text-[9px] font-bold border shrink-0 ${
                     dev.online && dev.status === 'active' 

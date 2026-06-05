@@ -1,5 +1,9 @@
 'use client';
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
+export const runtime = 'edge';
+
 import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePaymentState } from '@/hooks/use-payment-state';
@@ -26,28 +30,66 @@ export default function PayPage({ params }: PayPageProps) {
   const orderId = resolvedParams.id;
   const { state, db } = usePaymentState();
   const [mounted, setMounted] = useState(false);
+  const [realOrder, setRealOrder] = useState<any>(null);
+  const [loadingReal, setLoadingReal] = useState(true);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setMounted(true);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const order = state.orders.find(o => o.id === orderId);
+  const mockOrder = state.orders.find(o => o.id === orderId);
+  const order = realOrder || mockOrder;
 
   const [userSelectedChannel, setUserSelectedChannel] = useState<'wechat' | 'alipay' | null>(null);
   const activeChannel = userSelectedChannel || (order ? order.payType : 'wechat');
 
-  const [secondsLeft, setSecondsLeft] = useState(() => {
+  const [secondsLeft, setSecondsLeft] = useState(300);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const fetchOrder = async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (active) {
+            setRealOrder(data);
+            const createdTime = new Date(data.createdAt).getTime();
+            const expiresMinutes = data.app?.expireMinutes || 5;
+            const expiresTime = createdTime + expiresMinutes * 60 * 1000;
+            const diff = Math.max(0, Math.floor((expiresTime - Date.now()) / 1000));
+            setSecondsLeft(diff);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading real order:", err);
+      } finally {
+        if (active) setLoadingReal(false);
+      }
+    };
+
+    fetchOrder();
+    const interval = setInterval(fetchOrder, 3000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [orderId]);
+
+  // If real order is not found, fallback countdown logic for mock order
+  useEffect(() => {
+    if (realOrder || !mockOrder) return;
     const s = db.getState();
     const currentOrder = s.orders.find(o => o.id === orderId);
-    if (!currentOrder) return 300;
-    const createdTime = new Date(currentOrder.createdAt).getTime();
-    const expiresTime = createdTime + 5 * 60 * 1000; // 5 min
-    const diff = Math.max(0, Math.floor((expiresTime - Date.now()) / 1000));
-    return diff > 0 ? diff : 0;
-  });
+    if (currentOrder) {
+      const app = s.apps.find(a => a.appId === currentOrder.appId);
+      const expireMinutes = app ? app.expireMinutes : 5;
+      const createdTime = new Date(currentOrder.createdAt).getTime();
+      const expiresTime = createdTime + expireMinutes * 60 * 1000;
+      const diff = Math.max(0, Math.floor((expiresTime - Date.now()) / 1000));
+      setSecondsLeft(diff);
+    }
+  }, [realOrder, mockOrder, orderId, db]);
 
   const [isSimulatingWallet, setIsSimulatingWallet] = useState(false);
   const [queryCount, setQueryCount] = useState(0);
@@ -85,7 +127,9 @@ export default function PayPage({ params }: PayPageProps) {
       setSecondsLeft(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          db.updateOrderStatus(orderId, 'expired');
+          if (!realOrder) {
+            db.updateOrderStatus(orderId, 'expired');
+          }
           return 0;
         }
         return prev - 1;
@@ -93,7 +137,7 @@ export default function PayPage({ params }: PayPageProps) {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [order, secondsLeft, orderId, db]);
+  }, [order, secondsLeft, orderId, db, realOrder]);
 
   if (!mounted) {
     return <div className="min-h-screen bg-[#F1F5F9]" />;
@@ -125,7 +169,7 @@ export default function PayPage({ params }: PayPageProps) {
   };
 
   // Switch WeChat/Alipay Payment Code matches
-  const paymentCode = state.paymentCodes.find(c => 
+  const paymentCode = realOrder?.paymentCode || state.paymentCodes.find(c => 
     c.type === activeChannel && 
     (c.codeType === 'any' || Math.abs(c.amount - order.amount) < 0.01)
   ) || state.paymentCodes.find(c => c.type === activeChannel); // Default fallback code
@@ -161,10 +205,9 @@ export default function PayPage({ params }: PayPageProps) {
       {/* Visual Header */}
       <div className="w-full max-w-md flex items-center justify-between mb-4 px-1" id="checkout-header">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-sm">
-            CP
-          </div>
-          <span className="font-bold text-sm text-slate-800">Coder Pay 收银台</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Logo" className="w-7 h-7 object-contain rounded" />
+          <span className="font-bold text-sm text-slate-800">收银台</span>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-white shadow-xs px-2.5 py-1 rounded-full border border-slate-200">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
@@ -224,7 +267,7 @@ export default function PayPage({ params }: PayPageProps) {
 
             {/* Webhook Callback Simulation Status & Retry UI */}
             <div className="mt-4 p-4 rounded-xl border w-full text-left font-sans text-xs bg-white shadow-xs border-slate-200" id="webhook-retry-panel">
-              <span className="font-bold text-slate-700 block text-[10px] uppercase tracking-wider mb-2">📢 异步回调通知网关监测 (Webhook Hub)</span>
+              <span className="font-bold text-slate-700 block text-[10px] uppercase tracking-wider mb-2 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-blue-500" /> 异步回调通知网关监测 (Webhook Hub)</span>
               
               {webhookStatusSim === 'failed_ready' && (
                 <div className="space-y-3">
@@ -287,7 +330,11 @@ export default function PayPage({ params }: PayPageProps) {
             <Clock className="w-16 h-16 text-slate-400 mb-4" />
             <h3 className="text-lg font-bold text-slate-700">扫码订单已过期</h3>
             <p className="text-xs text-slate-400 mt-1 max-w-xs block">
-              订单由于超过 5 分钟安全限制而作废，请勿继续扫码支付。
+              订单由于超过 {(() => {
+                const s = db.getState();
+                const app = s.apps.find(a => a.appId === order.appId);
+                return app ? app.expireMinutes : 5;
+              })()} 分钟安全限制而作废，请勿继续扫码支付。
             </p>
             <button
               onClick={() => {
@@ -345,12 +392,39 @@ export default function PayPage({ params }: PayPageProps) {
                 referrerPolicy="no-referrer"
               />
 
-              {/* Countdown overlay banner */}
-              <div className="absolute bottom-2 bg-slate-900/80 backdrop-blur-xs text-white px-3 py-1 rounded-full text-[10px] font-mono flex items-center gap-1.5 shadow-sm">
-                <Clock className="w-3 h-3 text-amber-400" />
+              {/* Countdown overlay banner with SVG progress ring */}
+              <div className="absolute bottom-2 bg-slate-900/90 backdrop-blur-xs text-white px-3 py-1.5 rounded-full text-[10px] font-mono flex items-center gap-2 shadow-lg border border-white/10 select-none">
+                <div className="relative w-4 h-4 flex items-center justify-center shrink-0">
+                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 20 20">
+                    <circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="2" />
+                    <circle
+                      cx="10"
+                      cy="10"
+                      r="8"
+                      fill="none"
+                      stroke={secondsLeft > 60 ? "#10B981" : secondsLeft > 20 ? "#F59E0B" : "#EF4444"}
+                      strokeWidth="2"
+                      strokeDasharray="50.26"
+                      strokeDashoffset={50.26 - (50.26 * Math.max(0, secondsLeft)) / 300}
+                      className="transition-all duration-1000"
+                    />
+                  </svg>
+                  <Clock className="w-2.5 h-2.5 text-white absolute" />
+                </div>
                 <span>请在 <strong className="text-amber-300 font-bold">{formatTime(secondsLeft)}</strong> 内付清</span>
               </div>
             </div>
+
+            {/* Alipay Direct Scheme Wakeup Button */}
+            {activeChannel === 'alipay' && paymentCode?.alipayUserId && (
+              <a
+                href={`alipays://platformapi/startapp?appId=09999988&actionType=toAccount&goBack=NO&userId=${paymentCode.alipayUserId}&amount=${order.realAmount.toFixed(2)}`}
+                className="mt-4 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
+              >
+                <Smartphone className="w-4 h-4" />
+                点此直接打开支付宝极速付款
+              </a>
+            )}
 
             {/* Instructional banner */}
             <div className="mt-5 text-center text-[11px] text-slate-400 bg-slate-50 p-3.5 rounded-2xl border border-slate-100 max-w-sm w-full leading-relaxed">
@@ -380,7 +454,7 @@ export default function PayPage({ params }: PayPageProps) {
       </div>
 
       {/* Dynamic Sandbox Simulator Action Drawer (CRITICAL FOR FULL FEATURE DEMO!) */}
-      {order.status === 'pending' && (
+      {process.env.NODE_ENV === 'development' && order.status === 'pending' && (
         <div className="mt-6 w-full max-w-md bg-amber-50-important rounded-2xl p-4.5 bg-amber-50 border border-amber-200 text-left relative overflow-hidden" id="sandbox-match-widget">
           <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl" />
           
@@ -393,7 +467,7 @@ export default function PayPage({ params }: PayPageProps) {
           </div>
 
           <p className="text-xs text-amber-700 leading-relaxed max-w-sm mb-3">
-            由于当前是在<strong>开发预览环境</strong>，我们为您内置了 🔔 <b>CP Watcher 硬件到账通知模拟器</b>。点击下方按钮即可模拟安卓手机监听到 ¥{order.realAmount.toFixed(2)} 的到账流水，云端将在毫秒内识别、更新状态并自动将 Webhook 激发到回调地址中！
+            由于当前是在<strong>开发预览环境</strong>，我们为您内置了 <b>CP Watcher 硬件到账通知模拟器</b>。点击下方按钮即可模拟安卓手机监听到 ¥{order.realAmount.toFixed(2)} 的到账流水，云端将在毫秒内识别、更新状态并自动将 Webhook 激发到回调地址中！
           </p>
 
           <button

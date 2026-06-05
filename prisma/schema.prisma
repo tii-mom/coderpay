@@ -1,0 +1,150 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String          @id @default(uuid())
+  email        String          @unique
+  passwordHash String
+  feeBalance   Float           @default(99.602)
+  packageType  String          @default("free") // free, starter, pro, max
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  apps         App[]
+  codes        PaymentCode[]
+  devices      Device[]
+  exceptions   ExceptionItem[]
+  billings     BillingRecord[]
+}
+
+model App {
+  id            String   @id @default(uuid())
+  appId         String   @unique
+  appSecret     String
+  name          String
+  notifyUrl     String
+  returnUrl     String
+  feedbackUrl   String?
+  expireMinutes Int      @default(5)
+  signType      String   @default("HMAC-SHA256")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders        Order[]
+}
+
+model PaymentCode {
+  id           String   @id @default(uuid())
+  type         String // wechat / alipay
+  codeType     String // fixed / any
+  amount       Float // 0.0 for any
+  imageUrl     String
+  alipayUserId String? // Optional for direct Alipay transfer mode
+  status       String // active / inactive
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId     String?
+  device       Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  orders       Order[]
+}
+
+model Device {
+  id                     String        @id @default(uuid())
+  deviceCode             String        @unique
+  name                   String
+  online                 Boolean       @default(true)
+  lastHeartbeat          DateTime?
+  androidVersion         String?
+  appVersion             String?
+  wechatListener         String?       @default("stopped")
+  alipayListener         String?       @default("stopped")
+  notificationPermission Boolean       @default(false)
+  batteryOptimization    String?       @default("unknown")
+  status                 String        @default("active") // active / inactive
+  userId                 String
+  user                   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  paymentCodes           PaymentCode[]
+  events                 PaymentEvent[]
+}
+
+model Order {
+  id            String        @id
+  outOrderNo    String
+  title         String
+  payType       String // wechat / alipay
+  amount        Float
+  realAmount    Float
+  status        String // pending / success / expired / failed / manual_review
+  createdAt     DateTime      @default(now())
+  payTime       DateTime?
+  webhookStatus String        @default("unsent") // unsent / success / failed
+  appId         String
+  app           App           @relation(fields: [appId], references: [id], onDelete: Cascade)
+  paymentCodeId String?
+  paymentCode   PaymentCode?  @relation(fields: [paymentCodeId], references: [id], onDelete: SetNull)
+  webhookLogs   WebhookLog[]
+}
+
+model PaymentEvent {
+  id               String   @id @default(uuid())
+  deviceId         String
+  device           Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  payType          String // wechat / alipay
+  amount           Float
+  receivedAt       DateTime
+  matchStatus      String // matched / unmatched
+  matchedOrderId   String?
+  confidence       Int
+  notificationHash String   @unique
+  rawNotification  String?
+  createdAt        DateTime @default(now())
+}
+
+model WebhookLog {
+  id              String   @id @default(uuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  url             String
+  requestTime     DateTime @default(now())
+  statusCode      Int?
+  responseSummary String?
+  responseBody    String?
+  retryCount      Int      @default(0)
+  result          String // success / failed
+  requestBody     String
+}
+
+model ExceptionItem {
+  id          String   @id @default(uuid())
+  type        String // payment_unmatched / expired_payment / webhook_failed / device_offline
+  title       String
+  description String
+  createdAt   DateTime @default(now())
+  refId       String
+  status      String   @default("active") // active / resolved
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BillingRecord {
+  id          String   @id @default(uuid())
+  type        String // charge / fee
+  amount      Float
+  balance     Float
+  description String
+  createdAt   DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

@@ -242,17 +242,16 @@ export default function ConsolePage() {
           
           <div className="flex flex-col gap-6 p-5">
             {/* Logo platform */}
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#3B82F6] rounded-lg flex items-center justify-center font-bold text-white shadow-[0_0_15px_rgba(59,130,246,0.3)]">
-                CP
-              </div>
-              <span className="text-lg font-bold tracking-tight text-white font-sans">
-                Coder Pay
-              </span>
+            <div className="flex items-center gap-3 cursor-pointer w-full" onClick={() => router.push('/')}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain rounded-lg shadow-[0_0_15px_rgba(59,130,246,0.1)]" />
 
               {mobileSidebarOpen && (
                 <button 
-                  onClick={() => setMobileSidebarOpen(false)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMobileSidebarOpen(false);
+                  }}
                   className="p-1 border border-white/10 rounded text-slate-400 hover:text-white lg:hidden ml-auto"
                 >
                   <X className="w-4 h-4" />
@@ -272,9 +271,9 @@ export default function ConsolePage() {
                   }}
                   className="w-full bg-[#111827] hover:bg-[#151B2E] border border-white/5 rounded-xl py-2 pl-3 pr-8 text-xs text-slate-200 focus:outline-none appearance-none cursor-pointer font-sans truncate font-semibold"
                 >
-                  <option value="all">📁 所有创建的商户应用</option>
+                  <option value="all">所有创建的商户应用</option>
                   {state.apps.map(a => (
-                    <option key={a.id} value={a.appId}>🔌 {a.name}</option>
+                    <option key={a.id} value={a.appId}>{a.name}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B] pointer-events-none" />

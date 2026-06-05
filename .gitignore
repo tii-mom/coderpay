@@ -5,3 +5,20 @@ coverage/
 *.log
 .env*
 !.env.example
+
+/generated/prisma
+*.db*
+
+# Build and temp directories
+.vercel/
+.wrangler/
+scratch/
+*.png
+*.jpeg
+*.jpg
+
+# Allow specific asset images
+!public/**/*.png
+!app/**/*.png
+
+

@@ -57,7 +57,7 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
     }
 
     // Call mock Db
-    db.createApp({
+    const newApp = db.createApp({
       name,
       notifyUrl,
       returnUrl: returnUrl || 'https://example.com/success',
@@ -67,6 +67,7 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
     });
 
     onTriggerToast(`成功创建应用 [${name}] ！`, 'success');
+    alert(`【通道应用创建成功】\n您的 App Secret (安全密钥) 为：\n${newApp.appSecret}\n\n重要提示：出于安全考虑，安全密钥仅在创建时完整展示一次。请立即复制并妥善保存。刷新后将隐藏，若遗失只能进行重置密钥操作。`);
     
     // Reset
     setName('');
@@ -81,8 +82,9 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
   // Reset API key credentials
   const handleResetAppSecret = (app: App) => {
     if (confirm(`您确定要重置应用 [${app.name}] 的 App Secret 密钥吗？重置后，原有接入参数将立刻失效！`)) {
-      db.resetAppSecret(app.id);
+      const newSecret = db.resetAppSecret(app.id);
       onTriggerToast(`成功重置 [${app.name}] 的接口密钥凭证！`, 'success');
+      alert(`【密钥重置成功】\n您为应用 [${app.name}] 新生成的 App Secret (安全密钥) 为：\n${newSecret}\n\n重要提示：出于安全考虑，安全密钥仅在此展示一次。请立即复制并妥善保存。`);
     }
   };
 
@@ -340,21 +342,9 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
                               <RefreshCw className="w-2.5 h-2.5" /> 重置密钥
                             </button>
                           </div>
-                          <div className="flex items-center justify-between bg-cp-card border border-[rgba(255,255,255,0.06)] rounded-lg px-2.5 py-1.5 mt-0.5">
-                            <span className="text-slate-200 select-all pr-1 truncate font-sans">
-                              {visSecrets[app.id] ? app.appSecret : '••••••••••••••••••••••••••••••••'}
-                            </span>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button 
-                                onClick={() => handleToggleSecret(app.id)}
-                                className="text-slate-500 hover:text-slate-300"
-                              >
-                                {visSecrets[app.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                              </button>
-                              <button onClick={() => handleCopyText(app.appSecret, 'App Secret')} className="text-slate-500 hover:text-slate-300">
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                          <div className="flex items-center justify-between bg-cp-card border border-[rgba(255,255,255,0.06)] rounded-lg px-2.5 py-1.5 mt-0.5 text-slate-400 text-[11px] font-sans">
+                            <span>已托管在服务端（安全脱敏）</span>
+                            <span className="text-[9px] text-slate-600 bg-slate-900 border border-[rgba(255,255,255,0.04)] px-1.5 py-0.5 rounded">不可逆读取</span>
                           </div>
                         </div>
 

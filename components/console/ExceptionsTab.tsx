@@ -282,10 +282,10 @@ export function ExceptionsTab({ exceptions, onTriggerToast, onSwitchTab, db }: E
                   onChange={(e: any) => setAlertType(e.target.value)}
                   className="px-3 py-2 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-slate-100 focus:outline-none focus:border-rose-500/50 text-xs"
                 >
-                  <option value="device_offline">🔋 Watcher 探机物理断开离线 (device_offline)</option>
-                  <option value="webhook_failed">⏳ 异步推流重复无应答崩溃 (webhook_failed)</option>
-                  <option value="payment_unmatched">🤷 流水金额极度冲突未知匹配 (payment_unmatched)</option>
-                  <option value="balance_insufficient">⚠️ 交易池佣金余额见底告竭 (balance_insufficient)</option>
+                  <option value="device_offline">Watcher 探机物理断开离线 (device_offline)</option>
+                  <option value="webhook_failed">异步推流重复无应答崩溃 (webhook_failed)</option>
+                  <option value="payment_unmatched">流水金额极度冲突未知匹配 (payment_unmatched)</option>
+                  <option value="balance_insufficient">交易池佣金余额见底告竭 (balance_insufficient)</option>
                 </select>
               </div>
 

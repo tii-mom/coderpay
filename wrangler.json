@@ -1,0 +1,15 @@
+{
+  "name": "coderpay",
+  "compatibility_date": "2024-05-02",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "pages_build_output_dir": ".vercel/output",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "coderpay-db",
+      "database_id": "91f49d6e-eea7-4304-9f79-cd5340d5f986"
+    }
+  ]
+}
