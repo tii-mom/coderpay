@@ -14,7 +14,8 @@ export async function GET(req: NextRequest) {
       email: user.email,
       feeBalance: user.feeBalance
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

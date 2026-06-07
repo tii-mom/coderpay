@@ -9,9 +9,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
     
-    // Find or create user dynamically (supporting instant login for preview sandbox)
+    const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
     let user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
+    if (!user && demoMode) {
       user = await prisma.user.create({
         data: {
           email,
@@ -19,6 +19,9 @@ export async function POST(req: NextRequest) {
           feeBalance: 100.0
         }
       });
+    }
+    if (!user) {
+      return NextResponse.json({ error: "Account not found" }, { status: 401 });
     }
     
     const response = NextResponse.json({
@@ -29,11 +32,14 @@ export async function POST(req: NextRequest) {
     response.cookies.set("session_email", user.email, {
       path: "/",
       httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
       maxAge: 60 * 60 * 24 * 7 // 1 week
     });
     
     return response;
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("Login failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

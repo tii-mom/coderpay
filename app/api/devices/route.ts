@@ -2,6 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { randomNumericCode } from "@/lib/random";
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,8 +15,9 @@ export async function GET(req: NextRequest) {
     });
     
     return NextResponse.json(devices);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -29,7 +31,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
     
-    const deviceCode = `dev-${Math.floor(1000 + Math.random() * 9000)}`;
+    const deviceCode = `dev-${randomNumericCode(4)}`;
     
     const device = await prisma.device.create({
       data: {
@@ -46,7 +48,8 @@ export async function POST(req: NextRequest) {
     });
     
     return NextResponse.json(device);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

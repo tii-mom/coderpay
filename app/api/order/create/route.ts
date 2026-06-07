@@ -2,11 +2,13 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifySignature } from "@/lib/signature";
+import { getSessionUser } from "@/lib/auth";
+import { randomNumericCode } from "@/lib/random";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { app_id, out_order_no, title, amount, pay_type, notify_url, return_url, sign } = body;
+    const { app_id, out_order_no, title, amount, pay_type, sign } = body;
     
     if (!app_id || !out_order_no || !title || !amount || !pay_type || !sign) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -21,11 +23,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Application not found" }, { status: 404 });
     }
     
-    // Verify signature (bypass sign check if called by the logged-in merchant console session)
-    const sessionEmail = req.cookies.get("session_email")?.value;
-    const isMerchantSession = sessionEmail ? await prisma.user.findUnique({ where: { email: sessionEmail } }) : null;
+    // Verify signature unless this is a logged-in console sandbox request for the same merchant app.
+    const sessionUser = await getSessionUser(req);
+    const isOwnedConsoleRequest = Boolean(sessionUser && sessionUser.id === app.userId);
     
-    if (!isMerchantSession) {
+    if (!isOwnedConsoleRequest) {
       const isSignValid = verifySignature(body, app.appSecret, app.signType, sign);
       if (!isSignValid) {
         return NextResponse.json({ error: "Signature verification failed" }, { status: 400 });
@@ -169,7 +171,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Create the order
-    const orderId = `CP${Math.floor(100000 + Math.random() * 900000)}`;
+    const orderId = `CP${randomNumericCode(6)}`;
     const newOrder = await prisma.order.create({
       data: {
         id: orderId,
@@ -209,7 +211,8 @@ export async function POST(req: NextRequest) {
         expired_at: new Date(Date.now() + app.expireMinutes * 60 * 1000).toISOString()
       }
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("Order creation failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

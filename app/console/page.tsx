@@ -137,9 +137,10 @@ export default function ConsolePage() {
   };
 
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (confirm('您确定要安全退出 Coder Pay 控制台吗？')) {
       triggerToast('正在退出，祝您生活愉快！', 'warning');
+      await db.logout();
       setTimeout(() => {
         router.push('/');
       }, 1000);
@@ -371,7 +372,7 @@ export default function ConsolePage() {
                 U
               </div>
               <div className="min-w-0">
-                <span className="text-xs font-bold text-white block truncate">yudeyou0118@gmail.com</span>
+                <span className="text-xs font-bold text-white block truncate">{state.userEmail || '未登录'}</span>
                 <span className="text-[10px] text-[#64748B] mt-0.5 block font-sans">账户身份: 精英开发者</span>
               </div>
             </div>

@@ -2,6 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { randomHex } from "@/lib/random";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "App not found" }, { status: 404 });
     }
     
-    const appSecret = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+    const appSecret = randomHex(16);
     
     await prisma.app.update({
       where: { id },
@@ -22,7 +23,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     
     return NextResponse.json({ status: "success", appSecret });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

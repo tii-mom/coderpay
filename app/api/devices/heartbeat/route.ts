@@ -3,6 +3,11 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyDeviceSignature } from "@/lib/signature";
+import { randomHex } from "@/lib/random";
+
+function generateDeviceSecret() {
+  return `sec_${randomHex(32)}`;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,7 +47,7 @@ export async function POST(req: NextRequest) {
       }
     } else {
       // First time pairing / binding: generate a high-strength secret
-      generatedSecret = "sec_" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      generatedSecret = generateDeviceSecret();
       device = await prisma.device.update({
         where: { id: device.id },
         data: { deviceSecret: generatedSecret }
@@ -72,7 +77,8 @@ export async function POST(req: NextRequest) {
       wechatRegex,
       alipayRegex
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("Device heartbeat failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

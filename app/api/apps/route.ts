@@ -2,6 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { randomHex, randomNumericCode } from "@/lib/random";
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,8 +15,9 @@ export async function GET(req: NextRequest) {
     });
     
     return NextResponse.json(apps);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -29,8 +31,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Name and notifyUrl are required" }, { status: 400 });
     }
     
-    const appId = Math.floor(10000 + Math.random() * 90000).toString();
-    const appSecret = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+    const appId = randomNumericCode(5);
+    const appSecret = randomHex(16);
     
     const app = await prisma.app.create({
       data: {
@@ -47,7 +49,8 @@ export async function POST(req: NextRequest) {
     });
     
     return NextResponse.json(app);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -46,7 +46,8 @@ export async function POST(req: NextRequest) {
       message: "Webhook retry processed",
       log: latestLog
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

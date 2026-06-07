@@ -23,7 +23,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     });
     
     return NextResponse.json(updated);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -52,7 +52,8 @@ export async function POST(req: NextRequest) {
         pay_time: order.payTime ? order.payTime.toISOString().slice(0, 19).replace('T', ' ') : null
       }
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

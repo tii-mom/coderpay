@@ -30,8 +30,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     });
     
     return NextResponse.json(updated);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -48,7 +49,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     
     await prisma.app.delete({ where: { id } });
     return NextResponse.json({ status: "success", message: "Application deleted successfully" });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

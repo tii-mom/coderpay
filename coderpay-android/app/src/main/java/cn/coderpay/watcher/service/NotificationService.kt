@@ -10,7 +10,9 @@ import cn.coderpay.watcher.utils.LogTracker
 import cn.coderpay.watcher.utils.SettingsManager
 import cn.coderpay.watcher.worker.WorkerHelper
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.security.MessageDigest
 import java.util.regex.Pattern
@@ -18,9 +20,14 @@ import java.util.regex.Pattern
 class NotificationService : NotificationListenerService() {
 
     private lateinit var settings: SettingsManager
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
     // Regex pattern matching money values like 10, 10.0, 10.00
     private val amountPattern = Pattern.compile("(\\d+(?:\\.\\d{1,2})?)")
+    private val semanticAmountPatterns = listOf(
+        Pattern.compile("(?:收款|到账|转入|付款)[^\\d]{0,12}(\\d+(?:\\.\\d{1,2})?)\\s*元"),
+        Pattern.compile("(\\d+(?:\\.\\d{1,2})?)\\s*元[^，。；\\s]{0,12}(?:收款|到账|转入|付款)")
+    )
 
     override fun onCreate() {
         super.onCreate()
@@ -48,7 +55,7 @@ class NotificationService : NotificationListenerService() {
         
         // Parse payment confirmation keywords
         if (isWeChatConfirm(title, text, isWeChat) || isAlipayConfirm(title, text, isAlipay)) {
-            val amount = extractAmount(text)
+                val amount = extractAmount("$title $text")
             if (amount != null && amount > 0) {
                 processPaymentArrival(payType, amount, text, sbn.postTime)
             }
@@ -87,6 +94,13 @@ class NotificationService : NotificationListenerService() {
     }
 
     private fun extractAmount(text: String): Double? {
+        for (pattern in semanticAmountPatterns) {
+            val semanticMatcher = pattern.matcher(text)
+            if (semanticMatcher.find()) {
+                return semanticMatcher.group(1)?.toDoubleOrNull()
+            }
+        }
+
         val matcher = amountPattern.matcher(text)
         var lastMatch: String? = null
         while (matcher.find()) {
@@ -108,7 +122,7 @@ class NotificationService : NotificationListenerService() {
         val context = applicationContext
         val db = AppDatabase.getDatabase(context)
 
-        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        serviceScope.launch {
             try {
                 val exists = db.localEventDao().exists(notificationHash)
                 if (exists) {
@@ -144,5 +158,10 @@ class NotificationService : NotificationListenerService() {
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         // Noop
+    }
+
+    override fun onDestroy() {
+        serviceScope.cancel()
+        super.onDestroy()
     }
 }

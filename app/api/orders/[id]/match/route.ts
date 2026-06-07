@@ -86,7 +86,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     triggerWebhook(order.id).catch(err => console.error("Error triggering webhook in background:", err));
     
     return NextResponse.json({ status: "success", message: "Order and payment event manually matched successfully" });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

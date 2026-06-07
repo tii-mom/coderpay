@@ -14,8 +14,9 @@ export async function GET(req: NextRequest) {
     });
     
     return NextResponse.json(codes);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -42,7 +43,8 @@ export async function POST(req: NextRequest) {
     });
     
     return NextResponse.json(code);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("API request failed:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
