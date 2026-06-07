@@ -402,7 +402,7 @@ export function getInitialState(): CoderPayState {
       currentPlanId: 'plan-basic',
       isLoggedIn: true,
       isAuthChecked: true,
-      userEmail: 'yudeyou0118@gmail.com',
+      userEmail: 'developer@example.com',
     };
   }
 
@@ -430,7 +430,7 @@ export function getInitialState(): CoderPayState {
     currentPlanId: 'plan-basic',
     isLoggedIn: true,
     isAuthChecked: true,
-    userEmail: 'yudeyou0118@gmail.com',
+    userEmail: 'developer@example.com',
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(initialState));
   return initialState;

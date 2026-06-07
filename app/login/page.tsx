@@ -15,7 +15,7 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   
   const [isLogin, setIsLogin] = useState(true);
-  const [identifier, setIdentifier] = useState('yudeyou0118@gmail.com');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('password123');
   const [errorText, setErrorText] = useState('');
   const [successText, setSuccessText] = useState('');
@@ -24,6 +24,7 @@ export default function LoginPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setMounted(true);
+      setIdentifier(localStorage.getItem('coderpay:last-login') || '');
     }, 0);
     return () => clearTimeout(timer);
   }, []);
@@ -45,6 +46,7 @@ export default function LoginPage() {
         setErrorText('账号或密码错误，请确认后重试');
         return;
       }
+      localStorage.setItem('coderpay:last-login', identifier);
       setSuccessText('安全验证成功！正在为您转跳控制台...');
       setTimeout(() => {
         router.push(redirectTarget);

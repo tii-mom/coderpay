@@ -85,7 +85,7 @@ export async function autoSeed() {
       // create default user
       const user = await prisma.user.create({
         data: {
-          email: "yudeyou0118@gmail.com",
+          email: "developer@example.com",
           passwordHash: "password_hash", // for local preview simplicity
           feeBalance: 99.602,
         }

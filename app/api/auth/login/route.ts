@@ -44,13 +44,16 @@ export async function POST(req: NextRequest) {
       status: "success",
       user: { id: user.id, email: user.email, feeBalance: user.feeBalance }
     });
+
+    const cookieDomain = req.nextUrl.hostname.endsWith("3api.shop") ? ".3api.shop" : undefined;
     
     response.cookies.set("session_email", user.email, {
       path: "/",
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 7 // 1 week
+      domain: cookieDomain,
+      maxAge: 60 * 60 * 24 * 30 // 30 days
     });
     
     return response;
