@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import { usePaymentState } from '@/hooks/use-payment-state';
-import { Lock, Mail, ShieldAlert, CheckCircle, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, ShieldAlert, CheckCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,55 +15,34 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('yudeyou0118@gmail.com');
+  const [identifier, setIdentifier] = useState('yudeyou0118@gmail.com');
   const [password, setPassword] = useState('password123');
-  const [captchaInput, setCaptchaInput] = useState('');
   const [errorText, setErrorText] = useState('');
   const [successText, setSuccessText] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  
-  // Simple dynamic captcha generator with SSR client-hydration-safety
-  const [captchaCode, setCaptchaCode] = useState('8888');
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setMounted(true);
-      setCaptchaCode(Math.floor(1000 + Math.random() * 9000).toString());
     }, 0);
     return () => clearTimeout(timer);
   }, []);
-
-  const handleRefreshCaptcha = () => {
-    setCaptchaCode(Math.floor(1000 + Math.random() * 9000).toString());
-    setCaptchaInput('');
-    setErrorText('');
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorText('');
     setSuccessText('');
 
-    if (!email || !password) {
+    if (!identifier || !password) {
       setErrorText('请填写所有的表单字段');
-      return;
-    }
-
-    if (!captchaInput) {
-      setErrorText('请输入4位安全验证码');
-      return;
-    }
-
-    if (captchaInput !== captchaCode) {
-      setErrorText('安全验证码输入有误，请重试');
       return;
     }
 
     // Success login mock
     if (isLogin) {
-      const ok = await db.login(email);
+      const ok = await db.login(identifier, password);
       if (!ok) {
-        setErrorText('账号不存在或未开通，请联系管理员创建账号');
+        setErrorText('账号或密码错误，请确认后重试');
         return;
       }
       setSuccessText('安全验证成功！正在为您转跳控制台...');
@@ -91,9 +70,10 @@ export default function LoginPage() {
         <div className="flex flex-col items-center gap-2 mb-8 text-center" id="login-brand-header">
           <div 
             onClick={() => router.push('/')}
-            className="w-11 h-11 rounded-2xl bg-blue-600 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.4)] font-extrabold text-white text-xl tracking-wider cursor-pointer hover:scale-105 transition-transform"
+            className="w-14 h-14 rounded-2xl bg-[#0B1020] border border-white/10 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.25)] cursor-pointer hover:scale-105 transition-transform overflow-hidden"
           >
-            CP
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Coder Pay Logo" className="w-12 h-12 object-contain" />
           </div>
           <div>
             <h2 className="font-sans font-extrabold text-2xl text-white tracking-tight">Coder Pay</h2>
@@ -124,14 +104,14 @@ export default function LoginPage() {
             
             {/* Email Field */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-300">开发者邮箱</label>
+              <label className="text-xs font-semibold text-slate-300">开发者账号 / 邮箱</label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500" />
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
+                  type="text"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="用户名或 name@example.com"
                   className="w-full pl-11 pr-4 py-3 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all font-mono"
                   required
                 />
@@ -165,37 +145,6 @@ export default function LoginPage() {
                 >
                   {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
                 </button>
-              </div>
-            </div>
-
-            {/* Captcha Field */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-300">安全验证码</label>
-              <div className="grid grid-cols-12 gap-3 items-center">
-                <div className="col-span-7 relative">
-                  <input
-                    type="text"
-                    value={captchaInput}
-                    onChange={(e) => setCaptchaInput(e.target.value)}
-                    placeholder="输入右侧 4 位数"
-                    maxLength={4}
-                    className="w-full px-4 py-3 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all font-mono text-center tracking-widest font-bold"
-                    required
-                  />
-                </div>
-                <div className="col-span-5 flex items-center justify-between bg-[#0B1020] border border-[rgba(255,255,255,0.08)] p-1.5 rounded-xl h-11">
-                  <span className="text-sm font-extrabold font-mono text-blue-400 select-none tracking-widest pl-3 italic">
-                    {captchaCode}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleRefreshCaptcha}
-                    className="p-1 px-2 text-slate-500 hover:text-blue-400 hover:bg-slate-900 rounded transition-colors"
-                    title="刷新验证码"
-                  >
-                    <RefreshCw className="w-4.5 h-4.5" />
-                  </button>
-                </div>
               </div>
             </div>
 

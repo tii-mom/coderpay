@@ -87,11 +87,11 @@ export function usePaymentState() {
     getState: () => state,
     saveState: (state?: any) => {}, // Managed by real SQLite DB
 
-    login: async (email: string) => {
+    login: async (identifier: string, password?: string) => {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ identifier, email: identifier, password })
       });
       await fetchState();
       return res.ok;

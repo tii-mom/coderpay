@@ -4,6 +4,13 @@ import './globals.css'; // Global styles
 export const metadata: Metadata = {
   title: 'Coder Pay - 个人开发者的自动收款平台',
   description: '安防稳定、直达个人账户、全自动回调的个人收款解决方案。',
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon.png', type: 'image/png', sizes: '1024x1024' }
+    ],
+    apple: [{ url: '/icon.png', type: 'image/png', sizes: '1024x1024' }]
+  },
 };
 
 export default function RootLayout({children}: {children: React.ReactNode}) {
