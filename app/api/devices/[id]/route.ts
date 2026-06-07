@@ -2,6 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { omitDeviceSecret } from "@/lib/devices";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -28,7 +29,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     });
     
-    return NextResponse.json(updated);
+    return NextResponse.json(omitDeviceSecret(updated));
   } catch (err) {
     console.error("API request failed:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

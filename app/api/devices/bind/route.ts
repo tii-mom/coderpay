@@ -2,6 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { omitDeviceSecret } from "@/lib/devices";
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
       }
     });
     
-    return NextResponse.json({ status: "success", device });
+    return NextResponse.json({ status: "success", device: omitDeviceSecret(device) });
   } catch (err) {
     console.error("API request failed:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

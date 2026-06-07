@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { randomNumericCode } from "@/lib/random";
+import { omitDeviceSecret } from "@/lib/devices";
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" }
     });
     
-    return NextResponse.json(devices);
+    return NextResponse.json(devices.map(omitDeviceSecret));
   } catch (err) {
     console.error("API request failed:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
       }
     });
     
-    return NextResponse.json(device);
+    return NextResponse.json(omitDeviceSecret(device));
   } catch (err) {
     console.error("API request failed:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
