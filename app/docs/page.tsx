@@ -1,0 +1,595 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { 
+  ArrowLeft, 
+  BookOpen, 
+  Terminal, 
+  Cpu, 
+  Key, 
+  RefreshCw, 
+  Code2, 
+  Check, 
+  Copy, 
+  ChevronRight,
+  Shield,
+  Zap,
+  Smartphone,
+  ExternalLink
+} from 'lucide-react';
+
+export default function DocsPage() {
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const [activeSection, setActiveSection] = useState('overview');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
+
+
+  if (!mounted) {
+    return <div className="min-h-screen bg-[#070A12]" />;
+  }
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const sections = [
+    { id: 'overview', title: '系统集成总览', icon: <Shield className="w-4 h-4" /> },
+    { id: 'steps', title: '集成接入步骤', icon: <Cpu className="w-4 h-4" /> },
+    { id: 'watcher-setup', title: 'Android 挂机端配置', icon: <Smartphone className="w-4 h-4" /> },
+    { id: 'api-create', title: '1. 创建支付订单 API', icon: <Code2 className="w-4 h-4" /> },
+    { id: 'api-query', title: '2. 查询订单状态 API', icon: <Terminal className="w-4 h-4" /> },
+    { id: 'api-webhook', title: '3. Webhook 回调规范', icon: <RefreshCw className="w-4 h-4" /> },
+    { id: 'signature', title: '签名算法与实现', icon: <Key className="w-4 h-4" /> },
+  ];
+
+
+  const codeCreateReq = `{
+  "app_id": "10042",
+  "out_order_no": "TEST_ORDER_100234",
+  "title": "高级开发者包月套餐",
+  "amount": 19.90,
+  "pay_type": "wechat",
+  "notify_url": "https://api.yoursite.com/pay/notify",
+  "return_url": "https://yoursite.com/pay/success",
+  "sign": "23c21c78..." 
+}`;
+
+  const codeCreateRes = `{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "order_id": "CP482910",
+    "out_order_no": "TEST_ORDER_100234",
+    "amount": "19.90",
+    "real_amount": "19.88",
+    "pay_type": "wechat",
+    "payment_url": "http://localhost:4000/pay/CP482910",
+    "expired_at": "2026-06-06T03:30:00.000Z"
+  }
+}`;
+
+  const codeQueryReq = `{
+  "app_id": "10042",
+  "out_order_no": "TEST_ORDER_100234",
+  "sign": "f3b392b95c9ec281..."
+}`;
+
+  const codeQueryRes = `{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "order_id": "CP482910",
+    "out_order_no": "TEST_ORDER_100234",
+    "status": "success",
+    "amount": "19.90",
+    "real_amount": "19.88",
+    "pay_time": "2026-06-06 03:22:14"
+  }
+}`;
+
+  const codeWebhook = `{
+  "app_id": "10042",
+  "order_id": "CP482910",
+  "out_order_no": "TEST_ORDER_100234",
+  "pay_type": "wechat",
+  "amount": "19.90",
+  "real_amount": "19.88",
+  "pay_time": "2026-06-06 03:22:14",
+  "sign": "f3b392b95c9ec28120b601f0faedee10bf23bf0450682"
+}`;
+
+  const codeSignNode = `import crypto from 'crypto';
+
+const params = {
+  app_id: "10042",
+  out_order_no: "ORDER_998124",
+  amount: "19.90",
+  pay_type: "wechat"
+};
+
+// 1. 键名升序排列
+const sortedKeys = Object.keys(params).sort();
+
+// 2. 组装待签串
+let queryStr = sortedKeys.map(k => \`\${k}=\${params[k]}\`).join('&');
+
+// 3. 追加密钥并计算 HMAC-SHA256
+const stringToSign = queryStr + '&key=' + appSecret;
+const sign = crypto.createHmac('sha256', appSecret)
+                   .update(stringToSign)
+                   .digest('hex');`;
+
+  return (
+    <div className="min-h-screen bg-[#070A12] text-slate-100 flex flex-col font-sans" id="docs-page-root">
+      
+      {/* Top sticky bar */}
+      <header className="sticky top-0 z-40 border-b border-[rgba(255,255,255,0.06)] bg-[#070A12]/80 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => router.push('/')}
+              className="p-2 bg-slate-900 border border-white/5 rounded-xl text-slate-400 hover:text-white transition-all flex items-center gap-1.5 text-xs font-semibold"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> 返回首页
+            </button>
+            <span className="text-slate-500">/</span>
+            <span className="text-sm font-bold text-white flex items-center gap-1.5">
+              <BookOpen className="w-4 h-4 text-blue-400" /> Coder Pay 说明文档
+            </span>
+          </div>
+
+          <button 
+            onClick={() => router.push('/console')}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(37,99,235,0.2)] flex items-center gap-1"
+          >
+            进入控制台联调 <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </header>
+
+      {/* Main page content container */}
+      <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row gap-8">
+        
+        {/* Left navigation sidebar */}
+        <aside className="lg:w-64 shrink-0 flex flex-col gap-2">
+          <div className="sticky top-24 flex flex-col gap-1.5 text-left">
+            <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider px-3 mb-2 block">文档导览目录</span>
+            {sections.map(sec => {
+              const isActive = activeSection === sec.id;
+              return (
+                <button
+                  key={sec.id}
+                  onClick={() => {
+                    setActiveSection(sec.id);
+                    document.getElementById(sec.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-xs font-bold text-left transition-all duration-150 ${
+                    isActive 
+                      ? 'bg-[#3B82F6]/10 text-[#3B82F6] shadow-[inset_0_0_12px_rgba(59,130,246,0.06)]' 
+                      : 'text-[#94A3B8] hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  {sec.icon}
+                  <span>{sec.title}</span>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        {/* Center content markdown container */}
+        <main className="flex-1 bg-[#0B1020] border border-white/5 rounded-3xl p-6 sm:p-10 flex flex-col gap-12 text-left relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 blur-[80px] pointer-events-none rounded-full" />
+
+          {/* Section: Overview */}
+          <section id="overview" className="flex flex-col gap-5 border-b border-white/5 pb-10 scroll-mt-24">
+            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+              <Shield className="w-6 h-6 text-blue-400" /> 系统集成总览
+            </h2>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              Coder Pay 的核心集成设计思路为：<span className="text-white font-semibold">个人收款码 + 安卓通知栏到账监听 + 自动订单匹配 + 商户 Webhook 回调</span>。
+            </p>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              相较于传统支付中介，整个付款链路中资金<span className="text-green-400 font-semibold">首尾直达您的个人微信/支付宝账户</span>，不经过 Coder Pay 代收及任何资金沉淀，具有绝对的资金安全保障。
+            </p>
+            <div className="p-4 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl text-xs text-emerald-400 flex items-center gap-2">
+              <Zap className="w-4 h-4 shrink-0" />
+              <span>特点：0% 资金扣留、无需营业执照、免商户签约、秒级到账通知。</span>
+            </div>
+          </section>
+
+          {/* Section: Steps */}
+          <section id="steps" className="flex flex-col gap-6 border-b border-white/5 pb-10 scroll-mt-24">
+            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+              <Cpu className="w-6 h-6 text-blue-400" /> 开发者集成接入步骤
+            </h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="p-5 bg-slate-900/50 border border-white/5 rounded-2xl flex flex-col gap-3">
+                <span className="w-7 h-7 rounded-full bg-blue-600/10 border border-blue-500/30 text-blue-400 font-mono text-xs font-bold flex items-center justify-center">01</span>
+                <h4 className="text-xs font-bold text-white">第一步：创建收款应用</h4>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  在控制台 [应用管理] 创建新应用，设定默认过期时间及商户 notify_url，安全记录 App ID 与 App Secret。
+                </p>
+              </div>
+
+              <div className="p-5 bg-slate-900/50 border border-white/5 rounded-2xl flex flex-col gap-3">
+                <span className="w-7 h-7 rounded-full bg-blue-600/10 border border-blue-500/30 text-blue-400 font-mono text-xs font-bold flex items-center justify-center">02</span>
+                <h4 className="text-xs font-bold text-white">第二步：配置收款码</h4>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  在 [收款码管理] 上传微信/支付宝收款二维码，支持不固定金额与防撞额固定金额二维码，并绑定安卓监控设备。
+                </p>
+              </div>
+
+              <div className="p-5 bg-slate-900/50 border border-white/5 rounded-2xl flex flex-col gap-3">
+                <span className="w-7 h-7 rounded-full bg-blue-600/10 border border-blue-500/30 text-blue-400 font-mono text-xs font-bold flex items-center justify-center">03</span>
+                <h4 className="text-xs font-bold text-white">第三步：部署 Watcher</h4>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  在备用安卓机安装 CP Watcher 安卓 App，授予通知读取权限。开启收款到账语音/系统通知提醒，实现秒级侦测。
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Section: Android Watcher Setup */}
+          <section id="watcher-setup" className="flex flex-col gap-6 border-b border-white/5 pb-10 scroll-mt-24">
+            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+              <Smartphone className="w-6 h-6 text-blue-400" /> Android 挂机端编译与保活配置
+            </h2>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              由于 <span className="text-white font-semibold">CP Watcher</span> 是我们针对 Coder Pay 平台专门定制的到账监控 App，涉及系统底层的通知读取权限，因此<span className="text-amber-400 font-semibold">无法从任何公开应用商店下载</span>。需要利用开源的 Android 源码包自行编译出包。
+            </p>
+
+            {/* Phase 1: Compile APK */}
+            <div className="flex flex-col gap-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2 border-l-2 border-blue-500 pl-2">
+                第一阶段：如何编译并导出 Android App (APK)
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+                <div className="p-4 bg-slate-900/40 border border-white/5 rounded-xl">
+                  <span className="text-xs text-blue-400 font-mono block mb-1">步骤 1.1 / 准备环境</span>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    电脑上需安装好官方的 <b>Android Studio</b>。如果是团队协作，可由对应的客户端工程师进行打包。
+                  </p>
+                </div>
+                <div className="p-4 bg-slate-900/40 border border-white/5 rounded-xl">
+                  <span className="text-xs text-blue-400 font-mono block mb-1">步骤 1.2 / 导入源码</span>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    在 Android Studio 中点击 <code className="text-[10px] bg-slate-950 p-1 rounded font-mono text-slate-300">File &amp;rarr; Open</code>，选择本地克隆的 <code className="text-[10px] bg-slate-950 p-1 rounded font-mono text-blue-400">coderpay-android</code> 目录。
+                  </p>
+                </div>
+                <div className="p-4 bg-slate-900/40 border border-white/5 rounded-xl">
+                  <span className="text-xs text-blue-400 font-mono block mb-1">步骤 1.3 / 打包生成</span>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    点击菜单栏 <code className="text-[10px] bg-slate-950 p-1 rounded font-mono text-slate-300">Build &amp;rarr; Build Bundle(s)/APK(s) &amp;rarr; Build APK(s)</code>。打包完成后点击 <code className="text-blue-400">locate</code> 即可获得 <b>app-debug.apk</b> 文件。
+                  </p>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Phase 2: Configuration */}
+            <div className="flex flex-col gap-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2 border-l-2 border-blue-500 pl-2">
+                第二阶段：手机安装与关键权限配置
+              </h3>
+              <div className="p-5 bg-slate-900/20 border border-white/5 rounded-2xl flex flex-col gap-4">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-5 h-5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</div>
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-200">开启“通知栏读取权限”（关键拦截逻辑）</h5>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                      进入 CP Watcher App 主界面“手机运行权限体检”，点击“通知栏读取监听权限”旁边的“需授权”，并在手机系统弹窗中允许 CP Watcher 访问通知开关。
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3.5 border-t border-white/5 pt-4">
+                  <div className="w-5 h-5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</div>
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-200">忽略省电优化并锁定后台（防止系统断线杀进程）</h5>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                      在 App 中点击“电池省电限制忽略 (保活)”旁边的“需设置”，允许其在后台运行不限制电量。另外建议在系统“应用管理”中开启“允许自启动”并关闭智能唤醒控制。
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3.5 border-t border-white/5 pt-4">
+                  <div className="w-5 h-5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</div>
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-200">配置微信与支付宝通知详情</h5>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                      为了使 Watcher 解析收款金额，您的微信和支付宝在系统通知管理中<span className="text-rose-400 font-semibold">必须开启“显示通知详情/通知文字内容”</span>。隐藏消息详情（只显示“收到一条新消息”）会导致匹配失效。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Phase 3: Alignment testing */}
+            <div className="flex flex-col gap-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2 border-l-2 border-blue-500 pl-2">
+                第三阶段：设备配对与全链路联调测试
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+                <div className="p-4 bg-slate-900/40 border border-white/5 rounded-xl flex flex-col gap-1">
+                  <span className="text-xs text-blue-400 font-mono block">3.1 / 获取配对码</span>
+                  <p className="text-xs text-slate-400 leading-relaxed mt-1">
+                    登录 Coder Pay 控制台，在“设备通道”中添加挂载一个新备用机设备，系统将生成授权配对码（例如：<code className="text-slate-300 font-mono">dev-1001</code>）。
+                  </p>
+                </div>
+                <div className="p-4 bg-slate-900/40 border border-white/5 rounded-xl flex flex-col gap-1">
+                  <span className="text-xs text-blue-400 font-mono block">3.2 / 探针握手激活</span>
+                  <p className="text-xs text-slate-400 leading-relaxed mt-1">
+                    在手机 Watcher 软件中填入控制台分配的 API 云地址及设备授权码 <code className="text-slate-300 font-mono">dev-1001</code>，点击“保存并连接探针”，此时控制台该设备状态会瞬间点亮为“在线”。
+                  </p>
+                </div>
+                <div className="p-4 bg-slate-900/40 border border-white/5 rounded-xl flex flex-col gap-1">
+                  <span className="text-xs text-blue-400 font-mono block">3.3 / 首笔模拟核销</span>
+                  <p className="text-xs text-slate-400 leading-relaxed mt-1">
+                    在后台发起首笔 ¥0.01 的沙箱订单。在手机 App 底部点击 <code className="text-emerald-400 font-bold">测试微信 ¥0.01</code> 模拟到账，收银台网页如果在一秒内成功核销跳转，代表全链路联调握手完毕！
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Section: API Create */}
+          <section id="api-create" className="flex flex-col gap-5 border-b border-white/5 pb-10 scroll-mt-24">
+            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+              <Code2 className="w-6 h-6 text-blue-400" /> 1. 创建支付订单 API
+            </h2>
+
+            <p className="text-sm text-slate-400">
+              当您的网站用户下单时，由您的服务器后台向 Coder Pay 发起此请求，生成待付单并获取收银台链接。
+            </p>
+            <div className="flex flex-wrap items-center gap-2.5 text-xs font-mono font-bold">
+              <span className="px-2.5 py-1 bg-blue-600/10 border border-blue-500/30 text-blue-400 rounded-lg">POST</span>
+              <span className="text-slate-300">/api/order/create</span>
+              <span className="text-slate-500">|</span>
+              <span className="text-slate-400">Content-Type: application/json</span>
+            </div>
+
+            <div className="flex flex-col gap-2 mt-2">
+              <h4 className="text-xs font-bold text-white">请求参数 (JSON Payload)：</h4>
+              <div className="overflow-x-auto border border-white/5 rounded-2xl">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-900 text-slate-400 border-b border-white/5">
+                      <th className="p-3">参数名</th>
+                      <th className="p-3">类型</th>
+                      <th className="p-3">必填</th>
+                      <th className="p-3">说明</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-white/5">
+                      <td className="p-3 font-mono text-slate-300">app_id</td>
+                      <td className="p-3 text-slate-400">string</td>
+                      <td className="p-3 text-blue-400">是</td>
+                      <td className="p-3 text-slate-500">开发者应用 App ID</td>
+                    </tr>
+                    <tr className="border-b border-white/5">
+                      <td className="p-3 font-mono text-slate-300">out_order_no</td>
+                      <td className="p-3 text-slate-400">string</td>
+                      <td className="p-3 text-blue-400">是</td>
+                      <td className="p-3 text-slate-500">商户本地系统订单号（需保证唯一）</td>
+                    </tr>
+                    <tr className="border-b border-white/5">
+                      <td className="p-3 font-mono text-slate-300">title</td>
+                      <td className="p-3 text-slate-400">string</td>
+                      <td className="p-3 text-blue-400">是</td>
+                      <td className="p-3 text-slate-500">商品或订单名称</td>
+                    </tr>
+                    <tr className="border-b border-white/5">
+                      <td className="p-3 font-mono text-slate-300">amount</td>
+                      <td className="p-3 text-slate-400">number</td>
+                      <td className="p-3 text-blue-400">是</td>
+                      <td className="p-3 text-slate-500">支付总额，保留两位小数（例如 19.90）</td>
+                    </tr>
+                    <tr className="border-b border-white/5">
+                      <td className="p-3 font-mono text-slate-300">pay_type</td>
+                      <td className="p-3 text-slate-400">string</td>
+                      <td className="p-3 text-blue-400">是</td>
+                      <td className="p-3 text-slate-500">支付渠道，微信: wechat / 支付宝: alipay</td>
+                    </tr>
+                    <tr className="border-b border-white/5">
+                      <td className="p-3 font-mono text-slate-300">notify_url</td>
+                      <td className="p-3 text-slate-400">string</td>
+                      <td className="p-3 text-slate-600">否</td>
+                      <td className="p-3 text-slate-500">异步通知 URL，可覆盖默认应用配置</td>
+                    </tr>
+                    <tr className="border-b border-white/5">
+                      <td className="p-3 font-mono text-slate-300">sign</td>
+                      <td className="p-3 text-slate-400">string</td>
+                      <td className="p-3 text-blue-400">是</td>
+                      <td className="p-3 text-slate-500">签名串（算签规则详见下方）</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-2">
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-400">请求 JSON 示例:</span>
+                  <button 
+                    onClick={() => handleCopy(codeCreateReq, 'createReq')}
+                    className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px]"
+                  >
+                    {copiedId === 'createReq' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                    {copiedId === 'createReq' ? '已复制' : '复制'}
+                  </button>
+                </div>
+                <pre className="p-4 bg-slate-950 text-slate-300 text-xs font-mono rounded-2xl border border-white/5 overflow-x-auto text-left leading-normal">
+                  {codeCreateReq}
+                </pre>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-400">成功响应 JSON:</span>
+                  <button 
+                    onClick={() => handleCopy(codeCreateRes, 'createRes')}
+                    className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px]"
+                  >
+                    {copiedId === 'createRes' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                    {copiedId === 'createRes' ? '已复制' : '复制'}
+                  </button>
+                </div>
+                <pre className="p-4 bg-slate-950 text-slate-300 text-xs font-mono rounded-2xl border border-white/5 overflow-x-auto text-left leading-normal">
+                  {codeCreateRes}
+                </pre>
+              </div>
+            </div>
+          </section>
+
+          {/* Section: API Query */}
+          <section id="api-query" className="flex flex-col gap-5 border-b border-white/5 pb-10 scroll-mt-24">
+            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+              <Terminal className="w-6 h-6 text-blue-400" /> 2. 查询订单状态 API
+            </h2>
+            <p className="text-sm text-slate-400">
+              用于商户主动拉取并同步订单的实时支付状态。
+            </p>
+            <div className="flex flex-wrap items-center gap-2.5 text-xs font-mono font-bold">
+              <span className="px-2.5 py-1 bg-blue-600/10 border border-blue-500/30 text-blue-400 rounded-lg">POST</span>
+              <span className="text-slate-300">/api/order/query</span>
+              <span className="text-slate-500">|</span>
+              <span className="text-slate-400">Content-Type: application/json</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-2">
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-400">请求 JSON 示例:</span>
+                  <button 
+                    onClick={() => handleCopy(codeQueryReq, 'queryReq')}
+                    className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px]"
+                  >
+                    {copiedId === 'queryReq' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                    {copiedId === 'queryReq' ? '已复制' : '复制'}
+                  </button>
+                </div>
+                <pre className="p-4 bg-slate-950 text-slate-300 text-xs font-mono rounded-2xl border border-white/5 overflow-x-auto text-left leading-normal">
+                  {codeQueryReq}
+                </pre>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-400">成功响应 JSON:</span>
+                  <button 
+                    onClick={() => handleCopy(codeQueryRes, 'queryRes')}
+                    className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px]"
+                  >
+                    {copiedId === 'queryRes' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                    {copiedId === 'queryRes' ? '已复制' : '复制'}
+                  </button>
+                </div>
+                <pre className="p-4 bg-slate-950 text-slate-300 text-xs font-mono rounded-2xl border border-white/5 overflow-x-auto text-left leading-normal">
+                  {codeQueryRes}
+                </pre>
+              </div>
+            </div>
+          </section>
+
+          {/* Section: API Webhook */}
+          <section id="api-webhook" className="flex flex-col gap-5 border-b border-white/5 pb-10 scroll-mt-24">
+            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+              <RefreshCw className="w-6 h-6 text-blue-400" /> 3. 异步 Webhook 回调规范
+            </h2>
+            <p className="text-sm text-slate-400">
+              当安卓端 CP Watcher 监听到账并匹配到商户订单后，Coder Pay 平台将主动向您的 `notify_url` 发起 **POST** 请求。
+            </p>
+
+            <div className="flex flex-col gap-2 mt-2">
+              <h4 className="text-xs font-bold text-white">回调 JSON 报文示例：</h4>
+              <div className="relative">
+                <button 
+                  onClick={() => handleCopy(codeWebhook, 'webhook')}
+                  className="absolute right-3 top-3 p-1 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px] z-10"
+                >
+                  {copiedId === 'webhook' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                  {copiedId === 'webhook' ? '已复制' : '复制'}
+                </button>
+                <pre className="p-4 bg-slate-950 text-slate-300 text-xs font-mono rounded-2xl border border-white/5 overflow-x-auto text-left leading-normal">
+                  {codeWebhook}
+                </pre>
+              </div>
+            </div>
+
+            <div className="p-5 bg-blue-950/20 border border-blue-500/20 rounded-2xl flex flex-col gap-3 mt-2">
+              <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" /> 🚨 商户系统接收回调响应准则：
+              </h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                商户系统在对接收到的回调数据计算并校验 `sign` 匹配后，若本地发货或核销成功，必须向本 HTTP 响应输出且仅输出纯文本 <b className="text-green-400 font-mono">`success`</b>（全部英文小写，无空格或 HTML 标签）。
+              </p>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                若 Coder Pay 平台收到非 `success` 的应答（或发生超时），系统将判定推送失败，自动触发 **5轮退避重试** 机制（即时、1分、2分、4分、16分、64分、300分）以最大程度保护交易订单的核销安全。
+              </p>
+            </div>
+          </section>
+
+          {/* Section: Signature */}
+          <section id="signature" className="flex flex-col gap-5 scroll-mt-24">
+            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+              <Key className="w-6 h-6 text-blue-400" /> 签名算法与实现
+            </h2>
+            <p className="text-sm text-slate-400">
+              为防止交易参数被篡改或虚假回调，所有接口调用与 Webhook 通知均强制执行签名鉴权。
+            </p>
+
+            <div className="flex flex-col gap-3 text-xs text-slate-400 leading-relaxed pl-5 list-decimal">
+              <div className="flex gap-2">
+                <span className="text-blue-400 font-bold">1.</span>
+                <span><b>参数字典排序</b>：剔除 `sign` 字段，将待签名数据的所有参数名（Keys）按照 ASCII 自然顺序（字母 A-Z）升序排序。</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="text-blue-400 font-bold">2.</span>
+                <span><b>组装待签字符串</b>：将排序后的参数以 `key1=value1&key2=value2` 格式拼接为 Query String。</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="text-blue-400 font-bold">3.</span>
+                <span><b>追加应用密钥</b>：在待签名字符串末尾直接拼接 `&key=YOUR_APP_SECRET` 后缀（商户 App Secret 仅保留于后台，严禁泄漏）。</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="text-blue-400 font-bold">4.</span>
+                <span><b>计算 HMAC-SHA256 哈希值</b>：以 App Secret 为秘钥计算 HMAC-SHA256 值（结果转小写，即为最终的 `sign` 值）。</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 mt-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-slate-400">Node.js 算签实现代码示例:</span>
+                <button 
+                  onClick={() => handleCopy(codeSignNode, 'signNode')}
+                  className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px]"
+                >
+                  {copiedId === 'signNode' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                  {copiedId === 'signNode' ? '已复制' : '复制'}
+                </button>
+              </div>
+              <pre className="p-4 bg-slate-950 text-slate-300 text-xs font-mono rounded-2xl border border-white/5 overflow-x-auto text-left leading-normal">
+                {codeSignNode}
+              </pre>
+            </div>
+          </section>
+
+        </main>
+      </div>
+
+    </div>
+  );
+}

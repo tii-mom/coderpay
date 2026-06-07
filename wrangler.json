@@ -1,6 +1,6 @@
 {
   "name": "coderpay",
-  "compatibility_date": "2024-05-02",
+  "compatibility_date": "2025-04-01",
   "compatibility_flags": [
     "nodejs_compat"
   ],

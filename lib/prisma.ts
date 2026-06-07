@@ -5,11 +5,19 @@ const globalForPrisma = globalThis as unknown as { prisma: any };
 
 let prismaInstance: any = null;
 
+function getRuntimeRequire() {
+  try {
+    return Function("return typeof require === 'undefined' ? undefined : require")();
+  } catch {
+    return undefined;
+  }
+}
+
 function getPrisma(): PrismaClient {
   if (prismaInstance) return prismaInstance;
 
   const env = process.env as any;
-  const req = typeof require !== "undefined" ? require : null;
+  const req = getRuntimeRequire();
 
   if (env.DB) {
     const adapter = new PrismaD1(env.DB);
@@ -18,7 +26,7 @@ function getPrisma(): PrismaClient {
     let d1: any = null;
     if (req) {
       try {
-        const clPackage = "@cloudflare/next-on-pages";
+        const clPackage = ["@cloudflare", "next-on-pages"].join("/");
         const { getRequestContext } = req(clPackage);
         d1 = getRequestContext().env.DB;
       } catch (e) {}
@@ -31,7 +39,8 @@ function getPrisma(): PrismaClient {
       // Local fallback for Node.js runtime (next dev / build / CLI)
       if (req) {
         try {
-          const { PrismaBetterSqlite3 } = require("@prisma/adapter-better-sqlite3");
+          const sqliteAdapterPackage = ["@prisma", "adapter-better-sqlite3"].join("/");
+          const { PrismaBetterSqlite3 } = req(sqliteAdapterPackage);
           const dbUrl = env.DATABASE_URL || "file:./dev.db";
           const adapter = new PrismaBetterSqlite3({ url: dbUrl });
           prismaInstance = new PrismaClient({ adapter });

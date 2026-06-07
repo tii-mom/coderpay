@@ -14,7 +14,8 @@ import {
   QrCode,
   Link,
   Edit,
-  ExternalLink
+  ExternalLink,
+  UploadCloud
 } from 'lucide-react';
 
 interface CodesTabProps {
@@ -38,6 +39,41 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
 
   // Loader state
   const [isLoadingCodeOperation, setIsLoadingCodeOperation] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const handleUploadCodeImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      onTriggerToast('请选择微信/支付宝收款码图片文件。', 'error');
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/uploads/payment-code', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || '上传失败');
+      }
+
+      setImageUrl(data.url);
+      onTriggerToast('收款码图片已上传，图片地址已自动填入。', 'success');
+    } catch (err: any) {
+      onTriggerToast(err.message || '收款码图片上传失败，请稍后重试。', 'error');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   const handleCreateCode = (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,13 +262,37 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
 
               <div className="flex flex-col gap-1.5 font-sans">
                 <label className="text-xs font-semibold text-slate-300">二维码图片地址 (选填)</label>
-                <input
-                  type="text"
-                  placeholder="二维码图片外链，留空将自动生成演示码"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  className="px-4 py-2.5 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="可上传图片自动生成地址"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    className="min-w-0 flex-1 px-4 py-2.5 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none"
+                  />
+                  <label className={`shrink-0 px-3.5 py-2.5 rounded-xl border border-blue-500/20 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40 text-xs font-bold cursor-pointer flex items-center gap-1.5 transition-colors ${isUploadingImage ? 'opacity-60 pointer-events-none' : ''}`}>
+                    <UploadCloud className="w-4 h-4" />
+                    {isUploadingImage ? '上传中' : '上传'}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      onChange={handleUploadCodeImage}
+                      className="hidden"
+                      disabled={isUploadingImage}
+                    />
+                  </label>
+                </div>
+                {imageUrl && (
+                  <div className="mt-2 flex items-center gap-3 rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#0B1020]/70 p-2">
+                    <div className="w-14 h-14 bg-white p-1 rounded-lg shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={imageUrl} alt="收款码预览" className="w-full h-full object-cover rounded-md" />
+                    </div>
+                    <span className="text-[10px] leading-relaxed text-slate-500 break-all">
+                      已生成可访问图片地址，提交后将作为收银台展示二维码使用。
+                    </span>
+                  </div>
+                )}
               </div>
 
             </div>

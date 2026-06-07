@@ -17,8 +17,13 @@ scratch/
 *.jpeg
 *.jpg
 
+# Android local/build artifacts
+coderpay-android/.gradle/
+coderpay-android/.idea/
+coderpay-android/app/build/
+coderpay-android/local.properties
+
 # Allow specific asset images
 !public/**/*.png
 !app/**/*.png
-
 

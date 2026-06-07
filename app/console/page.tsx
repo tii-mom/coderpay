@@ -47,6 +47,42 @@ function getUniqueToastId(): string {
   return '0';
 }
 
+const VALID_CONSOLE_TABS = new Set([
+  'overview',
+  'apps',
+  'codes',
+  'devices',
+  'orders',
+  'events',
+  'exceptions',
+  'webhooks',
+  'docs',
+  'billing'
+]);
+
+function getConsoleTabFromLocation() {
+  if (typeof window === 'undefined') return 'overview';
+
+  const params = new URLSearchParams(window.location.search);
+  const queryTab = params.get('tab');
+  if (queryTab && VALID_CONSOLE_TABS.has(queryTab)) return queryTab;
+
+  const [, consoleSegment, tabSegment] = window.location.pathname.split('/');
+  if (consoleSegment === 'console' && tabSegment && VALID_CONSOLE_TABS.has(tabSegment)) {
+    return tabSegment;
+  }
+
+  return 'overview';
+}
+
+function getConsoleTabUrl(tabName: string) {
+  const path = tabName === 'overview' ? '/console' : `/console/${tabName}`;
+  const params = new URLSearchParams(window.location.search);
+  params.delete('tab');
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
+
 export default function ConsolePage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -63,6 +99,14 @@ export default function ConsolePage() {
 
   // Navigation tab switcher state
   const [activeTab, setActiveTab] = useState<string>('overview');
+
+  useEffect(() => {
+    const syncTabFromUrl = () => setActiveTab(getConsoleTabFromLocation());
+    syncTabFromUrl();
+    window.addEventListener('popstate', syncTabFromUrl);
+    return () => window.removeEventListener('popstate', syncTabFromUrl);
+  }, []);
+
 
   // Slide open mobile sidebar
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -83,10 +127,15 @@ export default function ConsolePage() {
     setActiveTab(tabName);
     setMobileSidebarOpen(false);
 
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', getConsoleTabUrl(tabName));
+    }
+
     if (refId) {
       triggerToast(`已定向至相关联外部事件 [参数: ${refId}]`, 'success');
     }
   };
+
 
   const handleLogout = () => {
     if (confirm('您确定要安全退出 Coder Pay 控制台吗？')) {

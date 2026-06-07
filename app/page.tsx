@@ -43,9 +43,10 @@ export default function HomePage() {
   };
 
   const handleNavigateDocs = () => {
-    // Navigate to console docs tab
-    router.push('/console?tab=docs');
+    // Navigate to dedicated docs page
+    router.push('/docs');
   };
+
 
   const flowSteps = [
     {
