@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
       let foundUnique = false;
       for (const offset of offsets) {
         const testAmount = Number((numAmount + offset).toFixed(2));
-        if (testAmount > 0.05 && !occupied.has(testAmount.toFixed(2))) {
+        if (testAmount >= 0.01 && !occupied.has(testAmount.toFixed(2))) {
           realAmount = testAmount;
           foundUnique = true;
           break;
