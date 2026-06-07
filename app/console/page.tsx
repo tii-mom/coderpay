@@ -97,6 +97,13 @@ export default function ConsolePage() {
   // Custom states usePaymentState hook
   const { state, db } = usePaymentState();
 
+  useEffect(() => {
+    if (mounted && state.isAuthChecked && !state.isLoggedIn) {
+      const next = `${window.location.pathname}${window.location.search}`;
+      router.replace(`/login?redirect=${encodeURIComponent(next)}`);
+    }
+  }, [mounted, router, state.isAuthChecked, state.isLoggedIn]);
+
   // Navigation tab switcher state
   const [activeTab, setActiveTab] = useState<string>('overview');
 
@@ -231,7 +238,7 @@ export default function ConsolePage() {
     );
   };
 
-  if (!mounted || !state) {
+  if (!mounted || !state || !state.isAuthChecked || !state.isLoggedIn) {
     return (
       <div className="min-h-screen bg-[#070A12] flex flex-col items-center justify-center text-slate-100 gap-4">
         <div className="w-12 h-12 rounded-full border-4 border-blue-500/20 border-t-blue-500 animate-spin" />

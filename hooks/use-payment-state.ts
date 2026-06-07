@@ -13,10 +13,11 @@ export function usePaymentState() {
     webhookLogs: [],
     exceptions: [],
     billingRecords: [],
-    feeBalance: 99.602,
+    feeBalance: 0,
     currentAppId: 'all',
     currentPlanId: 'plan-basic',
     isLoggedIn: false,
+    isAuthChecked: false,
     userEmail: '',
   }));
 
@@ -24,7 +25,21 @@ export function usePaymentState() {
     try {
       const meRes = await fetch("/api/auth/me");
       if (!meRes.ok) {
-        setState(prev => ({ ...prev, isLoggedIn: false }));
+        setState(prev => ({
+          ...prev,
+          apps: [],
+          paymentCodes: [],
+          devices: [],
+          orders: [],
+          events: [],
+          webhookLogs: [],
+          exceptions: [],
+          billingRecords: [],
+          feeBalance: 0,
+          isLoggedIn: false,
+          isAuthChecked: true,
+          userEmail: ''
+        }));
         return;
       }
       const me = await meRes.json();
@@ -53,10 +68,12 @@ export function usePaymentState() {
         currentAppId: prev.currentAppId,
         currentPlanId: prev.currentPlanId,
         isLoggedIn: me.isLoggedIn,
+        isAuthChecked: true,
         userEmail: me.email
       }));
     } catch (err) {
       console.error("Error fetching state:", err);
+      setState(prev => ({ ...prev, isLoggedIn: false, isAuthChecked: true }));
     }
   };
 

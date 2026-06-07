@@ -15,6 +15,7 @@ export interface CoderPayState {
   currentAppId: string; // Active app filter in dashboard
   currentPlanId: string;
   isLoggedIn: boolean;
+  isAuthChecked: boolean;
   userEmail: string;
 }
 
@@ -400,6 +401,7 @@ export function getInitialState(): CoderPayState {
       currentAppId: 'all',
       currentPlanId: 'plan-basic',
       isLoggedIn: true,
+      isAuthChecked: true,
       userEmail: 'yudeyou0118@gmail.com',
     };
   }
@@ -427,6 +429,7 @@ export function getInitialState(): CoderPayState {
     currentAppId: 'all',
     currentPlanId: 'plan-basic',
     isLoggedIn: true,
+    isAuthChecked: true,
     userEmail: 'yudeyou0118@gmail.com',
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(initialState));

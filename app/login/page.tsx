@@ -8,6 +8,9 @@ import { Lock, Mail, ShieldAlert, CheckCircle, RefreshCw, Eye, EyeOff } from 'lu
 
 export default function LoginPage() {
   const router = useRouter();
+  const redirectTarget = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('redirect') || '/console'
+    : '/console';
   const { db } = usePaymentState();
   const [mounted, setMounted] = useState(false);
   
@@ -36,7 +39,7 @@ export default function LoginPage() {
     setErrorText('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorText('');
     setSuccessText('');
@@ -58,18 +61,17 @@ export default function LoginPage() {
 
     // Success login mock
     if (isLogin) {
-      db.login(email);
+      const ok = await db.login(email);
+      if (!ok) {
+        setErrorText('账号不存在或未开通，请联系管理员创建账号');
+        return;
+      }
       setSuccessText('安全验证成功！正在为您转跳控制台...');
       setTimeout(() => {
-        router.push('/console');
+        router.push(redirectTarget);
       }, 1000);
     } else {
-      // Register mock
-      db.login(email);
-      setSuccessText('账号注册并初始化成功！正在安全登录控制台...');
-      setTimeout(() => {
-        router.push('/console');
-      }, 1500);
+      setErrorText('当前生产环境暂未开放自助注册，请联系管理员开通账号');
     }
   };
 
