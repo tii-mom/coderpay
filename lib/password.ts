@@ -1,4 +1,4 @@
-const ITERATIONS = 210_000;
+const ITERATIONS = 100_000;
 const HASH_ALGORITHM = "SHA-256";
 
 function toBase64(bytes: Uint8Array) {
