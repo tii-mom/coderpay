@@ -25,7 +25,11 @@ export async function POST(req: NextRequest) {
     
     // Verify signature unless this is a logged-in console sandbox request for the same merchant app.
     const sessionUser = await getSessionUser(req);
-    const isOwnedConsoleRequest = Boolean(sessionUser && sessionUser.id === app.userId);
+    const isOwnedConsoleRequest = Boolean(
+      sessionUser &&
+      sessionUser.id === app.userId &&
+      req.headers.get("x-coderpay-console-sandbox") === "1"
+    );
     
     if (!isOwnedConsoleRequest) {
       const isSignValid = verifySignature(body, app.appSecret, app.signType, sign);

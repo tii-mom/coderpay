@@ -2,7 +2,7 @@ export interface App {
   id: string;
   name: string;
   appId: string;
-  appSecret: string;
+  appSecret?: string;
   notifyUrl: string;
   returnUrl: string;
   feedbackUrl: string;
@@ -111,4 +111,21 @@ export interface BillingRecord {
   balance: number;
   description: string;
   createdAt: string;
+}
+
+export interface CoderPayState {
+  apps: App[];
+  paymentCodes: PaymentCode[];
+  devices: Device[];
+  orders: Order[];
+  events: PaymentEvent[];
+  webhookLogs: WebhookLog[];
+  exceptions: ExceptionItem[];
+  billingRecords: BillingRecord[];
+  feeBalance: number;
+  currentAppId: string;
+  currentPlanId: string;
+  isLoggedIn: boolean;
+  isAuthChecked: boolean;
+  userEmail: string;
 }

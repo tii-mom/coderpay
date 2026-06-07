@@ -1,9 +1,12 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaD1 } from "@prisma/adapter-d1";
+import { hashPassword } from "./password";
+import { randomHex } from "./random";
 
 const globalForPrisma = globalThis as unknown as { prisma: any };
 
 let prismaInstance: any = null;
+const LOCAL_QR_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%23fff'/%3E%3Crect x='56' y='56' width='96' height='96' fill='%230f172a'/%3E%3Crect x='248' y='56' width='96' height='96' fill='%230f172a'/%3E%3Crect x='56' y='248' width='96' height='96' fill='%230f172a'/%3E%3Cpath d='M200 200h32v32h-32zm48 0h32v32h-32zm0 48h32v32h-32zm48 0h48v48h-48zm-96 48h32v48h-32z' fill='%230f172a'/%3E%3C/svg%3E";
 
 function getRuntimeRequire() {
   try {
@@ -85,8 +88,8 @@ export async function autoSeed() {
       // create default user
       const user = await prisma.user.create({
         data: {
-          email: "developer@example.com",
-          passwordHash: "password_hash", // for local preview simplicity
+          email: "local-dev@coderpay.local",
+          passwordHash: await hashPassword("local-dev-password"),
           feeBalance: 99.602,
         }
       });
@@ -95,7 +98,7 @@ export async function autoSeed() {
       const app1 = await prisma.app.create({
         data: {
           appId: "10042",
-          appSecret: "2bc82ef3bc104ad9e8dbad982b6c72e90f23cb41b2b8c9b36edef",
+          appSecret: randomHex(32),
           name: "网盘自动化工具插件",
           notifyUrl: "https://api.pan-tool.com/webhook/pay",
           returnUrl: "https://example.com/success",
@@ -109,7 +112,7 @@ export async function autoSeed() {
       const app2 = await prisma.app.create({
         data: {
           appId: "10043",
-          appSecret: "fb88a8c88fdceb485fb0b04bd1fb9c4a",
+          appSecret: randomHex(32),
           name: "赞助打赏与支持独立开发",
           notifyUrl: "https://api.indie-developer.quest/v1/payment/callback",
           returnUrl: "https://example.com/success",
@@ -124,7 +127,7 @@ export async function autoSeed() {
       const dev1 = await prisma.device.create({
         data: {
           deviceCode: "dev-1",
-          deviceSecret: "dev_secret_1_secure",
+          deviceSecret: `sec_${randomHex(32)}`,
           name: "Redmi Note 10",
           online: true,
           wechatListener: "running",
@@ -139,7 +142,7 @@ export async function autoSeed() {
       const dev2 = await prisma.device.create({
         data: {
           deviceCode: "dev-2",
-          deviceSecret: "dev_secret_2_secure",
+          deviceSecret: `sec_${randomHex(32)}`,
           name: "Redmi Note 10 (备用监控)",
           online: false,
           wechatListener: "stopped",
@@ -157,7 +160,7 @@ export async function autoSeed() {
           type: "wechat",
           codeType: "any",
           amount: 0.0,
-          imageUrl: "https://picsum.photos/seed/wxany/400/400",
+          imageUrl: LOCAL_QR_PLACEHOLDER,
           status: "active",
           deviceId: dev1.id,
           userId: user.id
@@ -169,7 +172,7 @@ export async function autoSeed() {
           type: "alipay",
           codeType: "any",
           amount: 0.0,
-          imageUrl: "https://picsum.photos/seed/aliany/400/400",
+          imageUrl: LOCAL_QR_PLACEHOLDER,
           status: "active",
           deviceId: dev1.id,
           userId: user.id
@@ -181,7 +184,7 @@ export async function autoSeed() {
           type: "wechat",
           codeType: "fixed",
           amount: 9.90,
-          imageUrl: "https://picsum.photos/seed/wx99/400/400",
+          imageUrl: LOCAL_QR_PLACEHOLDER,
           status: "active",
           deviceId: dev1.id,
           userId: user.id
@@ -193,7 +196,7 @@ export async function autoSeed() {
           type: "alipay",
           codeType: "fixed",
           amount: 29.90,
-          imageUrl: "https://picsum.photos/seed/ali299/400/400",
+          imageUrl: LOCAL_QR_PLACEHOLDER,
           status: "active",
           deviceId: dev2.id,
           userId: user.id

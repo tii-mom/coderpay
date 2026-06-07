@@ -13,9 +13,7 @@ import {
   Check, 
   Code,
   Lock,
-  ChevronRight,
-  Eye,
-  EyeOff
+  ChevronRight
 } from 'lucide-react';
 
 interface AppsTabProps {
@@ -26,7 +24,6 @@ interface AppsTabProps {
 
 export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
   const [activeTab, setActiveTab] = useState<'list' | 'create'>('list');
-  const [visSecrets, setVisSecrets] = useState<Record<string, boolean>>({});
 
   // Form Fields for Application Creation
   const [name, setName] = useState('');
@@ -45,26 +42,25 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
     onTriggerToast(`成功复制 ${desc} 剪切板！`, 'success');
   };
 
-  const handleToggleSecret = (id: string) => {
-    setVisSecrets(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const handleCreateApp = (e: React.FormEvent) => {
+  const handleCreateApp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !notifyUrl) {
       onTriggerToast('名称和回调通知地址（notify_url）为必填项。', 'error');
       return;
     }
 
-    // Call mock Db
-    const newApp = db.createApp({
+    const newApp = await db.createApp({
       name,
       notifyUrl,
-      returnUrl: returnUrl || 'https://example.com/success',
-      feedbackUrl: feedbackUrl || 'https://example.com/support',
+      returnUrl,
+      feedbackUrl,
       expireMinutes: Number(expireMinutes),
       signType
     });
+    if (!newApp?.appSecret) {
+      onTriggerToast(newApp?.error || '应用创建失败，请检查参数后重试。', 'error');
+      return;
+    }
 
     onTriggerToast(`成功创建应用 [${name}] ！`, 'success');
     alert(`【通道应用创建成功】\n您的 App Secret (安全密钥) 为：\n${newApp.appSecret}\n\n重要提示：出于安全考虑，安全密钥仅在创建时完整展示一次。请立即复制并妥善保存。刷新后将隐藏，若遗失只能进行重置密钥操作。`);
@@ -80,9 +76,13 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
   };
 
   // Reset API key credentials
-  const handleResetAppSecret = (app: App) => {
+  const handleResetAppSecret = async (app: App) => {
     if (confirm(`您确定要重置应用 [${app.name}] 的 App Secret 密钥吗？重置后，原有接入参数将立刻失效！`)) {
-      const newSecret = db.resetAppSecret(app.id);
+      const newSecret = await db.resetAppSecret(app.id);
+      if (!newSecret) {
+        onTriggerToast('密钥重置失败，请稍后重试。', 'error');
+        return;
+      }
       onTriggerToast(`成功重置 [${app.name}] 的接口密钥凭证！`, 'success');
       alert(`【密钥重置成功】\n您为应用 [${app.name}] 新生成的 App Secret (安全密钥) 为：\n${newSecret}\n\n重要提示：出于安全考虑，安全密钥仅在此展示一次。请立即复制并妥善保存。`);
     }

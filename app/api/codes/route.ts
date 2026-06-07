@@ -29,6 +29,18 @@ export async function POST(req: NextRequest) {
     if (!type || !codeType || !imageUrl) {
       return NextResponse.json({ error: "Type, codeType, and imageUrl are required" }, { status: 400 });
     }
+    if (type !== "wechat" && type !== "alipay") {
+      return NextResponse.json({ error: "Invalid payment code type" }, { status: 400 });
+    }
+    if (codeType !== "fixed" && codeType !== "any") {
+      return NextResponse.json({ error: "Invalid payment code mode" }, { status: 400 });
+    }
+    if (deviceId) {
+      const device = await prisma.device.findUnique({ where: { id: deviceId } });
+      if (!device || device.userId !== user.id) {
+        return NextResponse.json({ error: "Device not found" }, { status: 404 });
+      }
+    }
     
     const code = await prisma.paymentCode.create({
       data: {

@@ -6,7 +6,6 @@ export const runtime = 'edge';
 
 import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { usePaymentState } from '@/hooks/use-payment-state';
 import { 
   ShieldCheck, 
   Smartphone, 
@@ -28,13 +27,11 @@ export default function PayPage({ params }: PayPageProps) {
   const router = useRouter();
   const resolvedParams = use(params);
   const orderId = resolvedParams.id;
-  const { state, db } = usePaymentState();
   const [mounted, setMounted] = useState(false);
   const [realOrder, setRealOrder] = useState<any>(null);
   const [loadingReal, setLoadingReal] = useState(true);
 
-  const mockOrder = state.orders.find(o => o.id === orderId);
-  const order = realOrder || mockOrder;
+  const order = realOrder;
 
   const [userSelectedChannel, setUserSelectedChannel] = useState<'wechat' | 'alipay' | null>(null);
   const activeChannel = userSelectedChannel || (order ? order.payType : 'wechat');
@@ -76,22 +73,6 @@ export default function PayPage({ params }: PayPageProps) {
     };
   }, [orderId]);
 
-  // If real order is not found, fallback countdown logic for mock order
-  useEffect(() => {
-    if (realOrder || !mockOrder) return;
-    const s = db.getState();
-    const currentOrder = s.orders.find(o => o.id === orderId);
-    if (currentOrder) {
-      const app = s.apps.find(a => a.appId === currentOrder.appId);
-      const expireMinutes = app ? app.expireMinutes : 5;
-      const createdTime = new Date(currentOrder.createdAt).getTime();
-      const expiresTime = createdTime + expireMinutes * 60 * 1000;
-      const diff = Math.max(0, Math.floor((expiresTime - Date.now()) / 1000));
-      setSecondsLeft(diff);
-    }
-  }, [realOrder, mockOrder, orderId, db]);
-
-  const [isSimulatingWallet, setIsSimulatingWallet] = useState(false);
   const [queryCount, setQueryCount] = useState(0);
 
   // Signature verification mock state representing cloud-based hmac integrity
@@ -127,9 +108,6 @@ export default function PayPage({ params }: PayPageProps) {
       setSecondsLeft(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          if (!realOrder) {
-            db.updateOrderStatus(orderId, 'expired');
-          }
           return 0;
         }
         return prev - 1;
@@ -137,9 +115,13 @@ export default function PayPage({ params }: PayPageProps) {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [order, secondsLeft, orderId, db, realOrder]);
+  }, [order, secondsLeft]);
 
   if (!mounted) {
+    return <div className="min-h-screen bg-[#F1F5F9]" />;
+  }
+
+  if (loadingReal) {
     return <div className="min-h-screen bg-[#F1F5F9]" />;
   }
 
@@ -169,34 +151,14 @@ export default function PayPage({ params }: PayPageProps) {
   };
 
   // Switch WeChat/Alipay Payment Code matches
-  const paymentCode = realOrder?.paymentCode || state.paymentCodes.find(c => 
-    c.type === activeChannel && 
-    (c.codeType === 'any' || Math.abs(c.amount - order.amount) < 0.01)
-  ) || state.paymentCodes.find(c => c.type === activeChannel); // Default fallback code
-
-  const qrUrl = paymentCode 
-    ? paymentCode.imageUrl 
-    : `https://picsum.photos/seed/${activeChannel === 'wechat' ? 'wechatpay' : 'alipay'}/400/400`;
-
-  // Sandbox automatic arrived notification simulator
-  const handleSimulatePaymentNotify = () => {
-    setIsSimulatingWallet(true);
-    setTimeout(() => {
-      // Simulate CP Watcher device uploading arrived notification
-      const activeDevice = state.devices.find(d => d.online && d.status === 'active') || state.devices[0];
-      const deviceId = activeDevice ? activeDevice.id : 'dev-1';
-      
-      db.uploadPaymentEvent(deviceId, activeChannel, order.realAmount);
-      setIsSimulatingWallet(false);
-    }, 1500);
-  };
+  const paymentCode = realOrder?.paymentCode;
+  const qrUrl = paymentCode?.imageUrl || '';
 
   // User click "Paid / Refresh Link"
   const handleManualRefresh = () => {
     setIsVerifyingSign(true);
     setSignVerificationLog('Calculating secure merchant handshake payload...');
     setQueryCount(prev => prev + 1);
-    db.saveState(db.getState());
   };
 
   return (
@@ -315,9 +277,7 @@ export default function PayPage({ params }: PayPageProps) {
             <div className="mt-5 flex flex-col gap-2.5 w-full">
               <button
                 onClick={() => {
-                  const s = db.getState();
-                  const app = s.apps.find(a => a.appId === order.appId);
-                  window.location.href = app ? app.returnUrl : '/';
+                  window.location.href = order.app?.returnUrl || '/';
                 }}
                 className="w-full py-2.5 bg-slate-950 text-white rounded-xl text-xs font-bold shadow-sm hover:bg-slate-800 hover:scale-[1.01] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
@@ -331,16 +291,12 @@ export default function PayPage({ params }: PayPageProps) {
             <h3 className="text-lg font-bold text-slate-700">扫码订单已过期</h3>
             <p className="text-xs text-slate-400 mt-1 max-w-xs block">
               订单由于超过 {(() => {
-                const s = db.getState();
-                const app = s.apps.find(a => a.appId === order.appId);
-                return app ? app.expireMinutes : 5;
+                return order.app?.expireMinutes || 5;
               })()} 分钟安全限制而作废，请勿继续扫码支付。
             </p>
             <button
               onClick={() => {
-                const s = db.getState();
-                const app = s.apps.find(a => a.appId === order.appId);
-                window.location.href = app ? app.returnUrl : '/';
+                window.location.href = order.app?.returnUrl || '/';
               }}
               className="mt-8 w-full py-3 border border-slate-300 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all"
             >
@@ -383,14 +339,21 @@ export default function PayPage({ params }: PayPageProps) {
               <div className="absolute bottom-2.5 left-2.5 w-4 h-4 border-b-2 border-l-2 border-slate-400" />
               <div className="absolute bottom-2.5 right-2.5 w-4 h-4 border-b-2 border-r-2 border-slate-400" />
 
-              {/* QR Image */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={qrUrl}
-                alt="Receipt QR"
-                className="w-full h-full object-contain rounded-xl select-none group-hover:scale-[1.02] transition-transform"
-                referrerPolicy="no-referrer"
-              />
+              {qrUrl ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={qrUrl}
+                    alt="Receipt QR"
+                    className="w-full h-full object-contain rounded-xl select-none group-hover:scale-[1.02] transition-transform"
+                    referrerPolicy="no-referrer"
+                  />
+                </>
+              ) : (
+                <div className="px-5 text-center text-xs text-rose-600 leading-relaxed">
+                  收款通道配置异常，未找到可用收款码。请联系商户重新发起订单。
+                </div>
+              )}
 
               {/* Countdown overlay banner with SVG progress ring */}
               <div className="absolute bottom-2 bg-slate-900/90 backdrop-blur-xs text-white px-3 py-1.5 rounded-full text-[10px] font-mono flex items-center gap-2 shadow-lg border border-white/10 select-none">
@@ -452,43 +415,6 @@ export default function PayPage({ params }: PayPageProps) {
         </div>
 
       </div>
-
-      {/* Dynamic Sandbox Simulator Action Drawer (CRITICAL FOR FULL FEATURE DEMO!) */}
-      {process.env.NODE_ENV === 'development' && order.status === 'pending' && (
-        <div className="mt-6 w-full max-w-md bg-amber-50-important rounded-2xl p-4.5 bg-amber-50 border border-amber-200 text-left relative overflow-hidden" id="sandbox-match-widget">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl" />
-          
-          <div className="flex items-center gap-2 mb-2">
-            <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
-            </span>
-            <span className="text-xs font-bold text-amber-800 uppercase font-mono tracking-widest">CP Dev Testing Sandbox</span>
-          </div>
-
-          <p className="text-xs text-amber-700 leading-relaxed max-w-sm mb-3">
-            由于当前是在<strong>开发预览环境</strong>，我们为您内置了 <b>CP Watcher 硬件到账通知模拟器</b>。点击下方按钮即可模拟安卓手机监听到 ¥{order.realAmount.toFixed(2)} 的到账流水，云端将在毫秒内识别、更新状态并自动将 Webhook 激发到回调地址中！
-          </p>
-
-          <button
-            onClick={handleSimulatePaymentNotify}
-            disabled={isSimulatingWallet}
-            className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold tracking-wider uppercase transition-all shadow-sm flex items-center justify-center gap-1.5"
-            id="btn-simulate-notify"
-          >
-            {isSimulatingWallet ? (
-              <>
-                <RotateCw className="w-4 h-4 animate-spin" />
-                正在向云端派送微信/支付宝到账通知...
-              </>
-            ) : (
-              <>
-                模拟 CP Watcher 探针到账 ¥{order.realAmount.toFixed(2)} 元
-              </>
-            )}
-          </button>
-        </div>
-      )}
 
     </div>
   );

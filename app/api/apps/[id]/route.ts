@@ -3,6 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 
+function isHttpsUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getSessionUser(req);
@@ -15,6 +24,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const app = await prisma.app.findUnique({ where: { id } });
     if (!app || app.userId !== user.id) {
       return NextResponse.json({ error: "App not found" }, { status: 404 });
+    }
+    if (notifyUrl !== undefined && !isHttpsUrl(notifyUrl)) {
+      return NextResponse.json({ error: "notifyUrl must be a valid https URL" }, { status: 400 });
+    }
+    if (returnUrl && !isHttpsUrl(returnUrl)) {
+      return NextResponse.json({ error: "returnUrl must be a valid https URL" }, { status: 400 });
+    }
+    if (feedbackUrl && !isHttpsUrl(feedbackUrl)) {
+      return NextResponse.json({ error: "feedbackUrl must be a valid https URL" }, { status: 400 });
     }
     
     const updated = await prisma.app.update({

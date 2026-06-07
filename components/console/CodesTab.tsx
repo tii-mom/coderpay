@@ -75,19 +75,20 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
     }
   };
 
-  const handleCreateCode = (e: React.FormEvent) => {
+  const handleCreateCode = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!imageUrl) {
+      onTriggerToast('请先上传真实微信/支付宝收款码图片。', 'error');
+      return;
+    }
     
     setIsLoadingCodeOperation(true);
-    // Auto populate image URL if empty for easy demo mockups visual
-    const finalUrl = imageUrl || `https://picsum.photos/seed/${type === 'wechat' ? 'wxpay' : 'alipay'}-${Date.now()}/400/400`;
-
-    setTimeout(() => {
-      db.createPaymentCode({
+    try {
+      await db.createPaymentCode({
         type,
         codeType,
         amount: codeType === 'any' ? 0 : Number(amount),
-        imageUrl: finalUrl,
+        imageUrl,
         deviceId,
         status,
         alipayUserId: type === 'alipay' ? alipayUserId : null
@@ -103,9 +104,10 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
       setDeviceId(devices[0]?.id || '');
       setStatus('active');
       setAlipayUserId('');
-      setIsLoadingCodeOperation(false);
       setActiveTab('list');
-    }, 750);
+    } finally {
+      setIsLoadingCodeOperation(false);
+    }
   };
 
   const handleToggleCodeStatus = (code: PaymentCode) => {
@@ -129,7 +131,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
     }
   };
 
-  const handleTestPayCode = (code: PaymentCode) => {
+  const handleTestPayCode = async (code: PaymentCode) => {
     // Generate a quick simulator pending order based on test qr
     const amountVal = code.codeType === 'fixed' ? code.amount : 9.90;
     
@@ -140,7 +142,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
       return;
     }
 
-    const o = db.createOrder({
+    const o = await db.createOrder({
       outOrderNo: `TEST_${Math.floor(100000 + Math.random() * 900000)}`,
       appId: firstApp.appId,
       title: `商户收款接口联调测试 ¥${amountVal.toFixed(2)}`,
@@ -148,6 +150,11 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
       amount: amountVal,
       paymentCodeId: code.id
     });
+
+    if (!o?.id) {
+      onTriggerToast('联调测试订单创建失败，请确认应用和收款码配置。', 'error');
+      return;
+    }
 
     onTriggerToast(`注册联调测试订单 ${o.id} 成功！即将为您打开手机扫码收银台进行联调检测...`, 'success');
     setTimeout(() => {

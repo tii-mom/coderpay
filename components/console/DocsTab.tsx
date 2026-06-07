@@ -37,20 +37,25 @@ export function DocsTab({ apps, onTriggerToast, db }: DocsTabProps) {
     onTriggerToast(`成功复制 ${desc} 到剪贴板！`, 'success');
   };
 
-  const handleRunSandbox = (e: React.FormEvent) => {
+  const handleRunSandbox = async (e: React.FormEvent) => {
     e.preventDefault();
     if (apps.length === 0) {
       onTriggerToast('请先在 [应用管理] 中创建至少一个收款应用才可联调沙箱测试！', 'error');
       return;
     }
 
-    const o = db.createOrder({
+    const o = await db.createOrder({
       outOrderNo: `SANDBOX_${Date.now().toString().slice(-6)}`,
       appId: selectedApp.appId,
       title: sandboxTitle,
       payType: sandboxPayType,
       amount: Number(sandboxAmount)
     });
+
+    if (!o?.id) {
+      onTriggerToast('联调订单创建失败，请确认应用下已有可用收款码。', 'error');
+      return;
+    }
 
     onTriggerToast(`联调订单 ${o.id} 通道创建成功！正在为您向浏览器新窗口推送用户款台测试面...`, 'success');
     

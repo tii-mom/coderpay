@@ -16,7 +16,7 @@ export default function LoginPage() {
   
   const [isLogin, setIsLogin] = useState(true);
   const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('password123');
+  const [password, setPassword] = useState('');
   const [errorText, setErrorText] = useState('');
   const [successText, setSuccessText] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -39,7 +39,6 @@ export default function LoginPage() {
       return;
     }
 
-    // Success login mock
     if (isLogin) {
       const ok = await db.login(identifier, password);
       if (!ok) {

@@ -67,6 +67,14 @@ function hasExpectedMagic(bytes: Uint8Array, type: string) {
   return false;
 }
 
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  bytes.forEach(byte => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const user = await getSessionUser(req);
@@ -101,7 +109,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "图片尺寸过大，请上传较小的收款码图片" }, { status: 400 });
     }
 
-    const base64 = Buffer.from(bytes).toString("base64");
+    const base64 = bytesToBase64(bytes);
 
     return NextResponse.json({
       url: `data:${file.type};base64,${base64}`,

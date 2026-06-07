@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CoderPayState } from '@/lib/mockState';
+import { CoderPayState } from '@/types';
 
 export function usePaymentState() {
   const [state, setState] = useState<CoderPayState>(() => ({
@@ -200,7 +200,10 @@ export function usePaymentState() {
     createOrder: async (order: any) => {
       const res = await fetch("/api/order/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-CoderPay-Console-Sandbox": "1"
+        },
         body: JSON.stringify({
           app_id: order.appId,
           out_order_no: order.outOrderNo,

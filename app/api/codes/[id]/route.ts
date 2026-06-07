@@ -16,6 +16,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!code || code.userId !== user.id) {
       return NextResponse.json({ error: "Payment code not found" }, { status: 404 });
     }
+    if (deviceId) {
+      const device = await prisma.device.findUnique({ where: { id: deviceId } });
+      if (!device || device.userId !== user.id) {
+        return NextResponse.json({ error: "Device not found" }, { status: 404 });
+      }
+    }
     
     const updated = await prisma.paymentCode.update({
       where: { id },

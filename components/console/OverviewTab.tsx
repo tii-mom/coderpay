@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CoderPayState } from '@/lib/mockState';
+import { CoderPayState } from '@/types';
 import { 
   TrendingUp, 
   Smartphone, 

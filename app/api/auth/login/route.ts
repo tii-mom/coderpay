@@ -1,6 +1,8 @@
 export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createSessionToken } from "@/lib/session";
+import { hashPassword, verifyPassword } from "@/lib/password";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +15,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Password is required" }, { status: 400 });
     }
     
-    const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
     const emailLike = loginId.includes("@") ? loginId : `${loginId}@`;
     let user = loginId.includes("@")
       ? await prisma.user.findUnique({ where: { email: loginId } })
@@ -24,19 +25,20 @@ export async function POST(req: NextRequest) {
           }
         }
       });
-    if (!user && demoMode) {
-      user = await prisma.user.create({
-        data: {
-          email: loginId.includes("@") ? loginId : `${loginId}@example.com`,
-          passwordHash: "password_hash",
-          feeBalance: 100.0
-        }
-      });
-    }
     if (!user) {
       return NextResponse.json({ error: "Account not found" }, { status: 401 });
     }
-    if (user.passwordHash === "password_hash" && password !== "password123") {
+
+    const legacyBootstrapEnabled = process.env.ALLOW_LEGACY_PASSWORD_BOOTSTRAP === "true";
+    if (user.passwordHash === "password_hash") {
+      if (!legacyBootstrapEnabled) {
+        return NextResponse.json({ error: "Password reset required" }, { status: 401 });
+      }
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: await hashPassword(password) }
+      });
+    } else if (!(await verifyPassword(password, user.passwordHash))) {
       return NextResponse.json({ error: "Invalid password" }, { status: 401 });
     }
     
@@ -47,7 +49,7 @@ export async function POST(req: NextRequest) {
 
     const cookieDomain = req.nextUrl.hostname.endsWith("3api.shop") ? ".3api.shop" : undefined;
     
-    response.cookies.set("session_email", user.email, {
+    response.cookies.set("session_email", await createSessionToken(user.email), {
       path: "/",
       httpOnly: true,
       sameSite: "lax",

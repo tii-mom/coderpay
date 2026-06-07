@@ -10,8 +10,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
-        app: true,
-        paymentCode: true
+        app: {
+          select: {
+            name: true,
+            expireMinutes: true,
+            returnUrl: true,
+            feedbackUrl: true
+          }
+        },
+        paymentCode: {
+          select: {
+            type: true,
+            codeType: true,
+            amount: true,
+            imageUrl: true,
+            alipayUserId: true
+          }
+        }
       }
     });
     
@@ -19,7 +34,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
     
-    return NextResponse.json(order);
+    return NextResponse.json({
+      id: order.id,
+      outOrderNo: order.outOrderNo,
+      title: order.title,
+      payType: order.payType,
+      amount: order.amount,
+      realAmount: order.realAmount,
+      status: order.status,
+      createdAt: order.createdAt,
+      payTime: order.payTime,
+      webhookStatus: order.webhookStatus,
+      app: order.app,
+      paymentCode: order.paymentCode
+    });
   } catch (err) {
     console.error("API request failed:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

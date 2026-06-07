@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readSessionEmail } from "./lib/session";
 
-export function middleware(req: NextRequest) {
-  const sessionEmail = req.cookies.get("session_email")?.value;
+export async function middleware(req: NextRequest) {
+  const sessionEmail = await readSessionEmail(req.cookies.get("session_email")?.value);
   if (sessionEmail) return NextResponse.next();
 
   const loginUrl = new URL("/login", req.url);
