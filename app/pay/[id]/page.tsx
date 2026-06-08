@@ -136,6 +136,17 @@ export default function PayPage({ params }: PayPageProps) {
     return () => clearInterval(timer);
   }, [order, secondsLeft]);
 
+  useEffect(() => {
+    if (!order || order.status !== 'success') return;
+
+    const returnUrl = order.app?.returnUrl || '/';
+    const timer = window.setTimeout(() => {
+      window.location.href = returnUrl;
+    }, 1500);
+
+    return () => window.clearTimeout(timer);
+  }, [order]);
+
   if (!mounted) {
     return <div className="min-h-screen bg-[#F1F5F9]" />;
   }
@@ -244,6 +255,9 @@ export default function PayPage({ params }: PayPageProps) {
             <h3 className="text-base font-bold text-emerald-800">支付已核销入账</h3>
             <p className="text-[11px] text-slate-500 mt-1 max-w-xs leading-relaxed">
               您的款项已直达开发者个人账户。免签心跳探针已成功激发到账上报。
+            </p>
+            <p className="text-[11px] text-emerald-700 mt-2 font-semibold">
+              正在自动返回商家网站...
             </p>
 
             {/* Webhook Callback Simulation Status & Retry UI */}
