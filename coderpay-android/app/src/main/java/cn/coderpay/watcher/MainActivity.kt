@@ -805,13 +805,7 @@ class MainActivity : ComponentActivity() {
                             "orders" -> {
                                 item { MetricRow("订单流水", "${data!!.orders.size}", "最近 30 笔订单") }
                                 items(data!!.orders) { order ->
-                                    NativeListCard(
-                                        title = order.title,
-                                        primary = "¥${formatAmount(order.realAmount)}",
-                                        secondary = "${payTypeLabel(order.payType)} · ${statusLabel(order.status)}",
-                                        meta = "${order.id} · ${formatDate(order.createdAt)}",
-                                        color = statusColor(order.status)
-                                    )
+                                    OrderCard(order)
                                 }
                                 if (data!!.orders.isEmpty()) item { EmptyCard("暂无订单", "开发者服务端创建订单后，最近订单会同步到这里。") }
                             }
@@ -949,6 +943,66 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
+    private fun OrderCard(order: cn.coderpay.watcher.api.MobileOrder) {
+        val color = statusColor(order.status)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CpPanel),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(order.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CpText, maxLines = 1)
+                        Text("${payTypeLabel(order.payType)} · ${statusLabel(order.status)}", fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold)
+                        Text(order.id, fontSize = 10.sp, color = CpSubtle, maxLines = 1)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("¥${formatAmount(order.realAmount)}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = color)
+                        if (order.realAmount != order.amount) {
+                            Text("原价 ¥${formatAmount(order.amount)}", fontSize = 10.sp, color = CpAmber)
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CpPanelSoft, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("过期时间", fontSize = 10.sp, color = CpSubtle, fontWeight = FontWeight.Bold)
+                        Text(formatOptionalDate(order.expiresAt), fontSize = 11.sp, color = CpMuted, fontFamily = FontFamily.Monospace)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(if (order.paymentCodeId == null) "未锁定码" else "已锁定码", fontSize = 10.sp, color = CpSubtle, fontWeight = FontWeight.Bold)
+                        Text(order.paymentCodeId?.take(8) ?: "--", fontSize = 11.sp, color = CpMuted, fontFamily = FontFamily.Monospace)
+                    }
+                }
+
+                if (order.status == "manual_review") {
+                    Text(
+                        text = "该订单存在并发冲突或需要人工核验，系统不会自动猜测匹配。",
+                        fontSize = 11.sp,
+                        color = Color(0xFFC084FC),
+                        lineHeight = 16.sp
+                    )
+                }
+            }
+        }
+    }
+
+    @Composable
     private fun EmptyCard(title: String, caption: String = "") {
         PanelCard {
             Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -963,6 +1017,8 @@ class MainActivity : ComponentActivity() {
     private fun formatAmount(value: Double): String = "%.2f".format(value)
 
     private fun formatDate(value: String): String = value.replace("T", " ").take(16)
+
+    private fun formatOptionalDate(value: String?): String = value?.replace("T", " ")?.take(16) ?: "--"
 
     private fun payTypeLabel(value: String): String = when (value) {
         "wechat" -> "微信"

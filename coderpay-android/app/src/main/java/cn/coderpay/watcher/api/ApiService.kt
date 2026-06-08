@@ -78,10 +78,14 @@ data class MobileOrder(
     val payType: String,
     val amount: Double,
     val realAmount: Double,
+    val amountCents: Int? = null,
+    val realAmountCents: Int? = null,
     val status: String,
     val createdAt: String,
+    val expiresAt: String? = null,
     val payTime: String?,
     val webhookStatus: String,
+    val paymentCodeId: String? = null,
     val appId: String
 )
 

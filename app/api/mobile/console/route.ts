@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyDeviceSignature } from "@/lib/signature";
 import { omitDeviceSecret } from "@/lib/devices";
+import { centsToAmount, getOrderAmountCents, getOrderRealAmountCents } from "@/lib/money";
+import { getOrderExpiresAt } from "@/lib/payment-matching";
 
 export async function GET(req: NextRequest) {
   try {
@@ -57,12 +59,16 @@ export async function GET(req: NextRequest) {
         outOrderNo: order.outOrderNo,
         title: order.title,
         payType: order.payType,
-        amount: order.amount,
-        realAmount: order.realAmount,
-        status: order.status,
+        amount: centsToAmount(getOrderAmountCents(order)),
+        realAmount: centsToAmount(getOrderRealAmountCents(order)),
+        amountCents: getOrderAmountCents(order),
+        realAmountCents: getOrderRealAmountCents(order),
+        status: order.status === "pending" && getOrderExpiresAt(order).getTime() <= Date.now() ? "expired" : order.status,
         createdAt: order.createdAt,
+        expiresAt: getOrderExpiresAt(order),
         payTime: order.payTime,
         webhookStatus: order.webhookStatus,
+        paymentCodeId: order.paymentCodeId,
         appId: order.app.appId,
       })),
       paymentCodes,

@@ -32,6 +32,7 @@ interface OrdersTabProps {
 export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) {
   const [activeView, setActiveView] = useState<'list' | 'details'>('list');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [now] = useState(() => Date.now());
 
   // Filters & State
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,6 +45,8 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
 
   // Selected Order
   const selectedOrder = orders.find(o => o.id === selectedOrderId);
+  const formatExpiry = (order: Order) => order.expiresAt ? new Date(order.expiresAt).toLocaleString('zh-CN', { hour12: false }) : '未记录';
+  const isExpiredByServer = (order: Order) => order.status === 'expired' || (!!order.expiresAt && new Date(order.expiresAt).getTime() <= now);
 
   // Copy helper
   const handleCopyText = (text: string, desc: string) => {
@@ -209,9 +212,33 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
                     <span className="text-slate-500">扫码实际微调价 Limits:</span>
                     <span className="font-mono text-amber-400 font-extrabold text-sm">¥{selectedOrder.realAmount.toFixed(2)} 元</span>
                   </div>
+                  <div className="flex justify-between border-b border-[rgba(255,255,255,0.02)] pb-2">
+                    <span className="text-slate-500">订单过期保护:</span>
+                    <span className={`font-mono font-semibold ${isExpiredByServer(selectedOrder) ? 'text-rose-400' : 'text-slate-200'}`}>
+                      {formatExpiry(selectedOrder)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b border-[rgba(255,255,255,0.02)] pb-2">
+                    <span className="text-slate-500">锁定收款码:</span>
+                    <span className="font-mono text-slate-200">{selectedOrder.paymentCodeId || '未锁定'}</span>
+                  </div>
                 </div>
 
               </div>
+
+              {selectedOrder.status === 'manual_review' && (
+                <div className="rounded-xl border border-purple-500/20 bg-purple-950/20 p-4 text-xs text-purple-100 leading-relaxed">
+                  <strong className="block text-purple-300 mb-1">人工审核原因</strong>
+                  同设备、同渠道、同金额存在多笔未过期待支付候选，系统已停止自动猜测匹配。请核对微信/支付宝到账时间与商户订单后手动处理。
+                </div>
+              )}
+
+              {isExpiredByServer(selectedOrder) && (
+                <div className="rounded-xl border border-rose-500/20 bg-rose-950/20 p-4 text-xs text-rose-100 leading-relaxed">
+                  <strong className="block text-rose-300 mb-1">过期保护已生效</strong>
+                  该订单已超过后端过期时间，后续到账不会自动回调商户，会进入异常处理队列。
+                </div>
+              )}
 
               {/* Time logs history details table */}
               <div className="flex flex-col gap-2.5 text-xs">
@@ -414,6 +441,11 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
                             <span className="text-slate-100 font-semibold block text-sm">¥{ord.amount.toFixed(2)}</span>
                             {ord.realAmount !== ord.amount && (
                               <span className="text-[9px] text-amber-500">微调: ¥{ord.realAmount.toFixed(2)}</span>
+                            )}
+                            {ord.expiresAt && (
+                              <span className={`text-[9px] block ${isExpiredByServer(ord) ? 'text-rose-400' : 'text-slate-500'}`}>
+                                过期: {new Date(ord.expiresAt).toLocaleTimeString('zh-CN', { hour12: false })}
+                              </span>
                             )}
                           </td>
                           <td className="py-4 px-4 text-center">
