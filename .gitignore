@@ -3,6 +3,7 @@ node_modules/
 coverage/
 .DS_Store
 *.log
+tsconfig.tsbuildinfo
 .env*
 !.env.example
 
@@ -26,4 +27,3 @@ coderpay-android/local.properties
 # Allow specific asset images
 !public/**/*.png
 !app/**/*.png
-

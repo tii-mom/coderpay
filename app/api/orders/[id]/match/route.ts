@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { triggerWebhook } from "@/lib/webhook";
-import { formatCents, getOrderAmountCents } from "@/lib/money";
+import { chargeOrderFee } from "@/lib/billing";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -36,8 +36,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Payment event not found" }, { status: 404 });
     }
     
-    const fee = Number((order.amount * 0.01).toFixed(3));
-    
     await prisma.$transaction(async (tx) => {
       await tx.order.update({
         where: { id: orderId },
@@ -57,20 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
       });
       
-      const updatedUser = await tx.user.update({
-        where: { id: user.id },
-        data: { feeBalance: Number((user.feeBalance - fee).toFixed(3)) }
-      });
-      
-      await tx.billingRecord.create({
-        data: {
-          type: "fee",
-          amount: -fee,
-          balance: updatedUser.feeBalance,
-          description: `手动匹配成功 - 技术服务费扣除: 订单 ${orderId}, 金额 ${formatCents(getOrderAmountCents(order))} 元`,
-          userId: user.id
-        }
-      });
+      await chargeOrderFee(tx as any, user, order);
       
       await tx.exceptionItem.updateMany({
         where: {

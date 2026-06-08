@@ -16,6 +16,11 @@ export function usePaymentState() {
     feeBalance: 0,
     currentAppId: 'all',
     currentPlanId: 'plan-basic',
+    packageType: 'free',
+    freeOrderUsed: 0,
+    subscriptionExpiresAt: null,
+    firstProDiscountUsed: false,
+    firstMaxDiscountUsed: false,
     isLoggedIn: false,
     isAuthChecked: false,
     userEmail: '',
@@ -36,6 +41,11 @@ export function usePaymentState() {
           exceptions: [],
           billingRecords: [],
           feeBalance: 0,
+          packageType: 'free',
+          freeOrderUsed: 0,
+          subscriptionExpiresAt: null,
+          firstProDiscountUsed: false,
+          firstMaxDiscountUsed: false,
           isLoggedIn: false,
           isAuthChecked: true,
           userEmail: ''
@@ -65,8 +75,13 @@ export function usePaymentState() {
         exceptions,
         billingRecords: billingData.records || [],
         feeBalance: billingData.feeBalance || 0,
+        packageType: billingData.packageType || me.packageType || 'free',
+        freeOrderUsed: billingData.freeOrderUsed || 0,
+        subscriptionExpiresAt: billingData.subscriptionExpiresAt || null,
+        firstProDiscountUsed: Boolean(billingData.firstProDiscountUsed),
+        firstMaxDiscountUsed: Boolean(billingData.firstMaxDiscountUsed),
         currentAppId: prev.currentAppId,
-        currentPlanId: prev.currentPlanId,
+        currentPlanId: billingData.packageType || me.packageType || 'free',
         isLoggedIn: me.isLoggedIn,
         isAuthChecked: true,
         userEmail: me.email
@@ -234,12 +249,40 @@ export function usePaymentState() {
       });
       const resData = await res.json();
       await fetchState();
+      if (!res.ok || !resData.data) {
+        return { ok: false, error: resData.error || "订单创建失败" };
+      }
       return {
+        ok: true,
         id: resData.data.order_id,
         ...order,
         realAmount: Number(resData.data.real_amount),
-        status: "pending"
+        status: "pending",
+        freeOrderRemaining: resData.data.free_order_remaining,
+        lowBalanceWarning: resData.data.low_balance_warning
       };
+    },
+
+    rechargeFees: async (amount: number, payType: 'wechat' | 'alipay' = 'alipay') => {
+      const res = await fetch("/api/billing/recharge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, payType })
+      });
+      const data = await res.json().catch(() => ({}));
+      await fetchState();
+      return { ok: res.ok, ...data };
+    },
+
+    changePlan: async (planId: string) => {
+      const res = await fetch("/api/billing/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId })
+      });
+      const data = await res.json().catch(() => ({}));
+      await fetchState();
+      return { ok: res.ok, ...data };
     },
 
     updateOrderStatus: async (id: string, status: string) => {
@@ -289,11 +332,15 @@ export function usePaymentState() {
     },
 
     manuallyConfirmPaid: async (orderId: string) => {
-      await fetch(`/api/orders/${orderId}`, {
+      const res = await fetch(`/api/orders/${orderId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "success" })
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "确认收款失败");
+      }
       await fetchState();
     }
   };

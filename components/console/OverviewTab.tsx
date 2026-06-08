@@ -68,7 +68,7 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
     {
       title: '技术服务费余额',
       value: `¥${state.feeBalance.toFixed(2)}`,
-      desc: state.feeBalance < 10 ? '余额不足，请尽快充值' : '扣减佣金率 1% / 0.5%',
+      desc: state.feeBalance <= 0 ? '余额为0，已停止创建新订单' : state.feeBalance < 10 ? '余额不足，请尽快充值' : '订阅费与交易手续费扣减',
       icon: <CheckCircle className="w-5 h-5 text-amber-400" />,
       color: state.feeBalance < 10 ? 'border-red-500/20 bg-red-500/5' : 'border-slate-800 bg-[#111827]'
     },
@@ -85,11 +85,11 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
     <div className="flex flex-col gap-8 text-left" id="overview-tab-panel">
       
       {/* Top Banner Warning for exceptions or fees */}
-      {state.feeBalance < 5 && (
+      {state.feeBalance < 10 && (
         <div className="flex items-center justify-between p-4 rounded-2xl bg-red-950/40 border border-red-500/20 text-sm text-red-200">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-red-400 shrink-0" />
-            <span>你的技术服务费余额已不足 5.00 元。当余额归零后，Watcher 收款侦测将失效且无法触发商户安全回调，请立即向服务帐户续费。</span>
+            <span>{state.feeBalance <= 0 ? '你的余额已低于或等于0元，系统已停止创建新订单。' : '你的余额已不足10.00元，请尽快充值，余额归零后将停止创建新订单。'}</span>
           </div>
           <button 
             onClick={() => onSwitchTab('billing')}

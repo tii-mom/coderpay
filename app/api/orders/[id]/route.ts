@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import { triggerWebhook } from "@/lib/webhook";
 import { centsToAmount, getOrderAmountCents, getOrderRealAmountCents } from "@/lib/money";
 import { getOrderExpiresAt } from "@/lib/payment-matching";
+import { chargeOrderFee } from "@/lib/billing";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -33,7 +34,46 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
     
     if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      const rechargeOrder = await prisma.rechargeOrder.findUnique({
+        where: { id },
+        include: {
+          paymentCode: {
+            select: {
+              type: true,
+              codeType: true,
+              amount: true,
+              imageUrl: true,
+              alipayUserId: true
+            }
+          }
+        }
+      });
+      if (!rechargeOrder) {
+        return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      }
+      return NextResponse.json({
+        id: rechargeOrder.id,
+        outOrderNo: rechargeOrder.id,
+        title: "CoderPay 账户余额充值",
+        payType: rechargeOrder.payType,
+        amount: centsToAmount(rechargeOrder.amountCents),
+        realAmount: centsToAmount(rechargeOrder.realAmountCents),
+        amountCents: rechargeOrder.amountCents,
+        realAmountCents: rechargeOrder.realAmountCents,
+        status: rechargeOrder.status === "pending" && rechargeOrder.expiresAt.getTime() <= Date.now() ? "expired" : rechargeOrder.status,
+        createdAt: rechargeOrder.createdAt,
+        expiresAt: rechargeOrder.expiresAt,
+        payTime: rechargeOrder.payTime,
+        webhookStatus: "unsent",
+        app: {
+          name: "CoderPay 账户余额充值",
+          expireMinutes: 10,
+          returnUrl: "/console",
+          feedbackUrl: null,
+        },
+        paymentCode: rechargeOrder.paymentCode,
+        orderType: "recharge",
+      });
     }
     
     return NextResponse.json({
@@ -51,7 +91,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       payTime: order.payTime,
       webhookStatus: order.webhookStatus,
       app: order.app,
-      paymentCode: order.paymentCode
+      paymentCode: order.paymentCode,
+      orderType: "order",
     });
   } catch (err) {
     console.error("API request failed:", err);
@@ -80,38 +121,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const previousStatus = order.status;
     
     if (status === "success" && previousStatus !== "success") {
-      // Calculate technical fee based on packageType
-      let rate = 0.01;
-      if (user.packageType === "starter") rate = 0.008;
-      else if (user.packageType === "pro") rate = 0.005;
-      else if (user.packageType === "max") rate = 0.003;
-      
-      const fee = Number((order.amount * rate).toFixed(3));
-      
-      const updatedUser = await prisma.user.update({
-        where: { id: user.id },
-        data: { feeBalance: Number((user.feeBalance - fee).toFixed(3)) }
+      const updatedOrder = await prisma.$transaction(async (tx) => {
+        await chargeOrderFee(tx as any, user, order);
+        return tx.order.update({
+          where: { id },
+          data: {
+            status: "success",
+            payTime: new Date(),
+            webhookStatus: "unsent"
+          }
+        });
       });
-      
-      await prisma.billingRecord.create({
-        data: {
-          type: "fee",
-          amount: -fee,
-          balance: updatedUser.feeBalance,
-          description: `技术服务费扣除 (${(rate * 100).toFixed(1)}% - 管理员手动确认已付款): 订单 ${order.id}, 金额 ${order.amount.toFixed(2)} 元`,
-          userId: user.id
-        }
-      });
-      
-      const updatedOrder = await prisma.order.update({
-        where: { id },
-        data: {
-          status: "success",
-          payTime: new Date(),
-          webhookStatus: "unsent"
-        }
-      });
-      
+
       triggerWebhook(order.id).catch(err => console.error("Error triggering webhook in background:", err));
       
       return NextResponse.json(updatedOrder);

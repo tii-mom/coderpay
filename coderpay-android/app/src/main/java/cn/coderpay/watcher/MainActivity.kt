@@ -898,7 +898,7 @@ class MainActivity : ComponentActivity() {
                 SectionTitle("充值订阅", "Billing")
                 Text(data.user.email, fontSize = 12.sp, color = CpMuted)
                 Text("¥${formatAmount(data.user.feeBalance)}", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = CpText)
-                Text("当前套餐：${data.user.packageType}。充值支付能力需要接入移动端原生收银台，本页先展示云端余额和账单。", fontSize = 11.sp, color = CpSubtle, lineHeight = 16.sp)
+                Text("当前套餐：${data.user.packageType}。余额用于订阅和交易手续费；低于或等于0元时将停止创建新订单。", fontSize = 11.sp, color = CpSubtle, lineHeight = 16.sp)
             }
         }
     }

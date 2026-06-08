@@ -15,6 +15,11 @@ export async function GET(req: NextRequest) {
     
     return NextResponse.json({
       feeBalance: user.feeBalance,
+      packageType: user.packageType,
+      freeOrderUsed: user.freeOrderUsed,
+      subscriptionExpiresAt: user.subscriptionExpiresAt,
+      firstProDiscountUsed: user.firstProDiscountUsed,
+      firstMaxDiscountUsed: user.firstMaxDiscountUsed,
       records
     });
   } catch (err) {

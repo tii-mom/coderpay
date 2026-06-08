@@ -105,11 +105,15 @@ export interface Plan {
   duration: string;
   techServiceRate: number; // e.g. 0.01 (1%)
   features: string[];
+  subscriptionExpiresAt?: string | null;
+  freeOrderUsed?: number;
+  firstProDiscountUsed?: boolean;
+  firstMaxDiscountUsed?: boolean;
 }
 
 export interface BillingRecord {
   id: string;
-  type: 'charge' | 'fee' | 'refund';
+  type: 'charge' | 'fee' | 'subscription' | 'refund';
   amount: number;
   balance: number;
   description: string;
@@ -128,6 +132,11 @@ export interface CoderPayState {
   feeBalance: number;
   currentAppId: string;
   currentPlanId: string;
+  packageType: string;
+  freeOrderUsed: number;
+  subscriptionExpiresAt: string | null;
+  firstProDiscountUsed: boolean;
+  firstMaxDiscountUsed: boolean;
   isLoggedIn: boolean;
   isAuthChecked: boolean;
   userEmail: string;

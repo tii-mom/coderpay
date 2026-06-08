@@ -157,7 +157,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
     });
 
     if (!o?.id) {
-      onTriggerToast('联调测试订单创建失败，请确认应用和收款码配置。', 'error');
+      onTriggerToast(o?.error || '联调测试订单创建失败，请确认应用和收款码配置。', 'error');
       return;
     }
 

@@ -12,7 +12,12 @@ export async function GET(req: NextRequest) {
       isLoggedIn: true,
       id: user.id,
       email: user.email,
-      feeBalance: user.feeBalance
+      feeBalance: user.feeBalance,
+      packageType: user.packageType,
+      freeOrderUsed: user.freeOrderUsed,
+      subscriptionExpiresAt: user.subscriptionExpiresAt,
+      firstProDiscountUsed: user.firstProDiscountUsed,
+      firstMaxDiscountUsed: user.firstMaxDiscountUsed,
     });
   } catch (err) {
     console.error("API request failed:", err);

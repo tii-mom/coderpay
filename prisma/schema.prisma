@@ -19,7 +19,12 @@ model User {
   passwordResetTokenHash String?
   passwordResetExpiresAt DateTime?
   feeBalance   Float           @default(99.602)
-  packageType  String          @default("free") // free, starter, pro, max
+  packageType  String          @default("free") // free, pro, max
+  freeOrderUsed Int            @default(0)
+  subscriptionStartedAt DateTime?
+  subscriptionExpiresAt DateTime?
+  firstProDiscountUsed Boolean @default(false)
+  firstMaxDiscountUsed Boolean @default(false)
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   apps         App[]
@@ -27,6 +32,7 @@ model User {
   devices      Device[]
   exceptions   ExceptionItem[]
   billings     BillingRecord[]
+  rechargeOrders RechargeOrder[]
 }
 
 model App {
@@ -61,6 +67,7 @@ model PaymentCode {
   deviceId     String?
   device       Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   orders       Order[]
+  rechargeOrders RechargeOrder[]
 }
 
 model Device {
@@ -156,4 +163,21 @@ model BillingRecord {
   createdAt   DateTime @default(now())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RechargeOrder {
+  id            String   @id
+  amount        Float
+  realAmount    Float
+  amountCents   Int
+  realAmountCents Int
+  payType       String // wechat / alipay
+  status        String   @default("pending") // pending / success / expired / failed
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+  payTime       DateTime?
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentCodeId String?
+  paymentCode   PaymentCode? @relation(fields: [paymentCodeId], references: [id], onDelete: SetNull)
 }

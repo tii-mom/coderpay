@@ -30,25 +30,38 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
   const [rechargeLoading, setRechargeLoading] = useState(false);
   const [customFee, setCustomFee] = useState<number>(30);
 
-  const handleSimulateRechargeTechnicalFee = (amount: number) => {
+  const handleRechargeTechnicalFee = async (amount: number) => {
+    if (!Number.isFinite(amount) || amount <= 0) {
+      onTriggerToast('请输入有效的充值金额。', 'error');
+      return;
+    }
     setRechargeLoading(true);
-    onTriggerToast(`正在联调支付宝扫码收银，请在弹出窗口或手机中支付技术服务费 ¥${amount.toFixed(2)} 元...`, 'warning');
-
-    setTimeout(() => {
-      db.rechargeFees(amount);
-      onTriggerToast(`充值技术服务费 ¥${amount.toFixed(2)} 成功入账！感谢您的支持。已在系统流中抵扣生效。`, 'success');
+    onTriggerToast(`正在创建平台真实充值单 ¥${amount.toFixed(2)}，请稍候...`, 'warning');
+    try {
+      const result = await db.rechargeFees(amount, 'alipay');
+      if (!result.ok) {
+        onTriggerToast(result.error || '充值单创建失败，请检查平台收款码和监听设备配置。', 'error');
+        return;
+      }
+      onTriggerToast(`充值单 ${result.data.recharge_id} 创建成功，请扫码支付 ¥${result.data.real_amount}。`, 'success');
+      window.open(result.data.payment_url, '_blank');
+    } finally {
       setRechargeLoading(false);
-    }, 1800);
+    }
   };
 
-  const handleSimulateUpgradePlan = (planName: string, price: number, planId: string) => {
+  const handleUpgradePlan = async (planName: string, price: number, planId: string) => {
     if (plan.balance < price) {
-      onTriggerToast(`由于您的技术服务费余额 ¥${plan.balance.toFixed(2)} 不足抵扣该套餐费用 ¥${price.toFixed(2)}。请先充值技术服务费！`, 'error');
+      onTriggerToast(`当前余额 ¥${plan.balance.toFixed(2)} 不足抵扣该套餐费用 ¥${price.toFixed(2)}。请先充值余额。`, 'error');
       return;
     }
 
-    db.changePlan(planId);
-    onTriggerToast(`成功购买并续期 [${planName}] 计划！我们将自动升级您的每单最高额度并加快心跳网络连通频率。`, 'success');
+    const result = await db.changePlan(planId);
+    if (!result.ok) {
+      onTriggerToast(result.error || `购买 [${planName}] 失败`, 'error');
+      return;
+    }
+    onTriggerToast(`成功购买并续期 [${planName}]，套餐已生效。`, 'success');
   };
 
   return (
@@ -85,7 +98,7 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
               <div className="flex justify-between items-start">
                 <div className="flex flex-col">
                   <span className="text-xs text-slate-400 font-sans">技术服务费余额</span>
-                  <span className="text-[10px] text-slate-500 block">扣减每笔付款佣金（约0.15%起）</span>
+                  <span className="text-[10px] text-slate-500 block">用于订阅和每笔交易手续费扣除</span>
                 </div>
                 <div className="w-9 h-9 rounded-xl bg-blue-950 border border-blue-500/20 text-blue-400 flex items-center justify-center">
                   <Coins className="w-5 h-5 animate-pulse" />
@@ -96,7 +109,9 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
                 <span className="text-3xl font-mono font-extrabold text-[#F8FAFC]">
                   ¥{plan.balance.toFixed(2)}
                 </span>
-                <span className="text-[10px] text-emerald-400 block mt-2 font-sans font-semibold">状态: 扣费运行顺畅（余额充足）</span>
+                <span className={`text-[10px] block mt-2 font-sans font-semibold ${plan.balance <= 0 ? 'text-rose-400' : plan.balance < 10 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  状态: {plan.balance <= 0 ? '余额不足，已停止创建新订单' : plan.balance < 10 ? '余额偏低，请尽快充值' : '扣费运行顺畅（余额充足）'}
+                </span>
               </div>
             </div>
 
@@ -105,34 +120,34 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
               <div className="flex flex-col gap-1.5">
                 <h4 className="text-sm font-bold text-slate-200 flex items-center gap-1">
                   <Wallet className="w-4 h-4 text-emerald-400" />
-                  充值技术服务费佣金余额
+                  充值 CoderPay 账户余额
                 </h4>
                 <p className="text-[11px] text-slate-500 leading-normal">
-                  佣金仅用于在发生每笔扫码微信支付宝交易匹配后扣除。若余额为0将无法调通商户通知，请及时购入佣金余额支持成长。
+                  余额通过平台收款码真实入账，可用于套餐订阅和每笔交易手续费。余额低于或等于0元时将停止创建新订单。
                 </p>
               </div>
 
               <div className="flex items-center gap-3 mt-4 flex-wrap">
                 <button
                   disabled={rechargeLoading}
-                  onClick={() => handleSimulateRechargeTechnicalFee(15)}
-                  className="px-4 py-2 rounded-xl bg-[#0B1020] hover:bg-[#151B2E] border border-[rgba(255,255,255,0.08)] text-slate-200 font-mono text-xs font-bold transition-all"
-                >
-                  充额 ¥15.00
-                </button>
-                <button
-                  disabled={rechargeLoading}
-                  onClick={() => handleSimulateRechargeTechnicalFee(50)}
+                  onClick={() => handleRechargeTechnicalFee(50)}
                   className="px-4 py-2 rounded-xl bg-[#0B1020] hover:bg-[#151B2E] border border-[rgba(255,255,255,0.08)] text-slate-200 font-mono text-xs font-bold transition-all"
                 >
                   充额 ¥50.00
                 </button>
                 <button
                   disabled={rechargeLoading}
-                  onClick={() => handleSimulateRechargeTechnicalFee(100)}
+                  onClick={() => handleRechargeTechnicalFee(100)}
                   className="px-4 py-2 rounded-xl bg-[#0B1020] hover:bg-[#151B2E] border border-[rgba(255,255,255,0.08)] text-slate-200 font-mono text-xs font-bold transition-all"
                 >
                   充额 ¥100.00
+                </button>
+                <button
+                  disabled={rechargeLoading}
+                  onClick={() => handleRechargeTechnicalFee(300)}
+                  className="px-4 py-2 rounded-xl bg-[#0B1020] hover:bg-[#151B2E] border border-[rgba(255,255,255,0.08)] text-slate-200 font-mono text-xs font-bold transition-all"
+                >
+                  充额 ¥300.00
                 </button>
 
                 <div className="flex items-center bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl px-2.5 py-1 text-xs max-w-[120px]">
@@ -146,7 +161,7 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
                 </div>
                 <button
                   disabled={rechargeLoading}
-                  onClick={() => handleSimulateRechargeTechnicalFee(customFee)}
+                  onClick={() => handleRechargeTechnicalFee(customFee)}
                   className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all"
                 >
                   立即充入
@@ -182,16 +197,18 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
                         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
                           record.type === 'charge' 
                             ? 'bg-emerald-950/40 border-emerald-500/20 text-emerald-400' 
-                            : 'bg-rose-950/40 border-rose-500/20 text-rose-400'
+                            : record.type === 'subscription'
+                              ? 'bg-blue-950/40 border-blue-500/20 text-blue-400'
+                              : 'bg-rose-950/40 border-rose-500/20 text-rose-400'
                         }`}>
-                          {record.type === 'charge' ? '技术费充入' : '交易佣金扣除'}
+                          {record.type === 'charge' ? '余额充值入账' : record.type === 'subscription' ? '套餐订阅扣费' : '交易手续费扣除'}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 font-mono font-bold flex items-center gap-1 text-[13px]">
                         {record.type === 'charge' ? (
                           <span className="text-emerald-400 flex items-center"><ArrowDownLeft className="w-3.5 h-3.5" /> +¥{record.amount.toFixed(2)}</span>
                         ) : (
-                          <span className="text-rose-400 flex items-center"><ArrowUpRight className="w-3.5 h-3.5" /> -¥{record.amount.toFixed(2)}</span>
+                          <span className="text-rose-400 flex items-center"><ArrowUpRight className="w-3.5 h-3.5" /> -¥{Math.abs(record.amount).toFixed(2)}</span>
                         )}
                       </td>
                       <td className="py-3.5 px-4 font-mono text-slate-200">
@@ -227,18 +244,18 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
           <div className="p-6 rounded-2xl bg-cp-card border border-cp flex flex-col justify-between h-[28rem] relative">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-blue-400 tracking-wider font-mono">免费体验版</span>
+                <span className="text-xs font-extrabold text-blue-400 tracking-wider font-mono">免费调试版</span>
               </div>
               <h3 className="text-2xl font-bold font-sans text-white mt-3">¥0.00 / 月</h3>
               <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
-                适合处于原型期、刚起步的极客个人独立开发者对接首个应用。
+                适合完成真实 API 与沙箱链路验证，前10次创建订单免费。
               </p>
 
               <div className="border-t border-[rgba(255,255,255,0.04)] pt-4 mt-5 flex flex-col gap-3 text-xs text-slate-300">
-                <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 支持创建最多 1 个支付应用</span>
-                <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 最多绑定挂机 Android 1 台</span>
-                <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 单笔收款上限最高 ¥20.00 </span>
-                <span className="flex items-center gap-1.5 text-slate-500 font-sans border-t border-[rgba(255,255,255,0.02)] pt-2 mt-1">单笔成交佣金扣除：0.25%</span>
+                <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 支持真实 API 创建订单</span>
+                <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 控制台沙箱与真实订单共用10次额度</span>
+                <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 已使用 {plan.freeOrderUsed || 0} / 10 次</span>
+                <span className="flex items-center gap-1.5 text-slate-500 font-sans border-t border-[rgba(255,255,255,0.02)] pt-2 mt-1">超过后需开通订阅</span>
               </div>
             </div>
 
@@ -258,26 +275,26 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
 
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-blue-400 tracking-wider font-mono">精英个人开发者</span>
+                <span className="text-xs font-extrabold text-blue-400 tracking-wider font-mono">专业版</span>
               </div>
-              <h3 className="text-2xl font-bold font-sans text-white mt-3">¥19.00 / 月</h3>
+              <h3 className="text-2xl font-bold font-sans text-white mt-3">¥69.00 / 月</h3>
               <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
-                适合已有一些成交流量、有数个小SaaS或打赏网站的独立开发者。
+                首次订阅立减30元，实付¥39.00；第二个月起¥69.00。
               </p>
 
               <div className="border-t border-[rgba(255,255,255,0.04)] pt-4 mt-5 flex flex-col gap-3 text-xs text-slate-300">
-                <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 支持创建多至 5 个独立应用</span>
-                <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 无限绑定挂机 Android 手机Watcher</span>
+                <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 支持订阅期内持续创建订单</span>
+                <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 余额大于0即可正常提供服务</span>
                 <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 单笔收款上限解调至最高 ¥5000.00</span>
-                <span className="flex items-center gap-1.5 text-blue-400 font-semibold font-sans border-t border-[rgba(255,255,255,0.02)] pt-2 mt-1">低至 0.15% 的超轻到账扣佣</span>
+                <span className="flex items-center gap-1.5 text-blue-400 font-semibold font-sans border-t border-[rgba(255,255,255,0.02)] pt-2 mt-1">每笔交易手续费 0.5%</span>
               </div>
             </div>
 
             <button
-              onClick={() => handleSimulateUpgradePlan('Elite Developer (精英开发者)', 19, 'plan-elite')}
+              onClick={() => handleUpgradePlan('专业版', plan.firstProDiscountUsed ? 69 : 39, 'pro')}
               className="w-full py-2.5 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-500 rounded-xl text-center font-bold transition-colors"
             >
-              余额扣减 ¥19.00 并购买起效
+              余额扣减 ¥{(plan.firstProDiscountUsed ? 69 : 39).toFixed(2)} 并购买起效
             </button>
           </div>
 
@@ -285,26 +302,26 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
           <div className="p-6 rounded-2xl bg-cp-card border border-cp flex flex-col justify-between h-[28rem] relative">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-blue-400 tracking-wider font-mono">至尊大师版团队计划</span>
+                <span className="text-xs font-extrabold text-blue-400 tracking-wider font-mono">至尊免服务费版</span>
               </div>
-              <h3 className="text-2xl font-bold font-sans text-white mt-3">¥49.00 / 月</h3>
+              <h3 className="text-2xl font-bold font-sans text-white mt-3">¥199.00 / 月</h3>
               <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
-                适合多条业务管辖，并发到账抓取极高的专业级个人出纳。
+                首次订阅立减50元，实付¥149.00；第二个月起¥199.00。
               </p>
 
               <div className="border-t border-[rgba(255,255,255,0.04)] pt-4 mt-5 flex flex-col gap-3 text-xs text-slate-300">
                 <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 无限创建独立应用渠道容器</span>
                 <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 支持多通道负载自动顺序轮训机制</span>
-                <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 优先调拨高带宽心跳同步，0到账漏单 </span>
-                <span className="flex items-center gap-1.5 text-emerald-400 font-semibold font-sans border-t border-[rgba(255,255,255,0.02)] pt-2 mt-1">到账扣佣佣金：全零 0.00%</span>
+                <span className="flex items-center gap-1.5 font-sans"><Check className="w-4 h-4 text-emerald-400" /> 优先调拨高带宽心跳同步 </span>
+                <span className="flex items-center gap-1.5 text-emerald-400 font-semibold font-sans border-t border-[rgba(255,255,255,0.02)] pt-2 mt-1">每笔交易手续费 0.2%</span>
               </div>
             </div>
 
             <button
-              onClick={() => handleSimulateUpgradePlan('Grandmaster Pro (高并发至尊大师版)', 49, 'plan-premium')}
+              onClick={() => handleUpgradePlan('至尊免服务费版', plan.firstMaxDiscountUsed ? 199 : 149, 'max')}
               className="w-full py-2.5 text-xs font-extrabold text-slate-200 bg-[#0B1020] hover:bg-[#151B2E] border border-[rgba(255,255,255,0.08)] rounded-xl text-center font-semibold transition-colors"
             >
-              余额扣减 ¥49.00 并购买
+              余额扣减 ¥{(plan.firstMaxDiscountUsed ? 199 : 149).toFixed(2)} 并购买
             </button>
           </div>
 

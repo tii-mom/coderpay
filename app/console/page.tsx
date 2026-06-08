@@ -214,14 +214,19 @@ export default function ConsolePage() {
         element = <DocsTab apps={state.apps} onTriggerToast={triggerToast} db={db} />;
         break;
       case 'billing': {
+        const packageType = state.packageType === 'max' ? 'max' : state.packageType === 'pro' ? 'pro' : 'free';
         const computedPlan = {
-          id: state.currentPlanId,
-          name: state.currentPlanId === 'plan-premium' ? '至尊团队版计划' : state.currentPlanId === 'plan-elite' ? '精英个人开发者' : '免费限制体验版',
-          price: state.currentPlanId === 'plan-premium' ? 49 : state.currentPlanId === 'plan-elite' ? 19 : 0,
+          id: packageType,
+          name: packageType === 'max' ? '至尊免服务费版' : packageType === 'pro' ? '专业版' : '免费调试版',
+          price: packageType === 'max' ? 199 : packageType === 'pro' ? 69 : 0,
           duration: '月',
-          techServiceRate: state.currentPlanId === 'plan-premium' ? 0.0 : state.currentPlanId === 'plan-elite' ? 0.0015 : 0.0025,
+          techServiceRate: packageType === 'max' ? 0.002 : packageType === 'pro' ? 0.005 : 0,
           features: [],
-          balance: state.feeBalance
+          balance: state.feeBalance,
+          subscriptionExpiresAt: state.subscriptionExpiresAt,
+          freeOrderUsed: state.freeOrderUsed,
+          firstProDiscountUsed: state.firstProDiscountUsed,
+          firstMaxDiscountUsed: state.firstMaxDiscountUsed
         };
         element = <BillingTab plan={computedPlan} billingRecords={state.billingRecords} onTriggerToast={triggerToast} db={db} />;
         break;
@@ -421,7 +426,7 @@ export default function ConsolePage() {
               {/* Account Level */}
               <div className="flex items-center gap-1.5 bg-[#111827] border border-white/5 px-3 py-1 rounded-xl text-xs font-semibold text-slate-300">
                 <Award className="w-4 h-4 text-amber-500" />
-                {state.currentPlanId === 'plan-premium' ? '至尊团队版计划' : state.currentPlanId === 'plan-elite' ? '精英个人开发者' : '免费限制体验版'}
+                {state.packageType === 'max' ? '至尊免服务费版' : state.packageType === 'pro' ? '专业版' : '免费调试版'}
               </div>
 
               {/* Balance brief top container */}

@@ -79,7 +79,7 @@ vi.mock("@/lib/prisma", () => ({
 
 function resetState() {
   const now = new Date("2026-06-08T10:00:00Z");
-  state.users = [{ id: "user-1", feeBalance: 100, packageType: "free" }];
+  state.users = [{ id: "user-1", feeBalance: 100, packageType: "pro", subscriptionExpiresAt: new Date("2026-07-08T10:00:00Z") }];
   state.devices = [
     { id: "dev-1", deviceCode: "device-1", userId: "user-1" },
     { id: "dev-2", deviceCode: "device-2", userId: "user-1" }
@@ -185,5 +185,6 @@ describe("payment event matching", () => {
     expect(second.duplicate).toBe(true);
     expect(state.events).toHaveLength(1);
     expect(state.billing).toHaveLength(1);
+    expect(state.billing[0].amount).toBe(-0.05);
   });
 });

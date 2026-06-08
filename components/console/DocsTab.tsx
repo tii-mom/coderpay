@@ -67,7 +67,7 @@ export function DocsTab({ apps, onTriggerToast, db }: DocsTabProps) {
     });
 
     if (!o?.id) {
-      onTriggerToast('联调订单创建失败，请确认应用下已有可用收款码。', 'error');
+      onTriggerToast(o?.error || '联调订单创建失败，请确认应用下已有可用收款码。', 'error');
       return;
     }
 

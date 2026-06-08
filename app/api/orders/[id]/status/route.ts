@@ -28,7 +28,32 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      const rechargeOrder = await prisma.rechargeOrder.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          payTime: true,
+          realAmount: true,
+          realAmountCents: true,
+          expiresAt: true,
+        }
+      });
+      if (!rechargeOrder) {
+        return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      }
+      return NextResponse.json({
+        ...rechargeOrder,
+        status: rechargeOrder.status === "pending" && rechargeOrder.expiresAt.getTime() <= Date.now() ? "expired" : rechargeOrder.status,
+        webhookStatus: "unsent",
+        realAmount: centsToAmount(getOrderRealAmountCents(rechargeOrder)),
+        app: {
+          expireMinutes: 10,
+          returnUrl: "/console"
+        },
+        orderType: "recharge"
+      });
     }
 
     const expired = order.status === "pending" && getOrderExpiresAt(order).getTime() <= Date.now();
@@ -36,7 +61,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       ...order,
       status: expired ? "expired" : order.status,
       expiresAt: getOrderExpiresAt(order),
-      realAmount: centsToAmount(getOrderRealAmountCents(order))
+      realAmount: centsToAmount(getOrderRealAmountCents(order)),
+      orderType: "order"
     });
   } catch (err) {
     console.error("Order status request failed:", err);

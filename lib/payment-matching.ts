@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { amountToCents, centsToAmount, formatCents, getOrderAmountCents, getOrderRealAmountCents } from "@/lib/money";
 import { triggerWebhook } from "@/lib/webhook";
+import { chargeOrderFee } from "@/lib/billing";
+import { getPlatformRechargeEmail, matchRechargeOrder } from "@/lib/recharge";
 
 export function getOrderExpiresAt(order: { expiresAt?: Date | string | null; createdAt: Date | string; app?: { expireMinutes: number } | null }) {
   if (order.expiresAt) return new Date(order.expiresAt);
@@ -104,13 +106,6 @@ export async function selectPaymentChannel({
   throw Object.assign(new Error("All payment slots for this amount are currently occupied. Please try again later."), { status: 409 });
 }
 
-function getFeeRate(packageType: string | null | undefined) {
-  if (packageType === "starter") return 0.008;
-  if (packageType === "pro") return 0.005;
-  if (packageType === "max") return 0.003;
-  return 0.01;
-}
-
 export async function recordPaymentEvent(body: {
   deviceCode: string;
   payType: string;
@@ -140,6 +135,48 @@ export async function recordPaymentEvent(body: {
 
   const device = await prisma.device.findUnique({ where: { deviceCode } });
   if (!device) throw Object.assign(new Error("Device not registered"), { status: 404 });
+
+  const platformEmail = getPlatformRechargeEmail();
+  if (platformEmail) {
+    const platformUser = await prisma.user.findUnique({ where: { email: platformEmail } });
+    if (platformUser && platformUser.id === device.userId) {
+      const rechargeMatch = await matchRechargeOrder({
+        platformUserId: platformUser.id,
+        deviceId: device.id,
+        payType,
+        amountCents,
+        eventTime,
+      });
+      const result = await prisma.paymentEvent.create({
+        data: {
+          deviceId: device.id,
+          payType,
+          amount,
+          receivedAt: eventTime,
+          matchStatus: rechargeMatch.matchStatus,
+          matchedOrderId: rechargeMatch.rechargeOrderId,
+          confidence: rechargeMatch.matchStatus === "matched" ? 100 : rechargeMatch.matchStatus === "conflict" ? 50 : 0,
+          notificationHash,
+          rawNotification: typeof body.rawNotification === "string" ? body.rawNotification.slice(0, 500) : undefined
+        }
+      }).catch(async err => {
+        const duplicate = await prisma.paymentEvent.findUnique({ where: { notificationHash } });
+        if (duplicate) return duplicate;
+        throw err;
+      });
+      await prisma.device.update({
+        where: { id: device.id },
+        data: { online: true, lastHeartbeat: new Date() }
+      });
+      return {
+        duplicate: false,
+        result,
+        matchStatus: rechargeMatch.matchStatus,
+        matchedOrderId: rechargeMatch.rechargeOrderId,
+        shouldTriggerWebhook: false,
+      };
+    }
+  }
 
   const candidates = await prisma.order.findMany({
     where: {
@@ -176,19 +213,7 @@ export async function recordPaymentEvent(body: {
 
       const user = await prisma.user.findUnique({ where: { id: device.userId } });
       if (user) {
-        const rate = getFeeRate(user.packageType);
-        const fee = Number((getOrderAmountCents(matchingOrder) / 100 * rate).toFixed(3));
-        const newBalance = Number((user.feeBalance - fee).toFixed(3));
-        await prisma.user.update({ where: { id: user.id }, data: { feeBalance: newBalance } });
-        await prisma.billingRecord.create({
-          data: {
-            type: "fee",
-            amount: -fee,
-            balance: newBalance,
-            description: `技术服务费扣除 (${(rate * 100).toFixed(1)}%): 订单 ${matchingOrder.id}, 金额 ${formatCents(getOrderAmountCents(matchingOrder))} 元`,
-            userId: user.id
-          }
-        });
+        await chargeOrderFee(prisma, user, matchingOrder);
       }
     }
   } else if (candidates.length > 1) {

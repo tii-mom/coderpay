@@ -53,6 +53,8 @@ export async function GET(req: NextRequest) {
         email: device.user.email,
         feeBalance: device.user.feeBalance,
         packageType: device.user.packageType,
+        freeOrderUsed: device.user.freeOrderUsed,
+        subscriptionExpiresAt: device.user.subscriptionExpiresAt,
       },
       orders: orders.map((order) => ({
         id: order.id,

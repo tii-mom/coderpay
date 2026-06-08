@@ -183,6 +183,7 @@ export default function PayPage({ params }: PayPageProps) {
   // Switch WeChat/Alipay Payment Code matches
   const paymentCode = realOrder?.paymentCode;
   const qrUrl = paymentCode?.imageUrl || '';
+  const isRechargeOrder = order?.orderType === 'recharge';
 
   // User click "Paid / Refresh Link"
   const handleManualRefresh = () => {
@@ -212,7 +213,7 @@ export default function PayPage({ params }: PayPageProps) {
         
         {/* Merchant Info Area */}
         <div className="bg-slate-50 border-b border-slate-100 p-5 text-center relative">
-          <span className="text-[10px] text-slate-400 font-semibold tracking-wider block mb-1">正在向 独立开发者 收款</span>
+          <span className="text-[10px] text-slate-400 font-semibold tracking-wider block mb-1">{isRechargeOrder ? '正在向 CoderPay 平台余额账户充值' : '正在向 独立开发者 收款'}</span>
           <h2 className="text-sm font-bold text-slate-700 truncate px-4">{order.title}</h2>
           
           <div className="mt-3 flex flex-col items-center">
@@ -254,14 +255,14 @@ export default function PayPage({ params }: PayPageProps) {
             </div>
             <h3 className="text-base font-bold text-emerald-800">支付已核销入账</h3>
             <p className="text-[11px] text-slate-500 mt-1 max-w-xs leading-relaxed">
-              您的款项已直达开发者个人账户。免签心跳探针已成功激发到账上报。
+              {isRechargeOrder ? '充值款项已到账，账户余额已自动入账。' : '您的款项已直达开发者个人账户。免签心跳探针已成功激发到账上报。'}
             </p>
             <p className="text-[11px] text-emerald-700 mt-2 font-semibold">
-              正在自动返回商家网站...
+              {isRechargeOrder ? '正在自动返回控制台...' : '正在自动返回商家网站...'}
             </p>
 
             {/* Webhook Callback Simulation Status & Retry UI */}
-            <div className="mt-4 p-4 rounded-xl border w-full text-left font-sans text-xs bg-white shadow-xs border-slate-200" id="webhook-retry-panel">
+            {!isRechargeOrder && <div className="mt-4 p-4 rounded-xl border w-full text-left font-sans text-xs bg-white shadow-xs border-slate-200" id="webhook-retry-panel">
               <span className="font-bold text-slate-700 block text-[10px] uppercase tracking-wider mb-2 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-blue-500" /> 异步回调通知网关监测 (Webhook Hub)</span>
               
               {webhookStatusSim === 'failed_ready' && (
@@ -304,7 +305,7 @@ export default function PayPage({ params }: PayPageProps) {
                   <p className="text-[10px] text-emerald-600/80 mt-1">商户端已成功接收并返回 {"\"success\""} 回执，主站商品已自动即时处理发货！</p>
                 </div>
               )}
-            </div>
+            </div>}
             
             {/* Action complete row */}
             <div className="mt-5 flex flex-col gap-2.5 w-full">
@@ -314,7 +315,7 @@ export default function PayPage({ params }: PayPageProps) {
                 }}
                 className="w-full py-2.5 bg-slate-950 text-white rounded-xl text-xs font-bold shadow-sm hover:bg-slate-800 hover:scale-[1.01] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                返回商家网站 <ExternalLink className="w-4 h-4" />
+                {isRechargeOrder ? '返回控制台' : '返回商家网站'} <ExternalLink className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -333,7 +334,7 @@ export default function PayPage({ params }: PayPageProps) {
               }}
               className="mt-8 w-full py-3 border border-slate-300 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all"
             >
-              返回商户网站重试
+              {isRechargeOrder ? '返回控制台重新发起充值' : '返回商户网站重试'}
             </button>
           </div>
         ) : (
@@ -448,7 +449,11 @@ export default function PayPage({ params }: PayPageProps) {
 
         {/* Footer warning */}
         <div className="bg-slate-50 border-t border-slate-100 p-4 text-center text-[10px] text-slate-500 font-sans leading-relaxed">
-          <b>资金直达保证：</b>用户付款后，资金直接进入开发者自己的个人微信/支付宝账户。CP 不代收、不托管、不清算资金，只提供订单托管、二维码调度、到账通知识别、订单匹配和安全回调通知服务。
+          {isRechargeOrder ? (
+            <><b>平台充值说明：</b>本页用于充值 CoderPay 开发者账户余额，到账后余额将用于订阅和交易手续费扣除。</>
+          ) : (
+            <><b>资金直达保证：</b>用户付款后，资金直接进入开发者自己的个人微信/支付宝账户。CP 不代收、不托管、不清算资金，只提供订单托管、二维码调度、到账通知识别、订单匹配和安全回调通知服务。</>
+          )}
         </div>
 
       </div>

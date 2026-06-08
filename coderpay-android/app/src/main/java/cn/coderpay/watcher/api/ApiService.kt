@@ -68,7 +68,9 @@ data class MobileConsoleResponse(
 data class MobileUser(
     val email: String,
     val feeBalance: Double,
-    val packageType: String
+    val packageType: String,
+    val freeOrderUsed: Int? = null,
+    val subscriptionExpiresAt: String? = null
 )
 
 data class MobileOrder(

@@ -90,7 +90,9 @@ export async function autoSeed() {
         data: {
           email: "local-dev@coderpay.local",
           passwordHash: await hashPassword("local-dev-password"),
-          feeBalance: 99.602,
+          feeBalance: 99.60,
+          packageType: "free",
+          freeOrderUsed: 0,
         }
       });
 
