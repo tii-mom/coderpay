@@ -12,10 +12,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -98,6 +100,7 @@ class MainActivity : ComponentActivity() {
 
         val scope = rememberCoroutineScope()
         val listState = rememberLazyListState()
+        val pageScrollState = rememberScrollState()
 
         // Sync logs scroll
         LaunchedEffect(LogTracker.logs.size) {
@@ -118,6 +121,7 @@ class MainActivity : ComponentActivity() {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(pageScrollState)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -265,6 +269,58 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            // Website Console Shortcuts
+            PanelCard {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    SectionTitle("官网核心功能", "Console")
+                    Text(
+                        text = "充值订阅、订单、收款码、设备和接口文档与官网实时同步。",
+                        fontSize = 11.sp,
+                        color = CpMuted,
+                        lineHeight = 15.sp
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ConsoleShortcutButton(
+                                text = "充值订阅",
+                                modifier = Modifier.weight(1f),
+                                onClick = { openConsolePage("billing") }
+                            )
+                            ConsoleShortcutButton(
+                                text = "订单流水",
+                                modifier = Modifier.weight(1f),
+                                onClick = { openConsolePage("orders") }
+                            )
+                            ConsoleShortcutButton(
+                                text = "收款码",
+                                modifier = Modifier.weight(1f),
+                                onClick = { openConsolePage("codes") }
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ConsoleShortcutButton(
+                                text = "设备通道",
+                                modifier = Modifier.weight(1f),
+                                onClick = { openConsolePage("devices") }
+                            )
+                            ConsoleShortcutButton(
+                                text = "接口文档",
+                                modifier = Modifier.weight(1f),
+                                onClick = { openConsolePage("docs") }
+                            )
+                            ConsoleShortcutButton(
+                                text = "控制台",
+                                modifier = Modifier.weight(1f),
+                                onClick = { openConsolePage("") }
+                            )
+                        }
+                    }
+                }
+            }
+
             // Test Trigger Widget
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -339,7 +395,7 @@ class MainActivity : ComponentActivity() {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .height(220.dp),
                 colors = CardDefaults.cardColors(containerColor = CpTerminal),
                 shape = RoundedCornerShape(20.dp)
             ) {
@@ -503,6 +559,33 @@ class MainActivity : ComponentActivity() {
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
+        }
+    }
+
+    @Composable
+    private fun ConsoleShortcutButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+        Button(
+            onClick = onClick,
+            modifier = modifier,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = CpPanelSoft,
+                contentColor = CpText
+            ),
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)
+        ) {
+            Text(text = text, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+
+    private fun openConsolePage(tab: String) {
+        val baseUrl = settings.serverUrl.ifBlank { "https://3api.shop" }.trimEnd('/')
+        val url = if (tab.isBlank()) "$baseUrl/console" else "$baseUrl/console/$tab"
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            LogTracker.log("已打开官网控制台：$url")
+        } catch (e: Exception) {
+            LogTracker.log("打开官网控制台失败：${e.message}")
         }
     }
 
