@@ -139,16 +139,20 @@ class MainActivity : ComponentActivity() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Header
             HeaderBar(isBound = isBound, deviceCode = deviceCode)
+            OperationsHero(
+                isBound = isBound,
+                notificationEnabled = isNotificationPermissionGranted,
+                batteryIgnored = isBatteryOptimizedIgnored,
+                deviceCode = deviceCode
+            )
 
-            // Connection Settings Card
             PanelCard {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    SectionTitle("云端连接配置", "Cloud Pairing")
+                    SectionTitle("设备绑定", if (isBound) "Connected" else "Pairing")
 
                     OutlinedTextField(
                         value = serverUrl,
@@ -257,13 +261,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Permissions Card
             PanelCard {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    SectionTitle("手机运行权限体检", "Runtime Checklist")
+                    SectionTitle("运行权限", "Runtime")
                     PermissionRow(
                         title = "通知栏读取监听权限",
                         caption = "用于识别微信/支付宝到账通知",
@@ -283,15 +286,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Website Console Shortcuts
             PanelCard {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    SectionTitle("官网核心功能", "Console")
+                    SectionTitle("移动控制台", "Native")
                     Text(
-                        text = "充值订阅、订单、收款码、设备和接口文档与官网实时同步。",
+                        text = "原生查看充值、订单、收款码、设备和接入文档，不依赖网页 WebView。",
                         fontSize = 11.sp,
                         color = CpMuted,
                         lineHeight = 15.sp
@@ -335,7 +337,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Test Trigger Widget
+            SectionTitle("联调工具", "Sandbox")
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -405,7 +407,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Logger Console Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -485,6 +486,73 @@ class MainActivity : ComponentActivity() {
                 text = if (isBound) "服务同步中" else "未绑定",
                 color = if (isBound) CpGreenDark else Color(0xFF7F1D1D)
             )
+        }
+    }
+
+    @Composable
+    private fun OperationsHero(
+        isBound: Boolean,
+        notificationEnabled: Boolean,
+        batteryIgnored: Boolean,
+        deviceCode: String
+    ) {
+        val healthy = isBound && notificationEnabled && batteryIgnored
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = if (healthy) Color(0xFF052E2B) else CpPanel),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (healthy) "监听链路运行正常" else "完成配置后开始监听",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = CpText
+                        )
+                        Text(
+                            text = if (deviceCode.isNotBlank()) "设备 $deviceCode 正在用于到账识别" else "绑定设备码后启用心跳和事件上传",
+                            fontSize = 11.sp,
+                            color = CpMuted,
+                            lineHeight = 16.sp
+                        )
+                    }
+                    StatusPill(
+                        text = if (healthy) "READY" else "SETUP",
+                        color = if (healthy) CpGreenDark else Color(0xFF78350F)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    HealthTile("云端", if (isBound) "已绑定" else "未绑定", isBound, Modifier.weight(1f))
+                    HealthTile("通知", if (notificationEnabled) "可读取" else "未授权", notificationEnabled, Modifier.weight(1f))
+                    HealthTile("保活", if (batteryIgnored) "已豁免" else "需设置", batteryIgnored, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun HealthTile(title: String, value: String, ok: Boolean, modifier: Modifier = Modifier) {
+        Column(
+            modifier = modifier
+                .background(if (ok) Color(0xFF064E3B) else CpPanelSoft, RoundedCornerShape(16.dp))
+                .padding(horizontal = 10.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(title, fontSize = 10.sp, color = CpSubtle, fontWeight = FontWeight.Bold)
+            Text(value, fontSize = 12.sp, color = if (ok) Color(0xFFA7F3D0) else CpText, fontWeight = FontWeight.ExtraBold)
         }
     }
 
@@ -693,13 +761,25 @@ class MainActivity : ComponentActivity() {
                 error != null -> {
                     PanelCard {
                         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("加载失败", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = CpRed)
+                            Text(
+                                text = if (!settings.isBound) "移动控制台未启用" else "加载失败",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (!settings.isBound) CpAmber else CpRed
+                            )
                             Text(error ?: "", fontSize = 12.sp, color = CpMuted, lineHeight = 17.sp)
-                            Button(
-                                onClick = { refresh() },
-                                colors = ButtonDefaults.buttonColors(containerColor = CpBlueDark, contentColor = Color.White),
-                                shape = RoundedCornerShape(12.dp)
-                            ) { Text("重新加载") }
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Button(
+                                    onClick = { refresh() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CpBlueDark, contentColor = Color.White),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) { Text("重新加载") }
+                                Button(
+                                    onClick = onClose,
+                                    colors = ButtonDefaults.buttonColors(containerColor = CpPanelSoft, contentColor = CpText),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) { Text("返回绑定") }
+                            }
                         }
                     }
                 }
@@ -720,7 +800,7 @@ class MainActivity : ComponentActivity() {
                                         color = if (record.type == "charge") CpGreen else CpRed
                                     )
                                 }
-                                if (data!!.billingRecords.isEmpty()) item { EmptyCard("暂无账单流水") }
+                                if (data!!.billingRecords.isEmpty()) item { EmptyCard("暂无账单流水", "发生充值、订阅或订单服务费扣减后会显示在这里。") }
                             }
                             "orders" -> {
                                 item { MetricRow("订单流水", "${data!!.orders.size}", "最近 30 笔订单") }
@@ -733,7 +813,7 @@ class MainActivity : ComponentActivity() {
                                         color = statusColor(order.status)
                                     )
                                 }
-                                if (data!!.orders.isEmpty()) item { EmptyCard("暂无订单") }
+                                if (data!!.orders.isEmpty()) item { EmptyCard("暂无订单", "开发者服务端创建订单后，最近订单会同步到这里。") }
                             }
                             "codes" -> {
                                 item { MetricRow("收款码", "${data!!.paymentCodes.size}", "微信 / 支付宝收款码") }
@@ -746,7 +826,7 @@ class MainActivity : ComponentActivity() {
                                         color = if (code.status == "active") CpGreen else CpSubtle
                                     )
                                 }
-                                if (data!!.paymentCodes.isEmpty()) item { EmptyCard("暂无收款码，请在网页控制台上传后同步到 App") }
+                                if (data!!.paymentCodes.isEmpty()) item { EmptyCard("暂无收款码", "请先在控制台上传微信或支付宝收款码，并绑定当前监听设备。") }
                             }
                             "devices" -> {
                                 item { MetricRow("设备通道", "${data!!.devices.count { it.online }}/${data!!.devices.size}", "在线设备 / 全部设备") }
@@ -869,14 +949,14 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun EmptyCard(text: String) {
+    private fun EmptyCard(title: String, caption: String = "") {
         PanelCard {
-            Text(
-                text = text,
-                modifier = Modifier.padding(18.dp),
-                fontSize = 12.sp,
-                color = CpMuted
-            )
+            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CpText)
+                if (caption.isNotBlank()) {
+                    Text(caption, fontSize = 11.sp, color = CpMuted, lineHeight = 16.sp)
+                }
+            }
         }
     }
 
