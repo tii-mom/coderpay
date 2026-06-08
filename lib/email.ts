@@ -17,23 +17,36 @@ function getResendApiKey() {
   return process.env.RESEND_API_KEY || "";
 }
 
+function getBrevoApiKey() {
+  return process.env.BREVO_API_KEY || "";
+}
+
+function getEmailProvider() {
+  const configured = (process.env.EMAIL_PROVIDER || "").toLowerCase();
+  if (configured) return configured;
+  if (getBrevoApiKey()) return "brevo";
+  if (getResendApiKey()) return "resend";
+  return "";
+}
+
 export function assertEmailConfigured() {
   if (process.env.NODE_ENV !== "production") return;
-  if (!getResendApiKey()) {
+  if (!getEmailProvider()) {
     throw Object.assign(new Error("Email service is not configured"), { status: 503 });
   }
 }
 
-export async function sendEmail(input: SendEmailInput) {
-  const resendApiKey = getResendApiKey();
-  if (!resendApiKey) {
-    if (process.env.NODE_ENV !== "production") {
-      console.log(`[EMAIL:DEV] ${input.subject} -> ${input.to}\n${input.text}`);
-      return;
-    }
-    throw Object.assign(new Error("Email service is not configured"), { status: 503 });
-  }
+function parseEmailFrom(value: string) {
+  const match = value.match(/^(.*)<([^>]+)>$/);
+  if (!match) return { email: value.trim() };
+  return {
+    name: match[1].trim(),
+    email: match[2].trim(),
+  };
+}
 
+async function sendResendEmail(input: SendEmailInput) {
+  const resendApiKey = getResendApiKey();
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -48,10 +61,44 @@ export async function sendEmail(input: SendEmailInput) {
       text: input.text,
     }),
   });
+  return response;
+}
+
+async function sendBrevoEmail(input: SendEmailInput) {
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "api-key": getBrevoApiKey(),
+    },
+    body: JSON.stringify({
+      sender: parseEmailFrom(getEmailFrom()),
+      to: [{ email: input.to }],
+      subject: input.subject,
+      htmlContent: input.html,
+      textContent: input.text,
+    }),
+  });
+  return response;
+}
+
+export async function sendEmail(input: SendEmailInput) {
+  const provider = getEmailProvider();
+  if (!provider) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[EMAIL:DEV] ${input.subject} -> ${input.to}\n${input.text}`);
+      return;
+    }
+    throw Object.assign(new Error("Email service is not configured"), { status: 503 });
+  }
+
+  const response = provider === "brevo"
+    ? await sendBrevoEmail(input)
+    : await sendResendEmail(input);
 
   if (!response.ok) {
     const body = await response.text();
-    console.error("Email send failed:", response.status, body.slice(0, 500));
+    console.error(`${provider} email send failed:`, response.status, body.slice(0, 500));
     throw Object.assign(new Error("Email send failed"), { status: 502 });
   }
 }
