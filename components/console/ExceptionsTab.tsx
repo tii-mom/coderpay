@@ -30,7 +30,7 @@ export function ExceptionsTab({ exceptions, onTriggerToast, onSwitchTab, db }: E
   const activeExceptions = exceptions.filter(exc => exc.status === 'active');
   const resolvedExceptions = exceptions.filter(exc => exc.status !== 'active');
 
-  // Webhook Alert Simulator States
+  // Webhook alert sandbox states
   const [alertWebhookUrl, setAlertWebhookUrl] = useState('https://indie-developer.quest/v1/payment/callback');
   const [alertType, setAlertType] = useState<'payment_unmatched' | 'webhook_failed' | 'device_offline' | 'balance_insufficient'>('device_offline');
   const [responseCodeSim, setResponseCodeSim] = useState<number>(200);
@@ -61,7 +61,7 @@ export function ExceptionsTab({ exceptions, onTriggerToast, onSwitchTab, db }: E
     }
 
     setIsSendingAlertTest(true);
-    onTriggerToast('启动高吞吐量物理告警测试，正在执行报文封装与签名计算...', 'warning');
+    onTriggerToast('正在执行 Webhook 告警沙箱测试，报文不会代表真实生产故障。', 'warning');
 
     setTimeout(() => {
       const isSuccessSim = responseCodeSim === 200;
@@ -113,7 +113,7 @@ export function ExceptionsTab({ exceptions, onTriggerToast, onSwitchTab, db }: E
       setIsSendingAlertTest(false);
 
       if (isSuccessSim) {
-        onTriggerToast('Webhook 告警投递测试成功！接收主机回复: HTTP 200 OK.', 'success');
+        onTriggerToast('Webhook 告警沙箱测试成功！接收主机回复: HTTP 200 OK.', 'success');
       } else {
         // Since it failed, automatically register a real exception item in the db
         const alertNames = {
@@ -126,7 +126,7 @@ export function ExceptionsTab({ exceptions, onTriggerToast, onSwitchTab, db }: E
         const description = `通过 Webhook 告警测试哨兵对商户主机 [${alertWebhookUrl}] 进行投递检查，回传返回代码 HTTP ${responseCodeSim}。已自动切流并将健康状态标记入库待手动审核核消。`;
         
         db.createException(alertType, title, description, refId);
-        onTriggerToast(`加急！Webhook 告警模拟发送失败 [代码 ${responseCodeSim}]，云端检测到故障投执失败，已紧急登记待解决异常！`, 'error');
+        onTriggerToast(`Webhook 告警沙箱测试失败 [代码 ${responseCodeSim}]，已登记一条测试异常供排查流程演练。`, 'error');
       }
     }, 1200);
   };
@@ -257,7 +257,7 @@ export function ExceptionsTab({ exceptions, onTriggerToast, onSwitchTab, db }: E
           <div className="bg-cp-card border border-cp rounded-2xl p-5 flex flex-col gap-4 text-left font-sans" id="webhook-alert-test-console">
             <h3 className="text-sm font-bold text-white border-b border-[rgba(255,255,255,0.06)] pb-3 flex items-center gap-1.5">
               <Activity className="w-4 h-4 text-rose-500 animate-pulse" />
-              Webhook 异常告警实时测试哨兵
+              Webhook 告警沙箱测试
             </h3>
 
             <div className="flex flex-col gap-3 text-xs">
@@ -276,7 +276,7 @@ export function ExceptionsTab({ exceptions, onTriggerToast, onSwitchTab, db }: E
 
               {/* Alert Level Type select */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-400 font-semibold text-[10px] uppercase tracking-wider">模拟告警突发事件</label>
+                <label className="text-slate-400 font-semibold text-[10px] uppercase tracking-wider">沙箱告警事件</label>
                 <select
                   value={alertType}
                   onChange={(e: any) => setAlertType(e.target.value)}
@@ -291,7 +291,7 @@ export function ExceptionsTab({ exceptions, onTriggerToast, onSwitchTab, db }: E
 
               {/* simulated response status code code */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-400 font-semibold text-[10px] uppercase tracking-wider">模拟商户端接收反馈</label>
+                <label className="text-slate-400 font-semibold text-[10px] uppercase tracking-wider">沙箱商户端响应</label>
                 <div className="grid grid-cols-3 gap-2">
                   {[200, 500, 404].map((code) => (
                     <button
@@ -324,7 +324,7 @@ export function ExceptionsTab({ exceptions, onTriggerToast, onSwitchTab, db }: E
                 ) : (
                   <>
                     <Send className="w-3.5 h-3.5" />
-                    模拟发送 Webhook 并拦截响应
+                    发送沙箱 Webhook 并记录响应
                   </>
                 )}
               </button>

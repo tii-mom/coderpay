@@ -43,10 +43,10 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
   const [newDevName, setNewDevName] = useState('');
   const [todayLimit, setTodayLimit] = useState(5000);
 
-  // Unified loading overlay state for simulated latency
+  // Unified loading overlay state for sandbox latency
   const [isLoadingOperation, setIsLoadingOperation] = useState(false);
 
-  // Health assessment Bento state variables
+  // Sandbox assessment Bento state variables
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const [healthData, setHealthData] = useState<{
     batteryLevel: number;
@@ -66,7 +66,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
     lastCheckTime: '16:59:22'
   });
 
-  // Simulated device log rows for debugging details
+  // Sandbox device log rows for debugging details
   const [mockLogs, setMockLogs] = useState<string[]>([
     'Watcher Core: CoderPay v1.0.3 system service bootstrapped successfully.',
     'Notification Listener: Registered System OS notification listener binder.',
@@ -98,7 +98,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
 
   const handleRunHealthCheck = () => {
     setIsCheckingHealth(true);
-    onTriggerToast('正在向 Android 终端口碑物理探针推送全矩阵健康检测指令...', 'warning');
+    onTriggerToast('正在执行沙箱设备体检，不会读取手机真实硬件传感器。', 'warning');
     
     setTimeout(() => {
       const mockResult = {
@@ -112,7 +112,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
       };
       setHealthData(mockResult);
       setIsCheckingHealth(false);
-      onTriggerToast('物理硬件全矩阵健康检查分析包回传完毕，数据工况监控面板已刷新！', 'success');
+      onTriggerToast('沙箱体检完成，诊断面板已刷新。真实设备状态以最近心跳和 Android App 权限页为准。', 'success');
       
       setMockLogs(prev => [
         `[Health Check] Battery: ${mockResult.batteryLevel}%, Temp: ${mockResult.batteryTemp}°C, Read Latency: ${mockResult.delayMs}ms.`,
@@ -124,7 +124,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
 
   const handleTestPingListener = (dev: Device) => {
     setIsLoadingOperation(true);
-    onTriggerToast(`正在向 CoderPay [${dev.name}] 传送测试心跳包并激发虚拟收款到账通知...`, 'warning');
+    onTriggerToast(`正在为 [${dev.name}] 创建沙箱到账事件，用于验证订单匹配和异常流。`, 'warning');
     setTimeout(() => {
       // Create random simulated arrival to check matcher
       const channels: ('wechat' | 'alipay')[] = ['wechat', 'alipay'];
@@ -134,7 +134,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
       
       db.uploadPaymentEvent(dev.id, selectChan, selectAmt);
       setIsLoadingOperation(false);
-      onTriggerToast(`心跳连通率 100%！设备响应延迟: 14ms。CoderPay 探针到账 ¥${selectAmt.toFixed(2)} [${selectChan === 'wechat' ? '微信' : '支付宝'}] 微信通知匹配流成功上报 CP 核心！`, 'success');
+      onTriggerToast(`沙箱到账事件已上报：¥${selectAmt.toFixed(2)} [${selectChan === 'wechat' ? '微信' : '支付宝'}]。该结果用于调试，不代表真实收款。`, 'success');
       
       // Add custom log line inside details
       setMockLogs(prev => [
@@ -146,7 +146,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
 
   const handleDiagnostics = (dev: Device) => {
     setIsLoadingOperation(true);
-    onTriggerToast(`正在对设备 [${dev.name}] 进行物理状态及底层 OS 运行权限体检...`, 'warning');
+    onTriggerToast(`正在刷新设备 [${dev.name}] 的云端状态标记。真实权限请以 Android App 内体检为准。`, 'warning');
     setTimeout(() => {
       db.updateDevice(dev.id, {
         online: true,
@@ -157,7 +157,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
         batteryOptimization: 'ignored'
       });
       setIsLoadingOperation(false);
-      onTriggerToast(`体检通过！[${dev.name}] 物理探针连接正常。微信 & 支付宝通知读取、锁屏后台白名单、OS 电池优化已配置无误！`, 'success');
+      onTriggerToast(`设备状态已刷新为在线。请在 Android App 内确认通知读取和电池保活已开启。`, 'success');
     }, 1200);
   };
 
@@ -208,13 +208,13 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                 onClick={() => handleDiagnostics(selectedDev)}
                 className="px-3 py-1.5 rounded-lg bg-indigo-950/40 hover:bg-indigo-900/45 border border-indigo-500/20 text-indigo-400 text-xs font-semibold transition-all flex items-center gap-1"
               >
-                <Activity className="w-3.5 h-3.5" /> 设备深度体检
+                <Activity className="w-3.5 h-3.5" /> 刷新云端状态
               </button>
               <button
                 onClick={() => handleTestPingListener(selectedDev)}
                 className="px-3 py-1.5 rounded-lg bg-blue-950/40 hover:bg-blue-900/45 border border-blue-500/20 text-blue-400 text-xs font-semibold transition-all flex items-center gap-1"
               >
-                <RotateCw className="w-3.5 h-3.5" /> 调试收款到账
+                <RotateCw className="w-3.5 h-3.5" /> 沙箱到账
               </button>
             </div>
           </div>
@@ -324,7 +324,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
                       <Activity className="w-4 h-4 text-emerald-400" />
-                      物理设备健康巡检状态 (Real-time Physical Conditions)
+                      沙箱设备诊断面板
                     </span>
                     <button
                       type="button"
@@ -337,7 +337,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                           <RotateCw className="w-3 h-3 animate-spin" /> 执行诊断中...
                         </>
                       ) : (
-                        <>一键刷新硬件体检</>
+                        <>刷新沙箱诊断</>
                       )}
                     </button>
                   </div>
@@ -418,7 +418,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                             <span className="text-sm font-bold text-indigo-300 font-mono">{healthData.ramAvailable}</span>
                           </div>
                           {healthData.lastCheckTime && (
-                            <span className="text-[9px] text-slate-600 font-mono">上次体检: {healthData.lastCheckTime}</span>
+                            <span className="text-[9px] text-slate-600 font-mono">上次沙箱诊断: {healthData.lastCheckTime}</span>
                           )}
                         </div>
                       </div>
@@ -572,7 +572,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                   {
                     step: '09',
                     title: '一键安全双端握手自测',
-                    desc: '点击本页顶部的“调试收款到账”或在 App 中点击「握手连通测试」。如果您的测试日志终端或手机状态日志上实时打印出 "System Request Webhook PING-PONG 200 OK"，则说明通知通道极度通顺！'
+                    desc: '点击本页顶部的“沙箱到账”或在 App 中点击测试按钮，可生成沙箱到账事件，用于验证订单匹配和回调链路。真实收款仍以微信/支付宝系统通知为准。'
                   },
                   {
                     step: '10',
@@ -844,14 +844,14 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                     <button
                       onClick={() => handleTestPingListener(dev)}
                       className="p-1.5 rounded-lg bg-blue-950/20 hover:bg-blue-900/30 border border-blue-500/20 text-blue-400"
-                      title="模拟到账通知"
+                      title="沙箱到账事件"
                     >
                       <RotateCw className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDiagnostics(dev)}
                       className="p-1.5 rounded-lg bg-indigo-950/10 hover:bg-indigo-900/20 border border-indigo-500/20 text-indigo-400"
-                      title="设备一键体检"
+                      title="刷新云端状态"
                     >
                       <Activity className="w-4 h-4" />
                     </button>

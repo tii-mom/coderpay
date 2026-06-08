@@ -476,8 +476,8 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
       <div className="lg:col-span-5 bg-cp-card border border-cp rounded-2xl p-5.5 flex flex-col gap-5 text-left text-xs sticky top-4">
         
         <div className="border-b border-[rgba(255,255,255,0.06)] pb-3">
-          <span className="text-xs font-bold text-white block">CP 通道接口调试器 (Playground Simulator)</span>
-          <span className="text-[10px] text-slate-500 block mt-1">无需任何代码库，一键唤醒并检验款台回调全链路</span>
+          <span className="text-xs font-bold text-white block">CP 通道沙箱调试器</span>
+          <span className="text-[10px] text-slate-500 block mt-1">用于验证发单、收银台和回调链路；真实付款请使用小额订单测试</span>
         </div>
 
         {apps.length === 0 ? (
@@ -485,7 +485,7 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
             <ShieldAlert className="w-8 h-8 text-amber-500" />
             <span className="font-bold text-slate-300">没有发现可用收款应用</span>
             <p className="text-[10px] text-slate-500 leading-normal">
-              请先在 [应用管理] 页创建第一个渠道 App 节点，然后就可以直接在此调试并开启扫码模拟支付联调流程。
+              请先在 [应用管理] 页创建第一个渠道 App 节点，然后就可以直接在此执行沙箱支付联调。
             </p>
           </div>
         ) : (
@@ -507,7 +507,7 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
             <div className="grid grid-cols-2 gap-4">
               
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-slate-300">模拟商品单价 (元)</label>
+                <label className="text-xs font-semibold text-slate-300">沙箱商品单价 (元)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -521,7 +521,7 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-slate-300">选择模拟扫码渠道</label>
+                <label className="text-xs font-semibold text-slate-300">选择沙箱扫码渠道</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -578,8 +578,20 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
             </button>
 
             <span className="text-[10px] text-slate-500 text-center leading-normal">
-              * 点击调试将生成一个全新待付单。付款页中嵌入了 “沙箱到账模拟挂架”，让您免缴现金即可调试成功发货机制。
+              * 点击调试将生成一个全新待付单。沙箱测试用于验证创建订单、收银台展示和回调链路；真实付款测试请使用另一台手机支付小额订单。
             </span>
+
+            <div className="rounded-2xl border border-emerald-500/15 bg-emerald-950/10 p-4 text-[11px] text-slate-300">
+              <span className="font-bold text-emerald-300 block mb-2">上线前接入体检清单</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <span>1. App Secret 仅保存在服务端</span>
+                <span>2. amount 使用两位小数字符串</span>
+                <span>3. notify_url 返回纯文本 success</span>
+                <span>4. 至少一台 Android 监听端在线</span>
+                <span>5. 微信/支付宝通知详情未隐藏</span>
+                <span>6. 固定金额码池覆盖高频金额</span>
+              </div>
+            </div>
 
           </form>
         )}
