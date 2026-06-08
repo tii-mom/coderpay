@@ -8,6 +8,7 @@ import cn.coderpay.watcher.data.AppDatabase
 import cn.coderpay.watcher.data.LocalEvent
 import cn.coderpay.watcher.utils.LogTracker
 import cn.coderpay.watcher.utils.SettingsManager
+import cn.coderpay.watcher.worker.EventSyncer
 import cn.coderpay.watcher.worker.WorkerHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
@@ -144,7 +145,7 @@ class NotificationService : NotificationListenerService() {
                 db.localEventDao().insertEvent(event)
                 LogTracker.log("通知拦截：成功匹配到账通知！类型: ${payType}, 金额: ¥${amount}元，去重 ID: ${notificationHash.take(8)}")
                 
-                // Trigger immediate upload via WorkManager
+                EventSyncer.syncPending(context)
                 WorkerHelper.triggerSync(context)
             } catch (e: Exception) {
                 LogTracker.log("数据存储出错: ${e.message}")

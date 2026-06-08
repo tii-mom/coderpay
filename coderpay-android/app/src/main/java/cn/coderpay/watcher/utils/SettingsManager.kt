@@ -2,20 +2,11 @@ package cn.coderpay.watcher.utils
 
 import android.content.Context
 import android.os.Build
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 
 class SettingsManager(context: Context) {
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
-
-    private val prefs = EncryptedSharedPreferences.create(
-        context,
-        "coderpay_watcher_secure_prefs",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+    private val prefs = context.applicationContext.getSharedPreferences(
+        "coderpay_watcher_prefs",
+        Context.MODE_PRIVATE
     )
 
     var serverUrl: String

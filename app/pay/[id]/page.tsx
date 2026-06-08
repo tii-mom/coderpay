@@ -44,18 +44,37 @@ export default function PayPage({ params }: PayPageProps) {
 
   useEffect(() => {
     let active = true;
-    const fetchOrder = async () => {
+    let hasLoadedFullOrder = false;
+    const updateCountdown = (data: any) => {
+      const createdTime = new Date(data.createdAt).getTime();
+      const expiresMinutes = data.app?.expireMinutes || 5;
+      const expiresTime = createdTime + expiresMinutes * 60 * 1000;
+      const diff = Math.max(0, Math.floor((expiresTime - Date.now()) / 1000));
+      setSecondsLeft(diff);
+    };
+    const fetchOrder = async (statusOnly = false) => {
       try {
-        const res = await fetch(`/api/orders/${orderId}`);
+        const res = await fetch(statusOnly ? `/api/orders/${orderId}/status` : `/api/orders/${orderId}`);
         if (res.ok) {
           const data = await res.json();
           if (active) {
-            setRealOrder(data);
-            const createdTime = new Date(data.createdAt).getTime();
-            const expiresMinutes = data.app?.expireMinutes || 5;
-            const expiresTime = createdTime + expiresMinutes * 60 * 1000;
-            const diff = Math.max(0, Math.floor((expiresTime - Date.now()) / 1000));
-            setSecondsLeft(diff);
+            if (statusOnly) {
+              setRealOrder((prev: any) => prev ? {
+                ...prev,
+                status: data.status,
+                payTime: data.payTime,
+                webhookStatus: data.webhookStatus,
+                realAmount: data.realAmount,
+                app: {
+                  ...prev.app,
+                  ...data.app
+                }
+              } : prev);
+            } else {
+              hasLoadedFullOrder = true;
+              setRealOrder(data);
+            }
+            updateCountdown(data);
           }
         }
       } catch (err) {
@@ -66,7 +85,7 @@ export default function PayPage({ params }: PayPageProps) {
     };
 
     fetchOrder();
-    const interval = setInterval(fetchOrder, 3000);
+    const interval = setInterval(() => fetchOrder(hasLoadedFullOrder), 3000);
     return () => {
       active = false;
       clearInterval(interval);

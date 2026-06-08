@@ -33,6 +33,7 @@ import cn.coderpay.watcher.service.ForegroundKeepAliveService
 import cn.coderpay.watcher.service.NotificationService
 import cn.coderpay.watcher.utils.LogTracker
 import cn.coderpay.watcher.utils.SettingsManager
+import cn.coderpay.watcher.worker.EventSyncer
 import cn.coderpay.watcher.worker.WorkerHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -339,6 +340,7 @@ class MainActivity : ComponentActivity() {
                             )
                             db.localEventDao().insertEvent(event)
                             LogTracker.log("联调模拟：成功伪造一笔微信付款 ¥0.01，存入本地，激发推送队列。")
+                            EventSyncer.syncPending(this@MainActivity)
                             WorkerHelper.triggerSync(this@MainActivity)
                         }
                     },
@@ -365,6 +367,7 @@ class MainActivity : ComponentActivity() {
                             )
                             db.localEventDao().insertEvent(event)
                             LogTracker.log("联调模拟：成功伪造一笔支付宝付款 ¥0.02，存入本地，激发推送队列。")
+                            EventSyncer.syncPending(this@MainActivity)
                             WorkerHelper.triggerSync(this@MainActivity)
                         }
                     },
