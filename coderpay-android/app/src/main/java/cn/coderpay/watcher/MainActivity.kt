@@ -8,7 +8,14 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.webkit.WebChromeClient
+import android.webkit.ValueCallback
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,6 +30,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -60,6 +68,14 @@ private val CpTerminal = Color(0xFF020617)
 class MainActivity : ComponentActivity() {
 
     private lateinit var settings: SettingsManager
+    private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
+    private val fileChooserLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uris = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
+        fileChooserCallback?.onReceiveValue(uris)
+        fileChooserCallback = null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -94,6 +110,7 @@ class MainActivity : ComponentActivity() {
         var serverUrl by remember { mutableStateOf(settings.serverUrl) }
         var deviceCode by remember { mutableStateOf(settings.deviceCode) }
         var isBound by remember { mutableStateOf(settings.isBound) }
+        var consoleUrl by remember { mutableStateOf<String?>(null) }
         
         var isNotificationPermissionGranted by remember { mutableStateOf(isNotificationServiceEnabled()) }
         var isBatteryOptimizedIgnored by remember { mutableStateOf(isBatteryOptimizationIgnored()) }
@@ -101,6 +118,17 @@ class MainActivity : ComponentActivity() {
         val scope = rememberCoroutineScope()
         val listState = rememberLazyListState()
         val pageScrollState = rememberScrollState()
+
+        if (consoleUrl != null) {
+            InAppConsole(
+                url = consoleUrl!!,
+                onClose = {
+                    consoleUrl = null
+                    LogTracker.log("已返回监听控制台。")
+                }
+            )
+            return
+        }
 
         // Sync logs scroll
         LaunchedEffect(LogTracker.logs.size) {
@@ -287,34 +315,34 @@ class MainActivity : ComponentActivity() {
                             ConsoleShortcutButton(
                                 text = "充值订阅",
                                 modifier = Modifier.weight(1f),
-                                onClick = { openConsolePage("billing") }
+                                onClick = { consoleUrl = consoleUrlFor("billing") }
                             )
                             ConsoleShortcutButton(
                                 text = "订单流水",
                                 modifier = Modifier.weight(1f),
-                                onClick = { openConsolePage("orders") }
+                                onClick = { consoleUrl = consoleUrlFor("orders") }
                             )
                             ConsoleShortcutButton(
                                 text = "收款码",
                                 modifier = Modifier.weight(1f),
-                                onClick = { openConsolePage("codes") }
+                                onClick = { consoleUrl = consoleUrlFor("codes") }
                             )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ConsoleShortcutButton(
                                 text = "设备通道",
                                 modifier = Modifier.weight(1f),
-                                onClick = { openConsolePage("devices") }
+                                onClick = { consoleUrl = consoleUrlFor("devices") }
                             )
                             ConsoleShortcutButton(
                                 text = "接口文档",
                                 modifier = Modifier.weight(1f),
-                                onClick = { openConsolePage("docs") }
+                                onClick = { consoleUrl = consoleUrlFor("docs") }
                             )
                             ConsoleShortcutButton(
                                 text = "控制台",
                                 modifier = Modifier.weight(1f),
-                                onClick = { openConsolePage("") }
+                                onClick = { consoleUrl = consoleUrlFor("") }
                             )
                         }
                     }
@@ -578,15 +606,119 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun openConsolePage(tab: String) {
-        val baseUrl = settings.serverUrl.ifBlank { "https://3api.shop" }.trimEnd('/')
-        val url = if (tab.isBlank()) "$baseUrl/console" else "$baseUrl/console/$tab"
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            LogTracker.log("已打开官网控制台：$url")
-        } catch (e: Exception) {
-            LogTracker.log("打开官网控制台失败：${e.message}")
+    @Composable
+    private fun InAppConsole(url: String, onClose: () -> Unit) {
+        var webViewRef by remember { mutableStateOf<WebView?>(null) }
+
+        BackHandler {
+            val webView = webViewRef
+            if (webView?.canGoBack() == true) {
+                webView.goBack()
+            } else {
+                onClose()
+            }
         }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(CpBackground)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CpPanel)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "CoderPay 控制台",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CpText
+                    )
+                    Text(
+                        text = url,
+                        fontSize = 10.sp,
+                        color = CpSubtle,
+                        maxLines = 1
+                    )
+                }
+                Button(
+                    onClick = onClose,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CpPanelSoft,
+                        contentColor = CpText
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("返回监听", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                factory = { context ->
+                    WebView(context).apply {
+                        webViewClient = WebViewClient()
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onShowFileChooser(
+                                webView: WebView?,
+                                filePathCallback: ValueCallback<Array<Uri>>?,
+                                fileChooserParams: FileChooserParams?
+                            ): Boolean {
+                                fileChooserCallback?.onReceiveValue(null)
+                                fileChooserCallback = filePathCallback
+                                return try {
+                                    val intent = fileChooserParams?.createIntent()
+                                        ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                                            addCategory(Intent.CATEGORY_OPENABLE)
+                                            type = "image/*"
+                                        }
+                                    fileChooserLauncher.launch(intent)
+                                    true
+                                } catch (e: Exception) {
+                                    fileChooserCallback?.onReceiveValue(null)
+                                    fileChooserCallback = null
+                                    LogTracker.log("打开图片选择器失败：${e.message}")
+                                    false
+                                }
+                            }
+                        }
+                        setInitialScale(100)
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.cacheMode = WebSettings.LOAD_DEFAULT
+                        settings.useWideViewPort = true
+                        settings.loadWithOverviewMode = true
+                        settings.textZoom = 100
+                        settings.builtInZoomControls = false
+                        settings.displayZoomControls = false
+                        settings.userAgentString = settings.userAgentString
+                            .replace("wv", "")
+                            .replace("Version/4.0", "Version/120.0")
+                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                        webViewRef = this
+                        loadUrl(url)
+                    }
+                },
+                update = { webView ->
+                    if (webView.url != url) {
+                        webView.loadUrl(url)
+                    }
+                }
+            )
+        }
+    }
+
+    private fun consoleUrlFor(tab: String): String {
+        val baseUrl = settings.serverUrl.ifBlank { "https://3api.shop" }.trimEnd('/')
+        return if (tab.isBlank()) "$baseUrl/console" else "$baseUrl/console/$tab"
     }
 
     private fun isNotificationServiceEnabled(): Boolean {
