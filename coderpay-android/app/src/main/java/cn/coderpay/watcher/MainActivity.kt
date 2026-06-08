@@ -114,13 +114,13 @@ class MainActivity : ComponentActivity() {
             ) {
                 Column {
                     Text(
-                        text = "CP Watcher",
+                        text = "CoderPay",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                     Text(
-                        text = "Coder Pay 到账监听探针",
+                        text = "到账监听探针",
                         fontSize = 11.sp,
                         color = Color.Gray
                     )

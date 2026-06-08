@@ -73,7 +73,7 @@ export function ExceptionsTab({ exceptions, onTriggerToast, onSwitchTab, db }: E
         type: alertType,
         severity: alertType === 'balance_insufficient' ? 'CRITICAL' : 'WARNING',
         message: alertType === 'device_offline' 
-          ? 'CP Watcher Core 物理探头离线，心跳丢失超过 180 秒！' 
+          ? 'CoderPay Core 物理探头离线，心跳丢失超过 180 秒！' 
           : alertType === 'webhook_failed' 
           ? '推流队列第三核重试失败，回调投递至商户端超时！' 
           : alertType === 'payment_unmatched' 

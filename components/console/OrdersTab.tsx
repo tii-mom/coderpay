@@ -268,7 +268,7 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
                   <div className={`absolute left-[-21px] top-1 w-3 h-3 rounded-full border-2 border-cp-card ${
                     selectedOrder.status === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-[#0B1020]'
                   }`} />
-                  <span className="font-bold text-white block">CP Watcher 流水抓取</span>
+                  <span className="font-bold text-white block">CoderPay 流水抓取</span>
                   <p className="text-[10px] text-slate-500 mt-1">安卓手机客户端捕获微信/支付宝通知：“付款 ¥{selectedOrder.realAmount.toFixed(2)} 已收妥”，瞬时压缩签名，打包传输云端校验。</p>
                   {selectedOrder.payTime && <span className="text-[9px] text-emerald-500 font-mono block mt-1">{selectedOrder.payTime}</span>}
                 </div>

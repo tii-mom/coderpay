@@ -417,7 +417,7 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
             </h3>
 
             <p>
-              一旦安装了 <b>CP Watcher App Client</b> 的 Android 设备监听到微信/支付宝收款到达，CP 核心云将在 500ms 内触发对您预留 <code>notify_url</code> 的异步 POST 签名回调网络推送。
+              一旦安装了 <b>CoderPay App</b> 的 Android 设备监听到微信/支付宝收款到达，CP 核心云将在 500ms 内触发对您预留 <code>notify_url</code> 的异步 POST 签名回调网络推送。
             </p>
 
             <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/20 text-xs text-amber-200">

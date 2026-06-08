@@ -13,6 +13,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import cn.coderpay.watcher.R
 import cn.coderpay.watcher.MainActivity
 import cn.coderpay.watcher.api.HeartbeatRequest
 import cn.coderpay.watcher.api.RetrofitClient
@@ -138,9 +139,9 @@ class ForegroundKeepAliveService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("CP Watcher 守护中")
+            .setContentTitle("CoderPay 守护中")
             .setContentText(content)
-            .setSmallIcon(android.R.drawable.sym_def_app_icon)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
@@ -155,7 +156,7 @@ class ForegroundKeepAliveService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,
-                "CP Watcher Keep-Alive Channel",
+                getString(R.string.keep_alive_channel_name),
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)

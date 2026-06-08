@@ -16,7 +16,8 @@ import {
   Cpu,
   Check,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Download
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -47,6 +48,7 @@ export default function HomePage() {
     router.push('/docs');
   };
 
+  const androidApkUrl = '/downloads/coderpay-android.apk';
 
   const flowSteps = [
     {
@@ -64,7 +66,7 @@ export default function HomePage() {
     {
       num: '03',
       title: 'Watcher监控',
-      desc: '备用Android手机安装CP Watcher监听系统微信/支付宝支付到账通知',
+      desc: '备用Android手机安装 CoderPay 监听系统微信/支付宝支付到账通知',
       icon: <Smartphone className="w-5 h-5 text-blue-400" />
     },
     {
@@ -126,7 +128,7 @@ export default function HomePage() {
       techFee: '今日收款前3笔免费，超出后1%技术服务费',
       features: [
         '独立接入应用上限 1 个',
-        '支持挂载 1 台安卓 CP Watcher 设备',
+        '支持挂载 1 台安卓 CoderPay 设备',
         '微信/支付宝任一款个人收款码配置',
         '标准动态随机微调尾数匹配',
         'API 接口签名（MD5 兼容模式）',
@@ -241,7 +243,7 @@ export default function HomePage() {
                 </span>
               </h1>
               <p className="text-base sm:text-lg text-[#94A3B8] leading-relaxed mb-8 max-w-xl">
-                上传你的微信/支付宝个人收款码，安装 CP Watcher，用户付款后自动识别到账并回调你的网站。资金首尾直达你个人账户，CP 安全云端完全不接管资金。
+                上传你的微信/支付宝个人收款码，安装 CoderPay 安卓挂机端，用户付款后自动识别到账并回调你的网站。资金首尾直达你个人账户，CP 安全云端完全不接管资金。
               </p>
               <div className="flex flex-wrap items-center gap-4">
                 <button
@@ -256,6 +258,13 @@ export default function HomePage() {
                 >
                   查看说明文档
                 </button>
+                <a
+                  href={androidApkUrl}
+                  download
+                  className="px-6 py-4 rounded-xl text-base bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-all flex items-center gap-2"
+                >
+                  下载安卓挂机端 <Download className="w-4 h-4" />
+                </a>
               </div>
 
               {/* Status metrics micro table - 3x2 Layout */}
@@ -365,7 +374,7 @@ export default function HomePage() {
               扫码支付一触即发 · Android Watcher 智能监听
             </h2>
             <p className="text-slate-400 text-base">
-              您仅需准备一个退休的备用安卓手机，安装极简的 CP Watcher 探针 app。它将全自动、零延误地监听您的微信和支付宝到账通知，并向 CP 云推送，无需复杂的服务器挂钩。
+              您仅需准备一个退休的备用安卓手机，安装极简的 CoderPay 探针 App。它将全自动监听您的微信和支付宝到账通知，并向 CP 云推送，无需复杂的服务器挂钩。
             </p>
           </div>
 
@@ -618,7 +627,7 @@ export default function HomePage() {
           <div className="flex items-center gap-6">
             <a href="#product-flow" className="hover:text-slate-400">服务条款</a>
             <a href="#product-features" className="hover:text-slate-400">隐私声明</a>
-            <span className="text-blue-500 font-mono">CP Watcher SDK v2.4.2 (RELEASE)</span>
+            <span className="text-blue-500 font-mono">CoderPay Android v1.0.3</span>
           </div>
         </div>
       </footer>

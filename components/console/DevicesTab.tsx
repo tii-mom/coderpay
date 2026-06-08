@@ -20,7 +20,8 @@ import {
   Wifi,
   Sliders,
   Check,
-  X
+  X,
+  Download
 } from 'lucide-react';
 
 interface DevicesTabProps {
@@ -31,6 +32,7 @@ interface DevicesTabProps {
 }
 
 export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: DevicesTabProps) {
+  const androidApkUrl = '/downloads/coderpay-android.apk';
   const [activeView, setActiveView] = useState<'list' | 'details'>('list');
   const [selectedDevId, setSelectedDevId] = useState<string | null>(null);
   const [activeGuideTab, setActiveGuideTab] = useState<'steps' | 'keepalive'>('steps');
@@ -66,7 +68,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
 
   // Simulated device log rows for debugging details
   const [mockLogs, setMockLogs] = useState<string[]>([
-    'Watcher Core: CP Watcher v2.4.2 system service bootstrapped successfully.',
+    'Watcher Core: CoderPay v1.0.3 system service bootstrapped successfully.',
     'Notification Listener: Registered System OS notification listener binder.',
     'Listener Loop: Socket client connection established with CP Cloud server latency: 28ms.',
     'Status Sync: Synchronizing active QR specifications metadata (4 bound).',
@@ -86,7 +88,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
     setIsLoadingOperation(true);
     setTimeout(() => {
       const dev = db.createDevice(newDevName, Number(todayLimit));
-      onTriggerToast(`成功绑定 CP Watcher 探针终端 [${dev.name}] ！设备令牌及专属 API Key 已生成并输出到终端，请扫码绑定您的旧手机。`, 'success');
+      onTriggerToast(`成功绑定 CoderPay 探针终端 [${dev.name}] ！设备令牌及专属 API Key 已生成并输出到终端，请扫码绑定您的旧手机。`, 'success');
       setNewDevName('');
       setTodayLimit(5000);
       setIsBinding(false);
@@ -122,7 +124,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
 
   const handleTestPingListener = (dev: Device) => {
     setIsLoadingOperation(true);
-    onTriggerToast(`正在向 CP Watcher [${dev.name}] 传送测试心跳包并激发虚拟收款到账通知...`, 'warning');
+    onTriggerToast(`正在向 CoderPay [${dev.name}] 传送测试心跳包并激发虚拟收款到账通知...`, 'warning');
     setTimeout(() => {
       // Create random simulated arrival to check matcher
       const channels: ('wechat' | 'alipay')[] = ['wechat', 'alipay'];
@@ -132,7 +134,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
       
       db.uploadPaymentEvent(dev.id, selectChan, selectAmt);
       setIsLoadingOperation(false);
-      onTriggerToast(`心跳连通率 100%！设备响应延迟: 14ms。CP Watcher 探针到账 ¥${selectAmt.toFixed(2)} [${selectChan === 'wechat' ? '微信' : '支付宝'}] 微信通知匹配流成功上报CP核心！`, 'success');
+      onTriggerToast(`心跳连通率 100%！设备响应延迟: 14ms。CoderPay 探针到账 ¥${selectAmt.toFixed(2)} [${selectChan === 'wechat' ? '微信' : '支付宝'}] 微信通知匹配流成功上报 CP 核心！`, 'success');
       
       // Add custom log line inside details
       setMockLogs(prev => [
@@ -421,7 +423,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                         </div>
                       </div>
                       <div className="w-full sm:w-auto bg-[#070A12] border border-cp rounded-xl px-3.5 py-2 font-mono text-[10px] text-slate-400 text-left">
-                        安全监控层：CP Watcher Daemon 物理探头连接绿灯
+                        安全监控层：CoderPay Daemon 物理探头连接绿灯
                       </div>
                     </div>
 
@@ -491,7 +493,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
               <div className="flex flex-col text-left">
                 <span className="text-sm font-extrabold text-white flex items-center gap-2">
                   <Zap className="w-4.5 h-4.5 text-amber-500 fill-amber-500 animate-pulse" />
-                  CP Watcher 挂载保活与权限校准指引 (PRD v1.1)
+                  CoderPay 挂载保活与权限校准指引
                 </span>
                 <span className="text-[10px] text-slate-500 block mt-1">请为作为物理监控监控节点的 Android 旧手机严格配置以下权限与保活项，否则系统将在息屏后休眠被杀，导致漏单</span>
               </div>
@@ -530,7 +532,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                   {
                     step: '01',
                     title: '下载并安装客户端 App',
-                    desc: '在旧手机中扫描绑定页面显示的专属二维码下载最新的 CP Watcher App (.apk)。客户端仅兼容 Android 8.0 及以上版本手机系统，推荐使用闲置备用机（勿插主力SIM卡，挂在安静位置）。'
+                    desc: '在旧手机中下载并安装最新的 CoderPay App (.apk)。客户端仅兼容 Android 8.0 及以上版本手机系统，推荐使用闲置备用机（勿插主力SIM卡，挂在安静位置）。'
                   },
                   {
                     step: '02',
@@ -540,7 +542,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                   {
                     step: '03',
                     title: '开启微信到账通知监听',
-                    desc: '在 App 左侧开启【微信收款挂载监听】开关。系统会自动弹出系统无障碍层引导，请在系统服务列表中找到 "CP Watcher 收款辅助" 并授予「无障碍模式 / 同步辅助（Accessibility）」辅助权限。'
+                    desc: '在 App 中开启通知读取监听权限。系统会自动跳转到通知访问设置，请在系统服务列表中找到 CoderPay 并允许读取通知。'
                   },
                   {
                     step: '04',
@@ -555,17 +557,17 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                   {
                     step: '06',
                     title: '豁免省电模式与电池优化',
-                    desc: '进入系统[设置] -> [电池 optimization] / [省电策略] 找到 CP Watcher，将其强行配置为【无限制】/【不锁定/不优化后台活动】。这可以防止手机强制进入低耗深度休眠而断连。'
+                    desc: '进入系统[设置] -> [电池 optimization] / [省电策略] 找到 CoderPay，将其配置为【无限制】/【不锁定/不优化后台活动】。这可以防止手机强制进入低耗深度休眠而断连。'
                   },
                   {
                     step: '07',
                     title: '启动前台特权守护服务',
-                    desc: '打开客户端 App 内的“常驻前台保活服务”开关。勾选成功后，您将在安卓手机通知栏的最上方看到一个锁定、无法滑动的「CP Watcher 常驻系统后台监听服务中」的黑金色特权通知卡。'
+                    desc: '绑定成功后，CoderPay 会启动常驻前台保活服务。您将在安卓手机通知栏看到 CoderPay 守护通知。'
                   },
                   {
                     step: '08',
                     title: '多任务后台挂锁保留',
-                    desc: '按手机任务键进入近期应用控制台，按住民捷向下轻划或长按 CP Watcher 的卡片。点击弹出的「小锁头 (Lock app)」标志锁死，这样在使用系统「一键加速/内存释放」时不会意外强杀进程。'
+                    desc: '按手机任务键进入近期应用控制台，长按 CoderPay 的卡片。点击弹出的「小锁头 (Lock app)」标志锁死，这样在使用系统「一键加速/内存释放」时不会意外强杀进程。'
                   },
                   {
                     step: '09',
@@ -629,13 +631,13 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                       <p className="text-[11px] text-slate-400 leading-normal mb-2">MIUI/澎湃系统对后台挂机策略极其苛刻，必须手动完成这 4 步以解除限制：</p>
                       <ul className="list-decimal pl-4.5 space-y-3.5 text-slate-300 text-[11px]">
                         <li>
-                          <strong>自启动放行授权：</strong>进入系统自带的【手机管家】或【安全中心】 -&gt; [应用管理] -&gt; [授权管理] -&gt; [自启动管理]，找到 CP Watcher 打开自启动开关。
+                          <strong>自启动放行授权：</strong>进入系统自带的【手机管家】或【安全中心】 -&gt; [应用管理] -&gt; [授权管理] -&gt; [自启动管理]，找到 CoderPay 打开自启动开关。
                         </li>
                         <li>
-                          <strong>开启省电无限制：</strong>在桌面长按 CP Watcher 图标 -&gt; [应用信息] -&gt; [省电策略]，默认为“智能省电（会静默锁屏断连）”，请务必强制更改为<strong>「无限制」</strong>。
+                          <strong>开启省电无限制：</strong>在桌面长按 CoderPay 图标 -&gt; [应用信息] -&gt; [省电策略]，默认为“智能省电（会静默锁屏断连）”，请务必强制更改为<strong>「无限制」</strong>。
                         </li>
                         <li>
-                          <strong>多任务挂头大锁：</strong>从底栏上划停留进入正在使用列表，长按 CP Watcher 卡片，点击弹出列表中的<strong>「锁头标识」</strong>，让其锁定。
+                          <strong>多任务挂头大锁：</strong>从底栏上划停留进入正在使用列表，长按 CoderPay 卡片，点击弹出列表中的<strong>「锁头标识」</strong>，让其锁定。
                         </li>
                         <li>
                           <strong>开启前台锁屏显示：</strong>应用信息 -&gt; [其他权限] -&gt; 打开「显示悬浮窗」、「后台弹出界面」以及「锁屏显示」三个高级开关。
@@ -652,13 +654,13 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                       </h4>
                       <ul className="list-decimal pl-4.5 space-y-3.5 text-[11px]">
                         <li>
-                          <strong>移除系统自动管理：</strong>进入[设置] -&gt; [应用] -&gt; [应用启动管理]，找到 CP Watcher，<strong>关闭“自动管理”</strong>。在立刻弹出的控制组中，手动把 【允许自启动】、【允许关联启动】、以及【允许后台活动】三项全部点亮并确认。
+                          <strong>移除系统自动管理：</strong>进入[设置] -&gt; [应用] -&gt; [应用启动管理]，找到 CoderPay，<strong>关闭“自动管理”</strong>。在立刻弹出的控制组中，手动把 【允许自启动】、【允许关联启动】、以及【允许后台活动】三项全部点亮并确认。
                         </li>
                         <li>
-                          <strong>加入忽略电池优化：</strong>打开手机的[设置] -&gt; [应用和服务] -&gt; [高级应用管理 / 特殊访问权限] -&gt; [忽略电池优化]，点击上面的选择框更改为 “所有应用” ，然后找到 CP Watcher 并设为<strong>「允许 / 忽略」</strong>。
+                          <strong>加入忽略电池优化：</strong>打开手机的[设置] -&gt; [应用和服务] -&gt; [高级应用管理 / 特殊访问权限] -&gt; [忽略电池优化]，点击上面的选择框更改为 “所有应用” ，然后找到 CoderPay 并设为<strong>「允许 / 忽略」</strong>。
                         </li>
                         <li>
-                          <strong>卡屏大挂锁：</strong>进入多任务列表页，长按或者向下轻滑 CP Watcher 的大卡片，使其头部展现小挂锁图标，阻止一键优化强行清理。
+                          <strong>卡屏大挂锁：</strong>进入多任务列表页，长按或者向下轻滑 CoderPay 的大卡片，使其头部展现小挂锁图标，阻止一键优化强行清理。
                         </li>
                         <li>
                           <strong>网络连接不休眠：</strong>进入[设置] -&gt; [电池]，确保“休眠时始终保持网络连接”处于点亮状态，防止锁屏后 WiFi 深度低功耗假死。
@@ -675,16 +677,16 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                       </h4>
                       <ul className="list-decimal pl-4.5 space-y-3.5 text-[11px]">
                         <li>
-                          <strong>应用启动权限解锁：</strong>进入[手机管家] 或手机里的 [设置] -&gt; [应用] -&gt; [自启动管理] / [应用启动管理]，允许 CP Watcher 常驻后台。
+                          <strong>应用启动权限解锁：</strong>进入[手机管家] 或手机里的 [设置] -&gt; [应用] -&gt; [自启动管理] / [应用启动管理]，允许 CoderPay 常驻后台。
                         </li>
                         <li>
-                          <strong>完全允许后台活动：</strong>进入[设置] -&gt; [电池] -&gt; [应用耗电管理] -&gt; 找到并点击 CP Watcher 进程，开启<strong>「允许完全后台行为」</strong>并允许关联启动，同时关闭底下的「后台冻结」机制。
+                          <strong>完全允许后台活动：</strong>进入[设置] -&gt; [电池] -&gt; [应用耗电管理] -&gt; 找到并点击 CoderPay 进程，开启<strong>「允许完全后台行为」</strong>并允许关联启动，同时关闭底下的「后台冻结」机制。
                         </li>
                         <li>
-                          <strong>多任务锁保护：</strong>上划进入多任务管理视窗，点击 CP Watcher 任务卡片右上角的“三个点”，选择<strong>「锁定」</strong>将该卡片卡住。
+                          <strong>多任务锁保护：</strong>上划进入多任务管理视窗，点击 CoderPay 任务卡片右上角的“三个点”，选择<strong>「锁定」</strong>将该卡片卡住。
                         </li>
                         <li>
-                          <strong>通知显示特权：</strong>检查通知管理，把微信、支付宝和 CP Watcher 均列为“重要通知通道”以防止它们被折叠从而截断系统 notify。
+                          <strong>通知显示特权：</strong>检查通知管理，把微信、支付宝和 CoderPay 均列为“重要通知通道”以防止它们被折叠从而截断系统 notify。
                         </li>
                       </ul>
                     </div>
@@ -698,10 +700,10 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                       </h4>
                       <ul className="list-decimal pl-4.5 space-y-3.5 text-[11px]">
                         <li>
-                          <strong>自启动使能开启：</strong>进入 [i管家] -&gt; [应用管理] -&gt; [权限管理] -&gt; [自启动] 列表中把 CP Watcher 的开关打开。
+                          <strong>自启动使能开启：</strong>进入 [i管家] -&gt; [应用管理] -&gt; [权限管理] -&gt; [自启动] 列表中把 CoderPay 的开关打开。
                         </li>
                         <li>
-                          <strong>高耗电常驻白名单：</strong>vivo 对后台常挂的应用有限流强杀政策。请进入[设置] -&gt; [电池] -&gt; [后台高耗电] / [高耗电管理]，勾选 CP Watcher 为<strong>「允许后台高耗电行为」</strong>。
+                          <strong>高耗电常驻白名单：</strong>vivo 对后台常挂的应用有限流强杀政策。请进入[设置] -&gt; [电池] -&gt; [后台高耗电] / [高耗电管理]，勾选 CoderPay 为<strong>「允许后台高耗电行为」</strong>。
                         </li>
                         <li>
                           <strong>双击卡加锁：</strong>按手机左手任务键进入多任务层，卡片向下拉或者点击锁图解锁，完成<strong>「加锁」</strong>，避免一键内存杀。
@@ -718,10 +720,10 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                       </h4>
                       <ul className="list-decimal pl-4.5 space-y-3.5 text-[11px]">
                         <li>
-                          <strong>加入“从不休眠的应用程序”：</strong>进入手机的[设置] -&gt; [常规管理/电池维护] -&gt; [背景使用限制]，在<strong>「从不休眠应用程序」</strong>列表中点击右上角添加按钮，把 CP Watcher App 放进去，绝不能放到深度休眠中。
+                          <strong>加入“从不休眠的应用程序”：</strong>进入手机的[设置] -&gt; [常规管理/电池维护] -&gt; [背景使用限制]，在<strong>「从不休眠应用程序」</strong>列表中点击右上角添加按钮，把 CoderPay App 放进去，绝不能放到深度休眠中。
                         </li>
                         <li>
-                          <strong>后台保持开启：</strong>打开最近使用的应用程序界面，轻点 CP Watcher 图标，在选择中勾选<strong>「保持开启以便快速启动」</strong>，One UI 将不会释放它的主进程。
+                          <strong>后台保持开启：</strong>打开最近使用的应用程序界面，轻点 CoderPay 图标，在选择中勾选<strong>「保持开启以便快速启动」</strong>，One UI 将不会释放它的主进程。
                         </li>
                         <li>
                           <strong>未受限用电设置：</strong>按住 App 桌面图标 -&gt; 应用详情 -&gt; 电池 -&gt; 选择【未受限】。
@@ -897,8 +899,16 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
               绑定全新的 Android Watcher 探针
             </h3>
             <p className="text-xs text-slate-400 mb-5 leading-relaxed">
-              请在被淘汰的旧安卓手机中安装 <b>CP Watcher App Client</b>，随后在此配置设备通信节点通道以生成令牌密钥绑定。
+              请在被淘汰的旧安卓手机中安装 <b>CoderPay App</b>，随后在此配置设备通信节点通道以生成令牌密钥绑定。
             </p>
+            <a
+              href={androidApkUrl}
+              download
+              className="mb-5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center justify-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              下载 CoderPay Android APK
+            </a>
 
             <form onSubmit={handleBindDevice} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">

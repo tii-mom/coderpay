@@ -459,7 +459,7 @@ export default function ConsolePage() {
                     overview: '查看今日营业统计、近期成交流水和守护设备瞬时在线度',
                     apps: '自主新增、删除或重置安全 App Secret、设定 notify_url 和过期时间',
                     codes: '上传微信/支付宝不限额通用收款码和特定数额的静态定额码并绑定探针手机',
-                    devices: '管理及体检装有 CP Watcher 探针的 Android 手机状态，检查物理权限',
+                    devices: '管理及体检装有 CoderPay 探针的 Android 手机状态，检查物理权限',
                     orders: '高级可搜索表格。支持手动补单、重试 Webhook 等关键异常操作',
                     events: '查看由客户端上报的微信和支付宝到账通知原生到账时间序列',
                     exceptions: '系统健康检查告警站。在此审查并一键重试故障或超时通知',

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CoderPay</string>
+    <string name="notification_listener_label">CoderPay 到账监听服务</string>
+    <string name="keep_alive_channel_name">CoderPay Keep-Alive Channel</string>
+</resources>

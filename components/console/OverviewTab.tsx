@@ -61,7 +61,7 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
     {
       title: '在线监控设备',
       value: `${onlineDevices}/${state.devices.length}`,
-      desc: 'Android CP Watcher 在线数量',
+      desc: 'Android CoderPay 在线数量',
       icon: <Smartphone className="w-5 h-5 text-indigo-400" />,
       color: 'border-indigo-500/10 bg-indigo-500/5'
     },

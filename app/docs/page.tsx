@@ -16,7 +16,8 @@ import {
   Shield,
   Zap,
   Smartphone,
-  ExternalLink
+  ExternalLink,
+  Download
 } from 'lucide-react';
 
 export default function DocsPage() {
@@ -40,6 +41,8 @@ export default function DocsPage() {
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
+
+  const androidApkUrl = '/downloads/coderpay-android.apk';
 
   const sections = [
     { id: 'overview', title: '系统集成总览', icon: <Shield className="w-4 h-4" /> },
@@ -226,7 +229,7 @@ const sign = crypto.createHmac('sha256', appSecret)
                 <span className="w-7 h-7 rounded-full bg-blue-600/10 border border-blue-500/30 text-blue-400 font-mono text-xs font-bold flex items-center justify-center">02</span>
                 <h4 className="text-xs font-bold text-white">第二步：配置收款码</h4>
                 <p className="text-[11px] text-slate-500 leading-relaxed">
-                  在 [收款码管理] 上传微信/支付宝收款二维码，支持不固定金额与防撞额固定金额二维码，并绑定安卓监控设备。
+                  在 [收款码管理] 上传微信/支付宝收款二维码。固定订阅金额建议使用“不限额收款码”，系统会分配尾差金额避免同金额并发撞单。
                 </p>
               </div>
 
@@ -234,7 +237,7 @@ const sign = crypto.createHmac('sha256', appSecret)
                 <span className="w-7 h-7 rounded-full bg-blue-600/10 border border-blue-500/30 text-blue-400 font-mono text-xs font-bold flex items-center justify-center">03</span>
                 <h4 className="text-xs font-bold text-white">第三步：部署 Watcher</h4>
                 <p className="text-[11px] text-slate-500 leading-relaxed">
-                  在备用安卓机安装 CP Watcher 安卓 App，授予通知读取权限。开启收款到账语音/系统通知提醒，实现秒级侦测。
+                  在备用安卓机安装 CoderPay 安卓 App，授予通知读取权限。开启收款到账语音/系统通知提醒，实现秒级侦测。
                 </p>
               </div>
             </div>
@@ -243,16 +246,30 @@ const sign = crypto.createHmac('sha256', appSecret)
           {/* Section: Android Watcher Setup */}
           <section id="watcher-setup" className="flex flex-col gap-6 border-b border-white/5 pb-10 scroll-mt-24">
             <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
-              <Smartphone className="w-6 h-6 text-blue-400" /> Android 挂机端编译与保活配置
+              <Smartphone className="w-6 h-6 text-blue-400" /> Android 挂机端下载与保活配置
             </h2>
             <p className="text-sm text-slate-400 leading-relaxed">
-              由于 <span className="text-white font-semibold">CP Watcher</span> 是我们针对 Coder Pay 平台专门定制的到账监控 App，涉及系统底层的通知读取权限，因此<span className="text-amber-400 font-semibold">无法从任何公开应用商店下载</span>。需要利用开源的 Android 源码包自行编译出包。
+              <span className="text-white font-semibold">CoderPay</span> 是 Coder Pay 平台专用的到账监控 App，涉及系统通知读取权限，因此不会上架公开应用商店。开发者可直接下载 APK 安装，源码编译作为备用方式。
             </p>
+            <div className="p-4 bg-blue-950/20 border border-blue-500/20 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-white">下载 CoderPay Android APK</h3>
+                <p className="text-xs text-slate-400 mt-1">适用于 Android 8.0 及以上系统。安装后需要开启通知读取权限和电池后台白名单。</p>
+              </div>
+              <a
+                href={androidApkUrl}
+                download
+                className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center justify-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                下载 APK
+              </a>
+            </div>
 
             {/* Phase 1: Compile APK */}
             <div className="flex flex-col gap-4">
               <h3 className="text-sm font-bold text-white flex items-center gap-2 border-l-2 border-blue-500 pl-2">
-                第一阶段：如何编译并导出 Android App (APK)
+                备用方式：如何自行编译 Android App (APK)
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
                 <div className="p-4 bg-slate-900/40 border border-white/5 rounded-xl">
@@ -270,7 +287,7 @@ const sign = crypto.createHmac('sha256', appSecret)
                 <div className="p-4 bg-slate-900/40 border border-white/5 rounded-xl">
                   <span className="text-xs text-blue-400 font-mono block mb-1">步骤 1.3 / 打包生成</span>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    点击菜单栏 <code className="text-[10px] bg-slate-950 p-1 rounded font-mono text-slate-300">Build &amp;rarr; Build Bundle(s)/APK(s) &amp;rarr; Build APK(s)</code>。打包完成后点击 <code className="text-blue-400">locate</code> 即可获得 <b>app-debug.apk</b> 文件。
+                    点击菜单栏 <code className="text-[10px] bg-slate-950 p-1 rounded font-mono text-slate-300">Build &amp;rarr; Build Bundle(s)/APK(s) &amp;rarr; Build APK(s)</code>。打包完成后点击 <code className="text-blue-400">locate</code> 即可获得 APK 文件。
                   </p>
                 </div>
 
@@ -288,7 +305,7 @@ const sign = crypto.createHmac('sha256', appSecret)
                   <div>
                     <h5 className="text-xs font-bold text-slate-200">开启“通知栏读取权限”（关键拦截逻辑）</h5>
                     <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                      进入 CP Watcher App 主界面“手机运行权限体检”，点击“通知栏读取监听权限”旁边的“需授权”，并在手机系统弹窗中允许 CP Watcher 访问通知开关。
+                      进入 CoderPay App 主界面“手机运行权限体检”，点击“通知栏读取监听权限”旁边的“需授权”，并在手机系统弹窗中允许 CoderPay 访问通知开关。
                     </p>
                   </div>
                 </div>
@@ -330,7 +347,7 @@ const sign = crypto.createHmac('sha256', appSecret)
                 <div className="p-4 bg-slate-900/40 border border-white/5 rounded-xl flex flex-col gap-1">
                   <span className="text-xs text-blue-400 font-mono block">3.2 / 探针握手激活</span>
                   <p className="text-xs text-slate-400 leading-relaxed mt-1">
-                    在手机 Watcher 软件中填入控制台分配的 API 云地址及设备授权码 <code className="text-slate-300 font-mono">dev-1001</code>，点击“保存并连接探针”，此时控制台该设备状态会瞬间点亮为“在线”。
+                    在手机 CoderPay 软件中填入控制台分配的 API 云地址及设备授权码 <code className="text-slate-300 font-mono">dev-1001</code>，点击“保存并连接探针”，此时控制台该设备状态会瞬间点亮为“在线”。
                   </p>
                 </div>
                 <div className="p-4 bg-slate-900/40 border border-white/5 rounded-xl flex flex-col gap-1">
@@ -510,7 +527,7 @@ const sign = crypto.createHmac('sha256', appSecret)
               <RefreshCw className="w-6 h-6 text-blue-400" /> 3. 异步 Webhook 回调规范
             </h2>
             <p className="text-sm text-slate-400">
-              当安卓端 CP Watcher 监听到账并匹配到商户订单后，Coder Pay 平台将主动向您的 `notify_url` 发起 **POST** 请求。
+              当安卓端 CoderPay 监听到账并匹配到商户订单后，Coder Pay 平台将主动向您的 `notify_url` 发起 **POST** 请求。
             </p>
 
             <div className="flex flex-col gap-2 mt-2">
