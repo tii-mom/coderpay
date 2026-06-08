@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken } from "@/lib/session";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { addMinutes, createRawToken, hashAuthToken } from "@/lib/auth-tokens";
+import { buildVerificationEmail, sendEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,6 +38,20 @@ export async function POST(req: NextRequest) {
       });
     } else if (!(await verifyPassword(password, user.passwordHash))) {
       return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+    }
+
+    if (!user.emailVerifiedAt) {
+      const token = createRawToken();
+      const updated = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerifyTokenHash: await hashAuthToken(token),
+          emailVerifyExpiresAt: addMinutes(new Date(), 24 * 60),
+        },
+      });
+      const emailContent = buildVerificationEmail(updated.email, token);
+      await sendEmail({ to: updated.email, ...emailContent });
+      return NextResponse.json({ error: "Email not verified", email: updated.email }, { status: 403 });
     }
     
     const response = NextResponse.json({

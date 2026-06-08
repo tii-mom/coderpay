@@ -20,6 +20,10 @@ function getAuthErrorMessage(error?: string) {
       return '请输入有效的邮箱地址';
     case 'Password must be at least 8 characters':
       return '密码至少需要 8 个字符';
+    case 'Email not verified':
+      return '邮箱还未验证，我们已重新发送验证邮件，请先打开邮箱完成验证';
+    case 'Email service is not configured':
+      return '邮件服务尚未配置，暂时无法注册或找回密码';
     default:
       return error || '请求失败，请稍后重试';
   }
@@ -76,10 +80,7 @@ export default function LoginPage() {
         return;
       }
       localStorage.setItem('coderpay:last-login', identifier);
-      setSuccessText('注册成功！正在为您转跳控制台...');
-      setTimeout(() => {
-        router.push(redirectTarget);
-      }, 1000);
+      setSuccessText('注册成功！验证邮件已发送，请打开邮箱完成验证后再登录。');
     }
   };
 
@@ -152,7 +153,7 @@ export default function LoginPage() {
               <div className="flex justify-between items-center">
                 <label className="text-xs font-semibold text-slate-300">防盗密码</label>
                 {isLogin && (
-                  <span className="text-xs text-blue-400 hover:text-blue-300 cursor-pointer" onClick={() => setErrorText('请在注册邮箱中收取重置凭证邮件')}>
+                  <span className="text-xs text-blue-400 hover:text-blue-300 cursor-pointer" onClick={() => router.push('/forgot-password')}>
                     忘记密码？
                   </span>
                 )}

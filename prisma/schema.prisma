@@ -13,6 +13,11 @@ model User {
   id           String          @id @default(uuid())
   email        String          @unique
   passwordHash String
+  emailVerifiedAt DateTime?
+  emailVerifyTokenHash String?
+  emailVerifyExpiresAt DateTime?
+  passwordResetTokenHash String?
+  passwordResetExpiresAt DateTime?
   feeBalance   Float           @default(99.602)
   packageType  String          @default("free") // free, starter, pro, max
   createdAt    DateTime        @default(now())

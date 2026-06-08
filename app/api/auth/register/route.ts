@@ -2,7 +2,8 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
-import { createSessionToken } from "@/lib/session";
+import { addMinutes, createRawToken, hashAuthToken } from "@/lib/auth-tokens";
+import { assertEmailConfigured, buildVerificationEmail, sendEmail } from "@/lib/email";
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -28,39 +29,39 @@ export async function POST(req: NextRequest) {
     if (!isValidPassword(rawPassword)) {
       return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
     }
+    assertEmailConfigured();
 
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       return NextResponse.json({ error: "Account already exists" }, { status: 409 });
     }
 
+    const token = createRawToken();
+    const tokenHash = await hashAuthToken(token);
+
     const user = await prisma.user.create({
       data: {
         email: normalizedEmail,
         passwordHash: await hashPassword(rawPassword),
+        emailVerifyTokenHash: tokenHash,
+        emailVerifyExpiresAt: addMinutes(new Date(), 24 * 60),
         feeBalance: 0,
         packageType: "free",
       },
     });
 
-    const response = NextResponse.json({
+    const emailContent = buildVerificationEmail(user.email, token);
+    await sendEmail({ to: user.email, ...emailContent });
+
+    return NextResponse.json({
       status: "success",
-      user: { id: user.id, email: user.email, feeBalance: user.feeBalance },
+      message: "Verification email sent",
+      email: user.email,
     });
-
-    const cookieDomain = req.nextUrl.hostname.endsWith("3api.shop") ? ".3api.shop" : undefined;
-    response.cookies.set("session_email", await createSessionToken(user.email), {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      domain: cookieDomain,
-      maxAge: 60 * 60 * 24 * 30,
-    });
-
-    return response;
   } catch (err) {
     console.error("Registration failed:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const status = typeof (err as any)?.status === "number" ? (err as any).status : 500;
+    const error = status === 503 ? "Email service is not configured" : "Internal server error";
+    return NextResponse.json({ error }, { status });
   }
 }
