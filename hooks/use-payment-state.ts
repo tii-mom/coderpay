@@ -184,6 +184,13 @@ export function usePaymentState() {
       await fetchState();
     },
 
+    resetDeviceSecret: async (id: string) => {
+      const res = await fetch(`/api/devices/${id}/reset-secret`, { method: "POST" });
+      const data = await res.json();
+      await fetchState();
+      return { ok: res.ok, ...data };
+    },
+
     toggleDeviceStatus: async (id: string) => {
       const dev = state.devices.find(d => d.id === id);
       if (dev) {

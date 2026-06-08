@@ -15,6 +15,7 @@ import {
   Bell, 
   Zap, 
   Terminal,
+  KeyRound,
   ChevronLeft,
   Search,
   Wifi,
@@ -181,6 +182,26 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
           setActiveView('list');
         }
       }, 800);
+    }
+  };
+
+  const handleResetDeviceSecret = async (dev: Device) => {
+    if (!confirm(`确定重置设备 [${dev.name}] 的连接密钥吗？重置后，请在 Android App 中重新点击“保存并连接探针”。`)) {
+      return;
+    }
+
+    setIsLoadingOperation(true);
+    try {
+      const result = await db.resetDeviceSecret(dev.id);
+      if (!result?.ok) {
+        onTriggerToast(result?.error || '设备密钥重置失败。', 'error');
+        return;
+      }
+      onTriggerToast(`设备 [${dev.name}] 密钥已重置，请在手机端重新连接。`, 'success');
+    } catch (err: any) {
+      onTriggerToast(err.message || '设备密钥重置失败。', 'error');
+    } finally {
+      setIsLoadingOperation(false);
     }
   };
 
@@ -854,6 +875,13 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                       title="刷新云端状态"
                     >
                       <Activity className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleResetDeviceSecret(dev)}
+                      className="p-1.5 rounded-lg bg-amber-950/20 hover:bg-amber-900/20 border border-amber-500/20 text-amber-400"
+                      title="重置连接密钥"
+                    >
+                      <KeyRound className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleToggleActive(dev)}
