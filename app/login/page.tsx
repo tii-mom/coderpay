@@ -6,6 +6,25 @@ import { motion } from 'motion/react';
 import { usePaymentState } from '@/hooks/use-payment-state';
 import { Lock, Mail, ShieldAlert, CheckCircle, Eye, EyeOff } from 'lucide-react';
 
+function getAuthErrorMessage(error?: string) {
+  switch (error) {
+    case 'Account not found':
+      return '账号不存在，请先注册或确认邮箱是否输入正确';
+    case 'Invalid password':
+      return '密码错误，请确认后重试';
+    case 'Password is required':
+      return '请输入密码';
+    case 'Account already exists':
+      return '该邮箱已注册，请直接登录';
+    case 'Valid email is required':
+      return '请输入有效的邮箱地址';
+    case 'Password must be at least 8 characters':
+      return '密码至少需要 8 个字符';
+    default:
+      return error || '请求失败，请稍后重试';
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const redirectTarget = typeof window !== 'undefined'
@@ -40,9 +59,9 @@ export default function LoginPage() {
     }
 
     if (isLogin) {
-      const ok = await db.login(identifier, password);
-      if (!ok) {
-        setErrorText('账号或密码错误，请确认后重试');
+      const result = await db.login(identifier, password);
+      if (!result.ok) {
+        setErrorText(getAuthErrorMessage(result.error));
         return;
       }
       localStorage.setItem('coderpay:last-login', identifier);
@@ -51,7 +70,16 @@ export default function LoginPage() {
         router.push(redirectTarget);
       }, 1000);
     } else {
-      setErrorText('当前生产环境暂未开放自助注册，请联系管理员开通账号');
+      const result = await db.register(identifier, password);
+      if (!result.ok) {
+        setErrorText(getAuthErrorMessage(result.error));
+        return;
+      }
+      localStorage.setItem('coderpay:last-login', identifier);
+      setSuccessText('注册成功！正在为您转跳控制台...');
+      setTimeout(() => {
+        router.push(redirectTarget);
+      }, 1000);
     }
   };
 
@@ -178,7 +206,7 @@ export default function LoginPage() {
         {/* Secure Warning footer */}
         <div className="mt-6 text-center text-xs text-slate-600 flex items-center justify-center gap-1.5" id="login-footer">
           <Lock className="w-3.5 h-3.5 text-slate-600" />
-          <span>CP 云端采用 256 位传输密钥对称加密安全守护</span>
+          <span>请使用真实邮箱注册；登录状态会在本设备保留 30 天</span>
         </div>
 
       </div>

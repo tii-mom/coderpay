@@ -93,8 +93,20 @@ export function usePaymentState() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identifier, email: identifier, password })
       });
+      const data = await res.json().catch(() => ({}));
       await fetchState();
-      return res.ok;
+      return { ok: res.ok, error: data.error };
+    },
+
+    register: async (email: string, password: string) => {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json().catch(() => ({}));
+      await fetchState();
+      return { ok: res.ok, error: data.error };
     },
 
     logout: async () => {

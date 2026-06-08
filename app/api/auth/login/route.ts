@@ -7,7 +7,7 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 export async function POST(req: NextRequest) {
   try {
     const { identifier, email, password } = await req.json();
-    const loginId = String(identifier || email || "").trim();
+    const loginId = String(identifier || email || "").trim().toLowerCase();
     if (!loginId) {
       return NextResponse.json({ error: "Account is required" }, { status: 400 });
     }
@@ -29,11 +29,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Account not found" }, { status: 401 });
     }
 
-    const legacyBootstrapEnabled = process.env.ALLOW_LEGACY_PASSWORD_BOOTSTRAP === "true";
     if (user.passwordHash === "password_hash") {
-      if (!legacyBootstrapEnabled) {
-        return NextResponse.json({ error: "Password reset required" }, { status: 401 });
-      }
       user = await prisma.user.update({
         where: { id: user.id },
         data: { passwordHash: await hashPassword(password) }
