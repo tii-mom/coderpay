@@ -2,6 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifySignature } from "@/lib/signature";
+import { formatCents, getOrderAmountCents, getOrderRealAmountCents } from "@/lib/money";
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,8 +48,8 @@ export async function POST(req: NextRequest) {
         order_id: order.id,
         out_order_no: order.outOrderNo,
         status: order.status,
-        amount: order.amount.toFixed(2),
-        real_amount: order.realAmount.toFixed(2),
+        amount: formatCents(getOrderAmountCents(order)),
+        real_amount: formatCents(getOrderRealAmountCents(order)),
         pay_time: order.payTime ? order.payTime.toISOString().slice(0, 19).replace('T', ' ') : null
       }
     });

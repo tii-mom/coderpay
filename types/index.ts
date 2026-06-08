@@ -54,8 +54,11 @@ export interface Order {
   payType: 'wechat' | 'alipay';
   amount: number;
   realAmount: number;
+  amountCents?: number;
+  realAmountCents?: number;
   status: OrderStatus;
   createdAt: string;
+  expiresAt?: string | null;
   payTime: string | null;
   webhookStatus: 'unsent' | 'success' | 'failed' | 'retrying';
   paymentCodeId: string | null;

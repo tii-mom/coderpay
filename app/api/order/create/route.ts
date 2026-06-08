@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { verifySignature } from "@/lib/signature";
 import { getSessionUser } from "@/lib/auth";
 import { randomNumericCode } from "@/lib/random";
+import { amountToCents, centsToAmount, formatCents } from "@/lib/money";
+import { selectPaymentChannel } from "@/lib/payment-matching";
 
 export async function POST(req: NextRequest) {
   try {
@@ -54,139 +56,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid pay_type. Must be 'wechat' or 'alipay'" }, { status: 400 });
     }
 
-    const amountStr = String(amount).trim();
-    if (!/^\d+(\.\d{1,2})?$/.test(amountStr)) {
-      return NextResponse.json({ error: "Invalid amount format. Must be a positive number with up to 2 decimal places" }, { status: 400 });
+    let amountCents: number;
+    try {
+      amountCents = amountToCents(amount);
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
     }
-    const numAmount = Number(amountStr);
-    if (isNaN(numAmount) || numAmount <= 0) {
-      return NextResponse.json({ error: "Amount must be a positive number greater than 0" }, { status: 400 });
-    }
-    
-    // Find active payment codes for this user & pay_type, including their device info
-    const activeCodes = await prisma.paymentCode.findMany({
-      where: {
+
+    let channel;
+    try {
+      channel = await selectPaymentChannel({
         userId: app.userId,
-        type: pay_type,
-        status: "active"
-      },
-      include: {
-        device: true
-      }
-    });
-    
-    if (activeCodes.length === 0) {
-      return NextResponse.json({ error: "No active payment channels configured for this payment method" }, { status: 400 });
-    }
-    
-    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
-    
-    // Categorize codes into: bound to online devices, bound to offline devices, unbound
-    const onlineCodes = activeCodes.filter(c => 
-      c.device && 
-      c.device.online && 
-      c.device.lastHeartbeat && 
-      new Date(c.device.lastHeartbeat) >= threeMinutesAgo
-    );
-    
-    const fallbackCodes = onlineCodes.length > 0 ? onlineCodes : activeCodes;
-    
-    // 1. Try to find a fixed amount code on an online/available device without amount conflict
-    let selectedCode = null;
-    let realAmount = numAmount;
-    
-    // Try to find a fixed code first
-    const fixedCodes = fallbackCodes.filter(c => c.codeType === "fixed" && Math.abs(c.amount - numAmount) < 0.001);
-    
-    for (const code of fixedCodes) {
-      if (code.deviceId) {
-        // Check if there is an active pending order with the same realAmount on this device
-        const conflict = await prisma.order.findFirst({
-          where: {
-            paymentCode: { deviceId: code.deviceId },
-            realAmount: numAmount,
-            status: "pending"
-          }
-        });
-        if (!conflict) {
-          selectedCode = code;
-          break;
-        }
-      } else {
-        // Unbound code has no device-scoped conflicts
-        selectedCode = code;
-        break;
-      }
-    }
-    
-    if (!selectedCode) {
-      // 2. Fall back to "any" amount code
-      const anyCodes = fallbackCodes.filter(c => c.codeType === "any");
-      if (anyCodes.length === 0) {
-        return NextResponse.json({ error: "No matching payment code (fixed or any) found" }, { status: 400 });
-      }
-      
-      // Select the device with the fewest pending orders (least-loaded polling)
-      let bestCode = anyCodes[0];
-      let minPendingCount = Infinity;
-      
-      for (const code of anyCodes) {
-        if (code.deviceId) {
-          const pendingCount = await prisma.order.count({
-            where: {
-              paymentCode: { deviceId: code.deviceId },
-              status: "pending"
-            }
-          });
-          if (pendingCount < minPendingCount) {
-            minPendingCount = pendingCount;
-            bestCode = code;
-          }
-        }
-      }
-      
-      selectedCode = bestCode;
-      
-      // Calculate a unique realAmount scoped to this device
-      const pendingOrders = await prisma.order.findMany({
-        where: {
-          paymentCode: { deviceId: selectedCode.deviceId },
-          payType: pay_type,
-          status: "pending"
-        },
-        select: { realAmount: true }
+        payType: pay_type,
+        amount
       });
-      const occupied = new Set(pendingOrders.map(o => o.realAmount.toFixed(2)));
-      
-      const offsets = [0, -0.01, -0.02, 0.01, 0.02, -0.03, 0.03, -0.04, 0.04, -0.05, 0.05, -0.06, 0.06];
-      let foundUnique = false;
-      for (const offset of offsets) {
-        const testAmount = Number((numAmount + offset).toFixed(2));
-        if (testAmount >= 0.01 && !occupied.has(testAmount.toFixed(2))) {
-          realAmount = testAmount;
-          foundUnique = true;
-          break;
-        }
-      }
-      
-      if (!foundUnique) {
-        return NextResponse.json({ error: "All payment slots for this amount are currently occupied. Please try again later." }, { status: 409 });
-      }
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message || "Payment channel selection failed" }, { status: err.status || 500 });
     }
     
     // Create the order
     const orderId = `CP${randomNumericCode(6)}`;
+    const expiresAt = new Date(Date.now() + app.expireMinutes * 60 * 1000);
     const newOrder = await prisma.order.create({
       data: {
         id: orderId,
         outOrderNo: out_order_no,
         title,
         payType: pay_type,
-        amount: numAmount,
-        realAmount,
+        amount: centsToAmount(amountCents),
+        realAmount: centsToAmount(channel.realAmountCents),
+        amountCents,
+        realAmountCents: channel.realAmountCents,
+        expiresAt,
         status: "pending",
         appId: app.id,
-        paymentCodeId: selectedCode.id
+        paymentCodeId: channel.selectedCode.id
       }
     });
     
@@ -208,11 +112,11 @@ export async function POST(req: NextRequest) {
       data: {
         order_id: newOrder.id,
         out_order_no: newOrder.outOrderNo,
-        amount: newOrder.amount.toFixed(2),
-        real_amount: newOrder.realAmount.toFixed(2),
+        amount: formatCents(newOrder.amountCents),
+        real_amount: formatCents(newOrder.realAmountCents),
         pay_type: newOrder.payType,
         payment_url: paymentUrl,
-        expired_at: new Date(Date.now() + app.expireMinutes * 60 * 1000).toISOString()
+        expired_at: expiresAt.toISOString()
       }
     });
   } catch (err) {

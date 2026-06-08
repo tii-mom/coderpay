@@ -2,6 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { amountToCents, centsToAmount } from "@/lib/money";
 
 export async function GET(req: NextRequest) {
   try {
@@ -35,6 +36,14 @@ export async function POST(req: NextRequest) {
     if (codeType !== "fixed" && codeType !== "any") {
       return NextResponse.json({ error: "Invalid payment code mode" }, { status: 400 });
     }
+    let normalizedAmount = 0;
+    if (codeType === "fixed") {
+      try {
+        normalizedAmount = centsToAmount(amountToCents(amount));
+      } catch (err: any) {
+        return NextResponse.json({ error: err.message }, { status: 400 });
+      }
+    }
     if (deviceId) {
       const device = await prisma.device.findUnique({ where: { id: deviceId } });
       if (!device || device.userId !== user.id) {
@@ -46,7 +55,7 @@ export async function POST(req: NextRequest) {
       data: {
         type,
         codeType,
-        amount: amount ? Number(amount) : 0.0,
+        amount: codeType === "any" ? 0.0 : normalizedAmount,
         imageUrl,
         status: "active",
         deviceId: deviceId || null,

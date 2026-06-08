@@ -40,6 +40,11 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
   // Loader state
   const [isLoadingCodeOperation, setIsLoadingCodeOperation] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fixedCodes = paymentCodes.filter(code => code.codeType === 'fixed');
+  const anyCodes = paymentCodes.filter(code => code.codeType === 'any');
+  const activeOrders = db.getState().orders.filter((o: any) => o.status === 'pending');
+  const getCodePendingCount = (codeId: string) => activeOrders.filter((o: any) => o.paymentCodeId === codeId).length;
+  const fixedAmounts = Array.from(new Set(fixedCodes.map(code => `${code.type}:${code.amount.toFixed(2)}`))).length;
 
   const handleUploadCodeImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -341,7 +346,58 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
         </div>
       ) : (
         /* QR Code Matrix lists view */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-cp-card border border-cp rounded-2xl p-4">
+              <span className="text-[10px] text-slate-500 font-bold uppercase">固定金额码池</span>
+              <strong className="block text-xl text-white mt-1">{fixedCodes.length} 个码 / {fixedAmounts} 个金额</strong>
+              <p className="text-[10px] text-slate-500 mt-1">适合高频标价商品，扫码即付，减少用户手输金额。</p>
+            </div>
+            <div className="bg-cp-card border border-cp rounded-2xl p-4">
+              <span className="text-[10px] text-slate-500 font-bold uppercase">通用码兜底</span>
+              <strong className="block text-xl text-white mt-1">{anyCodes.length} 个通道</strong>
+              <p className="text-[10px] text-slate-500 mt-1">用于缺少固定码的金额，系统会按设备避让微调尾数。</p>
+            </div>
+            <div className="bg-cp-card border border-cp rounded-2xl p-4">
+              <span className="text-[10px] text-slate-500 font-bold uppercase">当前占用</span>
+              <strong className="block text-xl text-white mt-1">{activeOrders.length} 笔 pending</strong>
+              <p className="text-[10px] text-slate-500 mt-1">同设备同金额多笔订单会进入人工审核，避免错配。</p>
+            </div>
+          </div>
+
+          {fixedCodes.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <h3 className="text-sm font-bold text-white">固定金额码池</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {fixedCodes.map((code) => {
+                  const dev = devices.find(d => d.id === code.deviceId);
+                  const pendingCount = getCodePendingCount(code.id);
+                  return (
+                    <div key={code.id} className="bg-cp-card border border-cp rounded-2xl p-4 flex items-center gap-4">
+                      <div className="w-14 h-14 bg-white p-1 rounded-xl shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={code.imageUrl} alt="固定金额码" className="w-full h-full object-cover rounded-lg" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${code.type === 'wechat' ? 'bg-emerald-950/50 text-emerald-400' : 'bg-blue-950/50 text-blue-400'}`}>
+                            {code.type === 'wechat' ? '微信' : '支付宝'}
+                          </span>
+                          <strong className="font-mono text-white">¥{code.amount.toFixed(2)}</strong>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-2 truncate">设备：{dev ? dev.name : '未绑定设备'}</p>
+                        <p className={`text-[10px] mt-1 font-bold ${pendingCount > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                          {pendingCount > 0 ? `占用中：${pendingCount} 笔` : '可接单'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {paymentCodes.map((code) => {
             const dev = devices.find(d => d.id === code.deviceId);
             return (
@@ -457,6 +513,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
               <p className="text-[10px] text-slate-500 max-w-[180px] text-center">可绑定微信/支付宝独立固码、无额万能码以满足多通道负载均衡。</p>
             </div>
           )}
+          </div>
         </div>
       )}
 

@@ -87,8 +87,11 @@ model Order {
   payType       String // wechat / alipay
   amount        Float
   realAmount    Float
+  amountCents   Int           @default(0)
+  realAmountCents Int         @default(0)
   status        String // pending / success / expired / failed / manual_review
   createdAt     DateTime      @default(now())
+  expiresAt     DateTime?
   payTime       DateTime?
   webhookStatus String        @default("unsent") // unsent / success / failed
   appId         String

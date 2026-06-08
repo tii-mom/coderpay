@@ -46,9 +46,9 @@ export default function PayPage({ params }: PayPageProps) {
     let active = true;
     let hasLoadedFullOrder = false;
     const updateCountdown = (data: any) => {
-      const createdTime = new Date(data.createdAt).getTime();
-      const expiresMinutes = data.app?.expireMinutes || 5;
-      const expiresTime = createdTime + expiresMinutes * 60 * 1000;
+      const expiresTime = data.expiresAt
+        ? new Date(data.expiresAt).getTime()
+        : new Date(data.createdAt).getTime() + (data.app?.expireMinutes || 5) * 60 * 1000;
       const diff = Math.max(0, Math.floor((expiresTime - Date.now()) / 1000));
       setSecondsLeft(diff);
     };
@@ -425,7 +425,11 @@ export default function PayPage({ params }: PayPageProps) {
             {/* Instructional banner */}
             <div className="mt-5 text-center text-[11px] text-slate-400 bg-slate-50 p-3.5 rounded-2xl border border-slate-100 max-w-sm w-full leading-relaxed">
               <p>请下载个人二维码或在微信/支付宝中选择<strong>“扫一扫”</strong>付款。</p>
-              <p className="mt-1 font-medium text-slate-600">系统全自动侦测到账通知，请不要多付或少付尾数分钱。</p>
+              {paymentCode?.codeType === 'fixed' ? (
+                <p className="mt-1 font-medium text-slate-600">该二维码为固定金额码，请支付页面显示的固定金额。</p>
+              ) : (
+                <p className="mt-1 font-medium text-slate-600">系统全自动侦测到账通知，请不要多付或少付尾数分钱。</p>
+              )}
             </div>
 
             {/* Quick Actions Bar */}

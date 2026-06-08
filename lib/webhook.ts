@@ -1,5 +1,6 @@
 import CryptoJS from "crypto-js";
 import { prisma } from "./prisma";
+import { formatCents, getOrderAmountCents, getOrderRealAmountCents } from "./money";
 
 export function signPayload(params: Record<string, any>, appSecret: string, signType: string): string {
   const sortedKeys = Object.keys(params).filter(k => k !== "sign").sort();
@@ -33,8 +34,8 @@ export async function triggerWebhook(orderId: string) {
       order_id: order.id,
       out_order_no: order.outOrderNo,
       pay_type: order.payType,
-      amount: order.amount.toFixed(2),
-      real_amount: order.realAmount.toFixed(2),
+      amount: formatCents(getOrderAmountCents(order)),
+      real_amount: formatCents(getOrderRealAmountCents(order)),
       pay_time: order.payTime ? order.payTime.toISOString().slice(0, 19).replace('T', ' ') : new Date().toISOString().slice(0, 19).replace('T', ' ')
     };
     

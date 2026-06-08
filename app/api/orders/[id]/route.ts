@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { triggerWebhook } from "@/lib/webhook";
+import { centsToAmount, getOrderAmountCents, getOrderRealAmountCents } from "@/lib/money";
+import { getOrderExpiresAt } from "@/lib/payment-matching";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -40,9 +42,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       title: order.title,
       payType: order.payType,
       amount: order.amount,
-      realAmount: order.realAmount,
-      status: order.status,
+      realAmount: centsToAmount(getOrderRealAmountCents(order)),
+      amountCents: getOrderAmountCents(order),
+      realAmountCents: getOrderRealAmountCents(order),
+      status: order.status === "pending" && getOrderExpiresAt(order).getTime() <= Date.now() ? "expired" : order.status,
       createdAt: order.createdAt,
+      expiresAt: getOrderExpiresAt(order),
       payTime: order.payTime,
       webhookStatus: order.webhookStatus,
       app: order.app,
@@ -103,7 +108,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         data: {
           status: "success",
           payTime: new Date(),
-          webhookStatus: "success"
+          webhookStatus: "unsent"
         }
       });
       

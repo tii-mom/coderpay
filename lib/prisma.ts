@@ -214,8 +214,11 @@ export async function autoSeed() {
             payType: "wechat",
             amount: 9.90,
             realAmount: 9.90,
+            amountCents: 990,
+            realAmountCents: 990,
             status: "success",
             createdAt: new Date("2026-06-05T16:44:02Z"),
+            expiresAt: new Date("2026-06-05T16:49:02Z"),
             payTime: new Date("2026-06-05T16:45:12Z"),
             webhookStatus: "success",
             paymentCodeId: code3.id
@@ -228,8 +231,11 @@ export async function autoSeed() {
             payType: "alipay",
             amount: 29.90,
             realAmount: 29.90,
+            amountCents: 2990,
+            realAmountCents: 2990,
             status: "success",
             createdAt: new Date("2026-06-05T16:30:15Z"),
+            expiresAt: new Date("2026-06-05T16:40:15Z"),
             payTime: new Date("2026-06-05T16:32:01Z"),
             webhookStatus: "success",
             paymentCodeId: code4.id
@@ -242,8 +248,11 @@ export async function autoSeed() {
             payType: "wechat",
             amount: 15.00,
             realAmount: 14.98,
+            amountCents: 1500,
+            realAmountCents: 1498,
             status: "pending",
             createdAt: new Date("2026-06-05T16:55:00Z"),
+            expiresAt: new Date("2026-06-05T17:00:00Z"),
             webhookStatus: "unsent",
             paymentCodeId: code1.id
           },
@@ -257,6 +266,7 @@ export async function autoSeed() {
             realAmount: 9.90,
             status: "expired",
             createdAt: new Date("2026-06-05T16:00:00Z"),
+            expiresAt: new Date("2026-06-05T16:05:00Z"),
             webhookStatus: "unsent",
             paymentCodeId: code3.id
           },
@@ -268,8 +278,11 @@ export async function autoSeed() {
             payType: "alipay",
             amount: 99.00,
             realAmount: 99.00,
+            amountCents: 9900,
+            realAmountCents: 9900,
             status: "manual_review",
             createdAt: new Date("2026-06-05T15:45:00Z"),
+            expiresAt: new Date("2026-06-05T15:55:00Z"),
             webhookStatus: "failed",
             paymentCodeId: code2.id
           }

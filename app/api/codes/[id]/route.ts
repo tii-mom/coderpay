@@ -2,6 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { amountToCents, centsToAmount } from "@/lib/money";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -23,12 +24,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
     
+    let normalizedAmount = amount;
+    if (amount !== undefined) {
+      try {
+        normalizedAmount = centsToAmount(amountToCents(amount));
+      } catch (err: any) {
+        return NextResponse.json({ error: err.message }, { status: 400 });
+      }
+    }
+
     const updated = await prisma.paymentCode.update({
       where: { id },
       data: {
         status,
         deviceId: deviceId === null ? null : deviceId,
-        amount: amount !== undefined ? Number(amount) : undefined,
+        amount: normalizedAmount !== undefined ? normalizedAmount : undefined,
         imageUrl
       }
     });
