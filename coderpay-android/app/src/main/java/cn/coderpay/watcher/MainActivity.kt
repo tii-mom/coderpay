@@ -8,14 +8,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
-import android.webkit.WebChromeClient
-import android.webkit.ValueCallback
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -30,12 +24,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.coderpay.watcher.api.HeartbeatRequest
+import cn.coderpay.watcher.api.MobileConsoleResponse
 import cn.coderpay.watcher.api.RetrofitClient
 import cn.coderpay.watcher.data.AppDatabase
 import cn.coderpay.watcher.data.LocalEvent
@@ -68,14 +62,6 @@ private val CpTerminal = Color(0xFF020617)
 class MainActivity : ComponentActivity() {
 
     private lateinit var settings: SettingsManager
-    private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
-    private val fileChooserLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val uris = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
-        fileChooserCallback?.onReceiveValue(uris)
-        fileChooserCallback = null
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -110,7 +96,7 @@ class MainActivity : ComponentActivity() {
         var serverUrl by remember { mutableStateOf(settings.serverUrl) }
         var deviceCode by remember { mutableStateOf(settings.deviceCode) }
         var isBound by remember { mutableStateOf(settings.isBound) }
-        var consoleUrl by remember { mutableStateOf<String?>(null) }
+        var activeConsoleTab by remember { mutableStateOf<String?>(null) }
         
         var isNotificationPermissionGranted by remember { mutableStateOf(isNotificationServiceEnabled()) }
         var isBatteryOptimizedIgnored by remember { mutableStateOf(isBatteryOptimizationIgnored()) }
@@ -119,11 +105,11 @@ class MainActivity : ComponentActivity() {
         val listState = rememberLazyListState()
         val pageScrollState = rememberScrollState()
 
-        if (consoleUrl != null) {
-            InAppConsole(
-                url = consoleUrl!!,
+        if (activeConsoleTab != null) {
+            NativeConsoleScreen(
+                initialTab = activeConsoleTab!!,
                 onClose = {
-                    consoleUrl = null
+                    activeConsoleTab = null
                     LogTracker.log("已返回监听控制台。")
                 }
             )
@@ -315,34 +301,34 @@ class MainActivity : ComponentActivity() {
                             ConsoleShortcutButton(
                                 text = "充值订阅",
                                 modifier = Modifier.weight(1f),
-                                onClick = { consoleUrl = consoleUrlFor("billing") }
+                                onClick = { activeConsoleTab = "billing" }
                             )
                             ConsoleShortcutButton(
                                 text = "订单流水",
                                 modifier = Modifier.weight(1f),
-                                onClick = { consoleUrl = consoleUrlFor("orders") }
+                                onClick = { activeConsoleTab = "orders" }
                             )
                             ConsoleShortcutButton(
                                 text = "收款码",
                                 modifier = Modifier.weight(1f),
-                                onClick = { consoleUrl = consoleUrlFor("codes") }
+                                onClick = { activeConsoleTab = "codes" }
                             )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ConsoleShortcutButton(
                                 text = "设备通道",
                                 modifier = Modifier.weight(1f),
-                                onClick = { consoleUrl = consoleUrlFor("devices") }
+                                onClick = { activeConsoleTab = "devices" }
                             )
                             ConsoleShortcutButton(
                                 text = "接口文档",
                                 modifier = Modifier.weight(1f),
-                                onClick = { consoleUrl = consoleUrlFor("docs") }
+                                onClick = { activeConsoleTab = "docs" }
                             )
                             ConsoleShortcutButton(
                                 text = "控制台",
                                 modifier = Modifier.weight(1f),
-                                onClick = { consoleUrl = consoleUrlFor("") }
+                                onClick = { activeConsoleTab = "overview" }
                             )
                         }
                     }
@@ -607,118 +593,318 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun InAppConsole(url: String, onClose: () -> Unit) {
-        var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    private fun NativeConsoleScreen(initialTab: String, onClose: () -> Unit) {
+        var activeTab by remember { mutableStateOf(initialTab) }
+        var loading by remember { mutableStateOf(true) }
+        var error by remember { mutableStateOf<String?>(null) }
+        var data by remember { mutableStateOf<MobileConsoleResponse?>(null) }
+        val scope = rememberCoroutineScope()
 
-        BackHandler {
-            val webView = webViewRef
-            if (webView?.canGoBack() == true) {
-                webView.goBack()
-            } else {
-                onClose()
+        fun refresh() {
+            if (!settings.isBound || settings.deviceCode.isBlank() || settings.deviceSecret.isBlank()) {
+                loading = false
+                error = "当前手机还没有有效设备密钥。请返回监听页，用云端设备码完成绑定后，再进入移动控制台同步充值、订单、收款码和设备数据。"
+                return
+            }
+            loading = true
+            error = null
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val timestamp = System.currentTimeMillis()
+                    val sign = cn.coderpay.watcher.utils.SignatureHelper.calculateSignature(
+                        settings.deviceCode,
+                        timestamp,
+                        settings.deviceSecret
+                    )
+                    val response = RetrofitClient.getService(this@MainActivity).getMobileConsole(
+                        settings.deviceCode,
+                        timestamp.toString(),
+                        sign
+                    )
+                    withContext(Dispatchers.Main) {
+                        if (response.isSuccessful && response.body() != null) {
+                            data = response.body()
+                        } else {
+                            error = "移动控制台加载失败：${response.code()}"
+                        }
+                        loading = false
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        error = "移动控制台连接失败：${e.message ?: "网络异常"}"
+                        loading = false
+                    }
+                }
             }
         }
+
+        LaunchedEffect(Unit) { refresh() }
+        BackHandler(onBack = onClose)
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(CpBackground)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(CpPanel)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "CoderPay 控制台",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = CpText
-                    )
-                    Text(
-                        text = url,
-                        fontSize = 10.sp,
-                        color = CpSubtle,
-                        maxLines = 1
-                    )
+                Column {
+                    Text("CoderPay", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = CpText)
+                    Text("移动控制台 · ${settings.deviceCode}", fontSize = 11.sp, color = CpMuted)
                 }
-                Button(
-                    onClick = onClose,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = CpPanelSoft,
-                        contentColor = CpText
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Text("返回监听", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { refresh() },
+                        colors = ButtonDefaults.buttonColors(containerColor = CpPanelSoft, contentColor = CpText),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                    ) { Text("刷新", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    Button(
+                        onClick = onClose,
+                        colors = ButtonDefaults.buttonColors(containerColor = CpPanelSoft, contentColor = CpText),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                    ) { Text("返回监听", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                 }
             }
 
-            AndroidView(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                factory = { context ->
-                    WebView(context).apply {
-                        webViewClient = WebViewClient()
-                        webChromeClient = object : WebChromeClient() {
-                            override fun onShowFileChooser(
-                                webView: WebView?,
-                                filePathCallback: ValueCallback<Array<Uri>>?,
-                                fileChooserParams: FileChooserParams?
-                            ): Boolean {
-                                fileChooserCallback?.onReceiveValue(null)
-                                fileChooserCallback = filePathCallback
-                                return try {
-                                    val intent = fileChooserParams?.createIntent()
-                                        ?: Intent(Intent.ACTION_GET_CONTENT).apply {
-                                            addCategory(Intent.CATEGORY_OPENABLE)
-                                            type = "image/*"
-                                        }
-                                    fileChooserLauncher.launch(intent)
-                                    true
-                                } catch (e: Exception) {
-                                    fileChooserCallback?.onReceiveValue(null)
-                                    fileChooserCallback = null
-                                    LogTracker.log("打开图片选择器失败：${e.message}")
-                                    false
-                                }
-                            }
+            ConsoleTabs(activeTab = activeTab, onSelect = { activeTab = it })
+
+            when {
+                loading -> {
+                    PanelCard {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CircularProgressIndicator(color = CpBlue)
+                            Text("正在同步云端数据...", fontSize = 12.sp, color = CpMuted)
                         }
-                        setInitialScale(100)
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.cacheMode = WebSettings.LOAD_DEFAULT
-                        settings.useWideViewPort = true
-                        settings.loadWithOverviewMode = true
-                        settings.textZoom = 100
-                        settings.builtInZoomControls = false
-                        settings.displayZoomControls = false
-                        settings.userAgentString = settings.userAgentString
-                            .replace("wv", "")
-                            .replace("Version/4.0", "Version/120.0")
-                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                        webViewRef = this
-                        loadUrl(url)
-                    }
-                },
-                update = { webView ->
-                    if (webView.url != url) {
-                        webView.loadUrl(url)
                     }
                 }
+                error != null -> {
+                    PanelCard {
+                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("加载失败", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = CpRed)
+                            Text(error ?: "", fontSize = 12.sp, color = CpMuted, lineHeight = 17.sp)
+                            Button(
+                                onClick = { refresh() },
+                                colors = ButtonDefaults.buttonColors(containerColor = CpBlueDark, contentColor = Color.White),
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("重新加载") }
+                        }
+                    }
+                }
+                data != null -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        when (activeTab) {
+                            "billing" -> {
+                                item { BillingSummary(data!!) }
+                                items(data!!.billingRecords) { record ->
+                                    NativeListCard(
+                                        title = if (record.type == "charge") "技术费充入" else "交易佣金扣除",
+                                        primary = "${if (record.type == "charge") "+" else "-"}¥${formatAmount(record.amount)}",
+                                        secondary = record.description,
+                                        meta = "余额 ¥${formatAmount(record.balance)} · ${formatDate(record.createdAt)}",
+                                        color = if (record.type == "charge") CpGreen else CpRed
+                                    )
+                                }
+                                if (data!!.billingRecords.isEmpty()) item { EmptyCard("暂无账单流水") }
+                            }
+                            "orders" -> {
+                                item { MetricRow("订单流水", "${data!!.orders.size}", "最近 30 笔订单") }
+                                items(data!!.orders) { order ->
+                                    NativeListCard(
+                                        title = order.title,
+                                        primary = "¥${formatAmount(order.realAmount)}",
+                                        secondary = "${payTypeLabel(order.payType)} · ${statusLabel(order.status)}",
+                                        meta = "${order.id} · ${formatDate(order.createdAt)}",
+                                        color = statusColor(order.status)
+                                    )
+                                }
+                                if (data!!.orders.isEmpty()) item { EmptyCard("暂无订单") }
+                            }
+                            "codes" -> {
+                                item { MetricRow("收款码", "${data!!.paymentCodes.size}", "微信 / 支付宝收款码") }
+                                items(data!!.paymentCodes) { code ->
+                                    NativeListCard(
+                                        title = "${payTypeLabel(code.type)} ${if (code.codeType == "fixed") "固定金额" else "任意金额"}",
+                                        primary = if (code.amount > 0) "¥${formatAmount(code.amount)}" else "任意金额",
+                                        secondary = if (code.status == "active") "启用中" else "已停用",
+                                        meta = "绑定设备 ${code.deviceId ?: "未绑定"} · ${formatDate(code.createdAt)}",
+                                        color = if (code.status == "active") CpGreen else CpSubtle
+                                    )
+                                }
+                                if (data!!.paymentCodes.isEmpty()) item { EmptyCard("暂无收款码，请在网页控制台上传后同步到 App") }
+                            }
+                            "devices" -> {
+                                item { MetricRow("设备通道", "${data!!.devices.count { it.online }}/${data!!.devices.size}", "在线设备 / 全部设备") }
+                                items(data!!.devices) { device ->
+                                    NativeListCard(
+                                        title = device.name,
+                                        primary = device.deviceCode,
+                                        secondary = if (device.online) "在线" else "离线",
+                                        meta = "通知 ${if (device.notificationPermission) "已开" else "未开"} · 电池 ${device.batteryOptimization ?: "未知"}",
+                                        color = if (device.online) CpGreen else CpAmber
+                                    )
+                                }
+                            }
+                            "docs" -> {
+                                item {
+                                    PanelCard {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            SectionTitle("接口文档", "Docs")
+                                            Text("1. 在网页控制台创建应用并获取 app_id / app_secret。", fontSize = 12.sp, color = CpMuted)
+                                            Text("2. 上传微信或支付宝收款码，绑定当前 Android 监听设备。", fontSize = 12.sp, color = CpMuted)
+                                            Text("3. 商户服务端调用 /api/order/create 创建订单，用户付款后 App 自动上传到账事件。", fontSize = 12.sp, color = CpMuted)
+                                            Text("4. 云端匹配成功后回调 notify_url，并更新订单状态。", fontSize = 12.sp, color = CpMuted)
+                                        }
+                                    }
+                                }
+                            }
+                            else -> {
+                                item { BillingSummary(data!!) }
+                                item { MetricRow("订单", "${data!!.orders.size}", "最近订单") }
+                                item { MetricRow("收款码", "${data!!.paymentCodes.size}", "已配置码") }
+                                item { MetricRow("设备", "${data!!.devices.count { it.online }}/${data!!.devices.size}", "在线状态") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun ConsoleTabs(activeTab: String, onSelect: (String) -> Unit) {
+        val tabs = listOf(
+            "overview" to "总览",
+            "billing" to "充值",
+            "orders" to "订单",
+            "codes" to "收款码",
+            "devices" to "设备",
+            "docs" to "文档"
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            tabs.forEach { (key, label) ->
+                Button(
+                    onClick = { onSelect(key) },
+                    modifier = Modifier.weight(1f).height(38.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (activeTab == key) CpBlueDark else CpPanelSoft,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)
+                ) {
+                    Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun BillingSummary(data: MobileConsoleResponse) {
+        PanelCard {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SectionTitle("充值订阅", "Billing")
+                Text(data.user.email, fontSize = 12.sp, color = CpMuted)
+                Text("¥${formatAmount(data.user.feeBalance)}", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = CpText)
+                Text("当前套餐：${data.user.packageType}。充值支付能力需要接入移动端原生收银台，本页先展示云端余额和账单。", fontSize = 11.sp, color = CpSubtle, lineHeight = 16.sp)
+            }
+        }
+    }
+
+    @Composable
+    private fun MetricRow(title: String, value: String, caption: String) {
+        PanelCard {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CpText)
+                    Text(caption, fontSize = 10.sp, color = CpSubtle)
+                }
+                Text(value, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = CpText)
+            }
+        }
+    }
+
+    @Composable
+    private fun NativeListCard(title: String, primary: String, secondary: String, meta: String, color: Color) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CpPanel),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CpText, maxLines = 1)
+                    Text(secondary, fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold)
+                    Text(meta, fontSize = 10.sp, color = CpSubtle, maxLines = 1)
+                }
+                Text(primary, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = color)
+            }
+        }
+    }
+
+    @Composable
+    private fun EmptyCard(text: String) {
+        PanelCard {
+            Text(
+                text = text,
+                modifier = Modifier.padding(18.dp),
+                fontSize = 12.sp,
+                color = CpMuted
             )
         }
     }
 
-    private fun consoleUrlFor(tab: String): String {
-        val baseUrl = settings.serverUrl.ifBlank { "https://3api.shop" }.trimEnd('/')
-        return if (tab.isBlank()) "$baseUrl/console" else "$baseUrl/console/$tab"
+    private fun formatAmount(value: Double): String = "%.2f".format(value)
+
+    private fun formatDate(value: String): String = value.replace("T", " ").take(16)
+
+    private fun payTypeLabel(value: String): String = when (value) {
+        "wechat" -> "微信"
+        "alipay" -> "支付宝"
+        else -> value
+    }
+
+    private fun statusLabel(value: String): String = when (value) {
+        "pending" -> "待支付"
+        "success" -> "已成功"
+        "paid" -> "已到账"
+        "expired" -> "已过期"
+        "failed" -> "失败"
+        "manual_review" -> "人工审核"
+        else -> value
+    }
+
+    private fun statusColor(value: String): Color = when (value) {
+        "success", "paid" -> CpGreen
+        "pending" -> CpAmber
+        "failed", "expired" -> CpRed
+        else -> CpSubtle
     }
 
     private fun isNotificationServiceEnabled(): Boolean {
