@@ -34,6 +34,15 @@ export function DocsTab({ apps, onTriggerToast, db }: DocsTabProps) {
     summary: { pass: number; warn: number; fail: number };
     checks: Array<{ id: string; label: string; status: 'pass' | 'warn' | 'fail'; detail: string }>;
   } | null>(null);
+  const [isPingingWebhook, setIsPingingWebhook] = useState(false);
+  const [webhookPingResult, setWebhookPingResult] = useState<{
+    ok: boolean;
+    statusCode: number | null;
+    responseSummary: string;
+    responseBodyPreview: string;
+    durationMs: number;
+    completedAt: string;
+  } | null>(null);
 
   const selectedApp = apps.find(a => a.appId === sandboxAppId) || apps[0];
 
@@ -82,6 +91,33 @@ export function DocsTab({ apps, onTriggerToast, db }: DocsTabProps) {
       onTriggerToast(err.message || '接入体检失败，请稍后重试。', 'error');
     } finally {
       setIsRunningCheckup(false);
+    }
+  };
+
+  const handleWebhookPing = async () => {
+    if (!selectedApp?.appId) {
+      onTriggerToast('请先创建并选择一个应用。', 'error');
+      return;
+    }
+
+    setIsPingingWebhook(true);
+    try {
+      const res = await fetch('/api/integration/webhook-ping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appId: selectedApp.appId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Webhook 测试失败');
+      setWebhookPingResult(data);
+      onTriggerToast(
+        data.ok ? 'Webhook URL 已返回 success。' : `Webhook URL 未按规范返回 success：${data.responseSummary}`,
+        data.ok ? 'success' : 'warning'
+      );
+    } catch (err: any) {
+      onTriggerToast(err.message || 'Webhook 测试失败，请稍后重试。', 'error');
+    } finally {
+      setIsPingingWebhook(false);
     }
   };
 
@@ -605,15 +641,48 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
             <div className="rounded-2xl border border-emerald-500/15 bg-emerald-950/10 p-4 text-[11px] text-slate-300">
               <div className="flex items-center justify-between gap-3 mb-3">
                 <span className="font-bold text-emerald-300">上线前接入体检</span>
-                <button
-                  type="button"
-                  onClick={handleRunCheckup}
-                  disabled={isRunningCheckup}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-[10px]"
-                >
-                  {isRunningCheckup ? '体检中...' : '立即体检'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleWebhookPing}
+                    disabled={isPingingWebhook}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold text-[10px]"
+                  >
+                    {isPingingWebhook ? '测试中...' : '测试 Webhook'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRunCheckup}
+                    disabled={isRunningCheckup}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-[10px]"
+                  >
+                    {isRunningCheckup ? '体检中...' : '立即体检'}
+                  </button>
+                </div>
               </div>
+
+              {webhookPingResult && (
+                <div className={`mb-3 rounded-xl border p-3 ${
+                  webhookPingResult.ok
+                    ? 'border-emerald-500/20 bg-emerald-500/10'
+                    : 'border-amber-500/20 bg-amber-500/10'
+                }`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-bold text-slate-200">Webhook 连通测试</span>
+                    <span className={`text-[10px] font-bold ${webhookPingResult.ok ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {webhookPingResult.ok ? 'PASS' : 'WARN'}
+                    </span>
+                  </div>
+                  <p className="text-slate-400 mt-1 leading-relaxed">
+                    HTTP {webhookPingResult.statusCode ?? '-'} · {webhookPingResult.durationMs}ms · {webhookPingResult.responseSummary}
+                  </p>
+                  {webhookPingResult.responseBodyPreview && !webhookPingResult.ok && (
+                    <code className="block mt-2 rounded-lg bg-[#0B1020]/60 px-2 py-1 text-[10px] text-slate-400 break-all">
+                      {webhookPingResult.responseBodyPreview}
+                    </code>
+                  )}
+                </div>
+              )}
 
               {checkupResult ? (
                 <div className="flex flex-col gap-2">
