@@ -29,6 +29,11 @@ export function DocsTab({ apps, onTriggerToast, db }: DocsTabProps) {
   const [sandboxAmount, setSandboxAmount] = useState('10.00');
   const [sandboxTitle, setSandboxTitle] = useState('标准会员季度订阅服务');
   const [sandboxPayType, setSandboxPayType] = useState<'wechat' | 'alipay'>('wechat');
+  const [isRunningCheckup, setIsRunningCheckup] = useState(false);
+  const [checkupResult, setCheckupResult] = useState<{
+    summary: { pass: number; warn: number; fail: number };
+    checks: Array<{ id: string; label: string; status: 'pass' | 'warn' | 'fail'; detail: string }>;
+  } | null>(null);
 
   const selectedApp = apps.find(a => a.appId === sandboxAppId) || apps[0];
 
@@ -62,6 +67,22 @@ export function DocsTab({ apps, onTriggerToast, db }: DocsTabProps) {
     setTimeout(() => {
       window.open(`/pay/${o.id}`, '_blank');
     }, 1200);
+  };
+
+  const handleRunCheckup = async () => {
+    setIsRunningCheckup(true);
+    try {
+      const res = await fetch('/api/integration/checkup');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '接入体检失败');
+      setCheckupResult(data);
+      const type = data.summary.fail > 0 ? 'error' : data.summary.warn > 0 ? 'warning' : 'success';
+      onTriggerToast(`接入体检完成：通过 ${data.summary.pass}，警告 ${data.summary.warn}，阻塞 ${data.summary.fail}`, type);
+    } catch (err: any) {
+      onTriggerToast(err.message || '接入体检失败，请稍后重试。', 'error');
+    } finally {
+      setIsRunningCheckup(false);
+    }
   };
 
   const [sdkLanguage, setSdkLanguage] = useState<'nodejs' | 'python' | 'go' | 'php'>('nodejs');
@@ -582,15 +603,49 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
             </span>
 
             <div className="rounded-2xl border border-emerald-500/15 bg-emerald-950/10 p-4 text-[11px] text-slate-300">
-              <span className="font-bold text-emerald-300 block mb-2">上线前接入体检清单</span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <span>1. App Secret 仅保存在服务端</span>
-                <span>2. amount 使用两位小数字符串</span>
-                <span>3. notify_url 返回纯文本 success</span>
-                <span>4. 至少一台 Android 监听端在线</span>
-                <span>5. 微信/支付宝通知详情未隐藏</span>
-                <span>6. 固定金额码池覆盖高频金额</span>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <span className="font-bold text-emerald-300">上线前接入体检</span>
+                <button
+                  type="button"
+                  onClick={handleRunCheckup}
+                  disabled={isRunningCheckup}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-[10px]"
+                >
+                  {isRunningCheckup ? '体检中...' : '立即体检'}
+                </button>
               </div>
+
+              {checkupResult ? (
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <span className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 text-emerald-300">通过 {checkupResult.summary.pass}</span>
+                    <span className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-2 py-1 text-amber-300">警告 {checkupResult.summary.warn}</span>
+                    <span className="rounded-lg bg-rose-500/10 border border-rose-500/20 px-2 py-1 text-rose-300">阻塞 {checkupResult.summary.fail}</span>
+                  </div>
+                  {checkupResult.checks.map((check) => (
+                    <div key={check.id} className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#0B1020]/40 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-bold text-slate-200">{check.label}</span>
+                        <span className={`text-[10px] font-bold uppercase ${
+                          check.status === 'pass' ? 'text-emerald-400' : check.status === 'warn' ? 'text-amber-400' : 'text-rose-400'
+                        }`}>
+                          {check.status === 'pass' ? 'PASS' : check.status === 'warn' ? 'WARN' : 'FAIL'}
+                        </span>
+                      </div>
+                      <p className="text-slate-500 mt-1 leading-relaxed">{check.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <span>1. App Secret 仅保存在服务端</span>
+                  <span>2. amount 使用两位小数字符串</span>
+                  <span>3. notify_url 返回纯文本 success</span>
+                  <span>4. 至少一台 Android 监听端在线</span>
+                  <span>5. 微信/支付宝通知详情未隐藏</span>
+                  <span>6. 固定金额码池覆盖高频金额</span>
+                </div>
+              )}
             </div>
 
           </form>
