@@ -67,8 +67,8 @@ export async function POST(req: NextRequest) {
     });
     
     // Regex configuration rules returned to Android Watcher
-    const wechatRegex = "微信支付收款|微信收款|收到付款|微信支付.*元";
-    const alipayRegex = "支付宝成功收款|收钱码收款|成功往账户转入|你已成功收款|支付宝.*元.*(收款|到账)";
+    const wechatRegex = "微信支付收款|微信收款|收到付款|个人收款码到账[¥￥]?\\d+(\\.\\d{1,2})?|微信支付.*([¥￥]\\d+(\\.\\d{1,2})?|\\d+(\\.\\d{1,2})?元)";
+    const alipayRegex = "支付宝成功收款|收钱码收款|成功往账户转入|你已成功收款|支付宝.*([¥￥]\\d+(\\.\\d{1,2})?|\\d+(\\.\\d{1,2})?元).*(收款|到账)";
     
     return NextResponse.json({ 
       status: "success", 

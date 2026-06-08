@@ -22,9 +22,11 @@ class NotificationService : NotificationListenerService() {
     private lateinit var settings: SettingsManager
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
-    // Regex pattern matching money values like 10, 10.0, 10.00
-    private val amountPattern = Pattern.compile("(\\d+(?:\\.\\d{1,2})?)")
+    // Regex pattern matching money values like 10, 10.0, 10.00, ¥10.00, ￥10.00
+    private val amountPattern = Pattern.compile("[¥￥]?\\s*(\\d+(?:\\.\\d{1,2})?)\\s*(?:元)?")
     private val semanticAmountPatterns = listOf(
+        Pattern.compile("(?:收款|到账|转入|付款)[^\\d¥￥]{0,12}[¥￥]?\\s*(\\d+(?:\\.\\d{1,2})?)\\s*(?:元)?"),
+        Pattern.compile("[¥￥]?\\s*(\\d+(?:\\.\\d{1,2})?)\\s*(?:元)?[^，。；\\s]{0,12}(?:收款|到账|转入|付款)"),
         Pattern.compile("(?:收款|到账|转入|付款)[^\\d]{0,12}(\\d+(?:\\.\\d{1,2})?)\\s*元"),
         Pattern.compile("(\\d+(?:\\.\\d{1,2})?)\\s*元[^，。；\\s]{0,12}(?:收款|到账|转入|付款)")
     )
@@ -73,7 +75,7 @@ class NotificationService : NotificationListenerService() {
             content.contains("微信支付收款") || 
             content.contains("微信收款") || 
             content.contains("收到付款") || 
-            (content.contains("微信支付") && content.contains("元"))
+            (content.contains("微信支付") && (content.contains("元") || content.contains("¥") || content.contains("￥")))
         }
     }
 
