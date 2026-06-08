@@ -40,6 +40,21 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private val CpBackground = Color(0xFF070A12)
+private val CpPanel = Color(0xFF111827)
+private val CpPanelSoft = Color(0xFF1E293B)
+private val CpBorder = Color(0xFF334155)
+private val CpBlue = Color(0xFF3B82F6)
+private val CpBlueDark = Color(0xFF2563EB)
+private val CpGreen = Color(0xFF10B981)
+private val CpGreenDark = Color(0xFF064E3B)
+private val CpAmber = Color(0xFFF59E0B)
+private val CpRed = Color(0xFFEF4444)
+private val CpText = Color(0xFFF8FAFC)
+private val CpMuted = Color(0xFF94A3B8)
+private val CpSubtle = Color(0xFF64748B)
+private val CpTerminal = Color(0xFF020617)
+
 class MainActivity : ComponentActivity() {
 
     private lateinit var settings: SettingsManager
@@ -56,9 +71,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    primary = Color(0xFF3B82F6), // Blue 500
-                    background = Color(0xFF0F172A), // Slate 900
-                    surface = Color(0xFF1E293B) // Slate 800
+                    primary = CpBlue,
+                    background = CpBackground,
+                    surface = CpPanel
                 )
             ) {
                 Surface(
@@ -104,59 +119,18 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "CoderPay",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = "到账监听探针",
-                        fontSize = 11.sp,
-                        color = Color.Gray
-                    )
-                }
-
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isBound) Color(0xFF064E3B) else Color(0xFF7F1D1D)
-                    ),
-                    shape = RoundedCornerShape(20.dp)
-                ) {
-                    Text(
-                        text = if (isBound) "服务同步中" else "未绑定设备",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            }
+            HeaderBar(isBound = isBound, deviceCode = deviceCode)
 
             // Connection Settings Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
+            PanelCard {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = "云端连接配置",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    SectionTitle("云端连接配置", "Cloud Pairing")
 
                     OutlinedTextField(
                         value = serverUrl,
@@ -235,7 +209,12 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CpBlueDark,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(14.dp)
                         ) {
                             Text("保存并连接探针")
                         }
@@ -248,7 +227,11 @@ class MainActivity : ComponentActivity() {
                                 LogTracker.log("已主动解除设备绑定。前台守护服务终止。")
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CpRed,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(14.dp)
                         ) {
                             Text("解除设备绑定")
                         }
@@ -257,64 +240,28 @@ class MainActivity : ComponentActivity() {
             }
 
             // Permissions Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
+            PanelCard {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = "手机运行权限体检",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                    SectionTitle("手机运行权限体检", "Runtime Checklist")
+                    PermissionRow(
+                        title = "通知栏读取监听权限",
+                        caption = "用于识别微信/支付宝到账通知",
+                        enabled = isNotificationPermissionGranted,
+                        enabledText = "已开启",
+                        disabledText = "需授权",
+                        onClick = { openNotificationSettings() }
                     )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("通知栏读取监听权限", fontSize = 12.sp, color = Color.LightGray)
-                        Button(
-                            onClick = { openNotificationSettings() },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isNotificationPermissionGranted) Color(0xFF10B981) else Color(0xFFF59E0B)
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = if (isNotificationPermissionGranted) "已开启" else "需授权",
-                                fontSize = 10.sp,
-                                color = Color.White
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("电池省电限制忽略 (保活)", fontSize = 12.sp, color = Color.LightGray)
-                        Button(
-                            onClick = { requestIgnoreBatteryOptimization() },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isBatteryOptimizedIgnored) Color(0xFF10B981) else Color(0xFFF59E0B)
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = if (isBatteryOptimizedIgnored) "已豁免" else "需设置",
-                                fontSize = 10.sp,
-                                color = Color.White
-                            )
-                        }
-                    }
+                    PermissionRow(
+                        title = "电池省电限制忽略",
+                        caption = "保持后台心跳和事件上传",
+                        enabled = isBatteryOptimizedIgnored,
+                        enabledText = "已豁免",
+                        disabledText = "需设置",
+                        onClick = { requestIgnoreBatteryOptimization() }
+                    )
                 }
             }
 
@@ -345,7 +292,12 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CpGreen,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(18.dp),
+                    contentPadding = PaddingValues(vertical = 14.dp)
                 ) {
                     Text("测试微信 ¥0.01", fontSize = 12.sp)
                 }
@@ -372,7 +324,12 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CpBlueDark,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(18.dp),
+                    contentPadding = PaddingValues(vertical = 14.dp)
                 ) {
                     Text("测试支付宝 ¥0.02", fontSize = 12.sp)
                 }
@@ -383,10 +340,11 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF020617)) // Deep dark black
+                colors = CardDefaults.cardColors(containerColor = CpTerminal),
+                shape = RoundedCornerShape(20.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(12.dp)
+                    modifier = Modifier.padding(16.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -394,17 +352,17 @@ class MainActivity : ComponentActivity() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "运行调试控制台 (Terminal Logs)",
-                            fontSize = 11.sp,
+                            text = "运行调试控制台",
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF38BDF8) // Sky blue
+                            color = Color(0xFF38BDF8)
                         )
 
                         TextButton(
                             onClick = { LogTracker.clear() },
                             contentPadding = PaddingValues(0.dp)
                         ) {
-                            Text("清空", fontSize = 10.sp, color = Color.Gray)
+                            Text("清空", fontSize = 10.sp, color = CpSubtle)
                         }
                     }
 
@@ -420,15 +378,131 @@ class MainActivity : ComponentActivity() {
                                 text = log,
                                 fontSize = 10.sp,
                                 fontFamily = FontFamily.Monospace,
-                                color = if (log.contains("成功") || log.contains("核销")) Color.Green 
-                                        else if (log.contains("失败") || log.contains("异常") || log.contains("错误")) Color.Red 
-                                        else Color.LightGray,
+                                color = if (log.contains("成功") || log.contains("核销")) CpGreen
+                                        else if (log.contains("失败") || log.contains("异常") || log.contains("错误")) CpRed
+                                        else CpMuted,
                                 lineHeight = 13.sp
                             )
                         }
                     }
                 }
             }
+        }
+    }
+
+    @Composable
+    private fun HeaderBar(isBound: Boolean, deviceCode: String) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "CoderPay",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = CpText
+                )
+                Text(
+                    text = if (deviceCode.isNotBlank()) "Android 监听端 · $deviceCode" else "Android 到账监听端",
+                    fontSize = 12.sp,
+                    color = CpMuted
+                )
+            }
+
+            StatusPill(
+                text = if (isBound) "服务同步中" else "未绑定",
+                color = if (isBound) CpGreenDark else Color(0xFF7F1D1D)
+            )
+        }
+    }
+
+    @Composable
+    private fun PanelCard(content: @Composable () -> Unit) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CpPanel),
+            shape = RoundedCornerShape(20.dp)
+        ) {
+            content()
+        }
+    }
+
+    @Composable
+    private fun SectionTitle(title: String, caption: String) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = CpText
+            )
+            Text(
+                text = caption,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                color = CpSubtle
+            )
+        }
+    }
+
+    @Composable
+    private fun PermissionRow(
+        title: String,
+        caption: String,
+        enabled: Boolean,
+        enabledText: String,
+        disabledText: String,
+        onClick: () -> Unit
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(CpPanelSoft, RoundedCornerShape(14.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CpText)
+                Text(caption, fontSize = 10.sp, color = CpSubtle)
+            }
+            Button(
+                onClick = onClick,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (enabled) CpGreen else CpAmber
+                ),
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = if (enabled) enabledText else disabledText,
+                    fontSize = 10.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun StatusPill(text: String, color: Color) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = color),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Text(
+                text = text,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
         }
     }
 
