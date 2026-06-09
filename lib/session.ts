@@ -1,5 +1,8 @@
+import { resolveEnvVar } from "./d1-binding";
+
+
 function getSessionSecret() {
-  const configured = process.env.SESSION_SECRET || process.env.NEXTAUTH_SECRET || "";
+  const configured = resolveEnvVar("SESSION_SECRET") || resolveEnvVar("NEXTAUTH_SECRET");
   if (configured) return configured;
   if (process.env.NODE_ENV !== "production") {
     return "local-development-session-secret-change-before-production";

@@ -2,8 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
-import { addMinutes, createRawToken, hashAuthToken } from "@/lib/auth-tokens";
-import { assertEmailConfigured, buildVerificationEmail, sendEmail } from "@/lib/email";
+import { createSessionToken } from "@/lib/session";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 function normalizeEmail(value: string) {
@@ -14,13 +13,9 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function isValidPassword(value: string) {
-  return value.length >= 8;
-}
-
 export async function POST(req: NextRequest) {
   try {
-    // Limit signups per IP to curb account spam and verification-email abuse.
+    // Limit signups per IP to curb account spam.
     const limited = enforceRateLimit(req, { name: "auth:register", limit: 5, windowMs: 300_000 });
     if (limited) return limited;
 
@@ -31,47 +26,48 @@ export async function POST(req: NextRequest) {
     if (!isValidEmail(normalizedEmail)) {
       return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
     }
-    if (!isValidPassword(rawPassword)) {
-      return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+    if (!rawPassword) {
+      return NextResponse.json({ error: "Password is required" }, { status: 400 });
     }
-    assertEmailConfigured();
 
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       return NextResponse.json({ error: "Account already exists" }, { status: 409 });
     }
 
-    const token = createRawToken();
-    const tokenHash = await hashAuthToken(token);
-
     const user = await prisma.user.create({
       data: {
         email: normalizedEmail,
         passwordHash: await hashPassword(rawPassword),
-        emailVerifyTokenHash: tokenHash,
-        emailVerifyExpiresAt: addMinutes(new Date(), 24 * 60),
         feeBalance: 0,
         packageType: "free",
+        emailVerifiedAt: new Date(),
       },
     });
 
-    const emailContent = buildVerificationEmail(user.email, token);
-    await sendEmail({ to: user.email, ...emailContent });
-
-    return NextResponse.json({
+    const response = NextResponse.json({
       status: "success",
-      message: "Verification email sent",
-      email: user.email,
+      user: {
+        id: user.id,
+        email: user.email,
+        feeBalance: user.feeBalance,
+      },
     });
+
+    const cookieDomain = req.nextUrl.hostname.endsWith("3api.shop") ? ".3api.shop" : undefined;
+    response.cookies.set("session_email", await createSessionToken(user.email), {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      domain: cookieDomain,
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+    });
+
+    return response;
   } catch (err) {
     console.error("Registration failed:", err);
-    const status = typeof (err as any)?.status === "number" ? (err as any).status : 500;
-    let error = "Internal server error";
-    if (status === 503) {
-      error = "Email service is not configured";
-    } else if ((err as any)?.message === "Email send failed") {
-      error = "Email send failed";
-    }
-    return NextResponse.json({ error }, { status });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+

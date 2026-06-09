@@ -64,8 +64,12 @@ export default function LoginPage() {
     setErrorText('');
     setSuccessText('');
 
-    if (!identifier || !password) {
-      setErrorText('请填写所有的表单字段');
+    if (!identifier) {
+      setErrorText('请输入注册邮箱');
+      return;
+    }
+    if (!password) {
+      setErrorText('请输入密码');
       return;
     }
 
@@ -94,7 +98,10 @@ export default function LoginPage() {
           return;
         }
         localStorage.setItem('coderpay:last-login', identifier);
-        setSuccessText('注册成功！验证邮件已发送，请打开邮箱完成验证后再登录。');
+        setSuccessText('注册成功，正在进入控制台...');
+        setTimeout(() => {
+          router.push(redirectTarget);
+        }, 500);
       }
     } catch {
       setErrorText('网络请求失败，请检查连接后重试');
@@ -170,7 +177,7 @@ export default function LoginPage() {
             {/* Password Field */}
             <div className="flex flex-col gap-1.5">
               <div className="flex justify-between items-center">
-                <label className="text-xs font-semibold text-slate-300">防盗密码</label>
+                <label className="text-xs font-semibold text-slate-300">密码</label>
                 {isLogin && (
                   <span className="text-xs text-blue-400 hover:text-blue-300 cursor-pointer" onClick={() => router.push('/forgot-password')}>
                     忘记密码？
@@ -183,7 +190,7 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="输入复杂度密码"
+                  placeholder="输入密码"
                   className="w-full pl-11 pr-11 py-3 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all font-mono"
                   required
                 />

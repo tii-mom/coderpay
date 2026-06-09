@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { amountToCents, centsToAmount, formatCents, getOrderRealAmountCents } from "@/lib/money";
 import { randomNumericCode } from "@/lib/random";
+import { resolveEnvVar } from "./d1-binding";
 
 const RECHARGE_EXPIRE_MINUTES = 10;
 
 export function getPlatformRechargeEmail() {
-  return (process.env.PLATFORM_RECHARGE_USER_EMAIL || "").trim().toLowerCase();
+  return (resolveEnvVar("PLATFORM_RECHARGE_USER_EMAIL") || "").trim().toLowerCase();
 }
 
 export async function getPlatformRechargeUser() {

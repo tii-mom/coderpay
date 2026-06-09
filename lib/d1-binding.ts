@@ -12,15 +12,23 @@ export function resolveD1(): any {
     if (store?.env?.DB) return store.env.DB;
   }
 
-  // Safe fallback to next-on-pages dynamic require
-  try {
-    const requireFn = Function("return typeof require === 'undefined' ? undefined : require")();
-    if (requireFn) {
-      const { getRequestContext } = requireFn("@cloudflare/next-on-pages");
-      const db = getRequestContext()?.env?.DB;
-      if (db) return db;
-    }
-  } catch (e) {}
-
   return null;
 }
+
+export function resolveEnvVar(name: string): string {
+  const env = process.env as any;
+  if (env[name]) return env[name];
+
+  const globalThisAny = globalThis as any;
+  if (globalThisAny[name]) return globalThisAny[name];
+
+  const requestContextSym = Symbol.for('__cloudflare-request-context__');
+  const context = globalThisAny[requestContextSym];
+  if (context) {
+    const store = typeof context.getStore === 'function' ? context.getStore() : context;
+    if (store?.env?.[name]) return store.env[name];
+  }
+
+  return "";
+}
+

@@ -3,23 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken } from "@/lib/session";
 import { hashPassword, verifyPassword } from "@/lib/password";
-import { addMinutes, createRawToken, hashAuthToken } from "@/lib/auth-tokens";
-import { buildVerificationEmail, sendEmail } from "@/lib/email";
 import { enforceRateLimit } from "@/lib/rate-limit";
-
-async function sendVerificationEmailIfPossible(email: string) {
-  const token = createRawToken();
-  const updated = await prisma.user.update({
-    where: { email },
-    data: {
-      emailVerifyTokenHash: await hashAuthToken(token),
-      emailVerifyExpiresAt: addMinutes(new Date(), 24 * 60),
-    },
-  });
-  const emailContent = buildVerificationEmail(updated.email, token);
-  await sendEmail({ to: updated.email, ...emailContent });
-  return updated.email;
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -55,20 +39,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid password" }, { status: 401 });
     }
 
-    if (!user.emailVerifiedAt) {
-      try {
-        const email = await sendVerificationEmailIfPossible(user.email);
-        return NextResponse.json({ error: "Email not verified", email }, { status: 403 });
-      } catch (emailErr) {
-        console.error("Verification resend during login failed:", emailErr);
-        return NextResponse.json({
-          error: "Email not verified",
-          email: user.email,
-          emailSent: false,
-        }, { status: 403 });
-      }
-    }
-    
     const response = NextResponse.json({
       status: "success",
       user: { id: user.id, email: user.email, feeBalance: user.feeBalance }
@@ -91,3 +61,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+

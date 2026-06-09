@@ -80,18 +80,18 @@ export default function HomePage() {
   const valueProps = [
     {
       icon: <Shield className="w-6 h-6 text-green-400" />,
-      title: '100% 资金直达，无中间商扣率',
-      desc: '资金通过微信和支付宝直接归入您的个人账户，不经过任何第三方通道，排除抽佣和提现周期，无拒付账单风险，极速周转。'
+      title: '【安全机制】100% 资金直达钱包 (非托管模式)',
+      desc: '资金通过微信和支付宝直接归入您的个人账户，不经过任何第三方通道，排除抽佣和提现周期，无拒付账单风险，极速周转，安全合规。'
     },
     {
       icon: <Lock className="w-6 h-6 text-blue-400" />,
-      title: '多终端 Watcher 负载均衡',
-      desc: '独自支持同时挂载多台闲置旧安卓、备用手机负载同一个付款渠道，收款码自动切片，提升轮询并发吞吐、规避风控。'
+      title: '【稳定机制】多终端 Watcher 智能负载均衡',
+      desc: '独自支持同时挂载多台闲置旧安卓、备用手机负载同一个付款渠道，收款码自动切片，提升轮询并发吞吐、规避风控，断线自动重连保障。'
     },
     {
       icon: <Zap className="w-6 h-6 text-amber-400" />,
-      title: '随机尾数算法，精准防撞额',
-      desc: '同金额多人在线时，自动给订单随机增减几分钱尾数（例如：10.00 分配 9.99、9.98、10.01），通过到账通知实现多订单无缝精准识别。'
+      title: '【创新机制】动态防撞额与手动免手机补单',
+      desc: '多人在线时，自动给订单随机增减几分钱尾数通过到账通知实现多订单无缝精准识别；此外支持免手机挂机的控制台手动快速确认补单备用方案。'
     }
   ];
 
@@ -140,8 +140,10 @@ export default function HomePage() {
     {
       id: 'pro',
       name: '专业版',
-      price: '69',
-      period: ' / 月',
+      price: '39',
+      originalPrice: '69',
+      period: ' / 首月',
+      nextPeriodPrice: '次月起 ¥69/月',
       desc: '适合正规线上项目、独立产品中等交易体量。',
       techFee: '首次订阅立减30元，交易手续费 0.5%',
       features: [
@@ -159,8 +161,10 @@ export default function HomePage() {
     {
       id: 'enterprise',
       name: '至尊免服务费版',
-      price: '199',
-      period: ' / 月',
+      price: '149',
+      originalPrice: '199',
+      period: ' / 首月',
+      nextPeriodPrice: '次月起 ¥199/月',
       desc: '适合交易频繁的高黏性项目，享受更低服务费率。',
       techFee: '首次订阅立减50元，交易手续费 0.2%',
       features: [
@@ -282,15 +286,15 @@ export default function HomePage() {
                   <span className="text-xs text-gray-500 block mt-1">自有账户收款</span>
                 </div>
                 <div>
-                  <span className="block text-2xl font-bold text-blue-400 tracking-tight font-mono">超1万</span>
+                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">超1万</span>
                   <span className="text-xs text-gray-500 block mt-1">开发者已加入</span>
                 </div>
                 <div>
-                  <span className="block text-2xl font-bold text-blue-400 tracking-tight font-mono">超1亿</span>
+                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">超1亿</span>
                   <span className="text-xs text-gray-500 block mt-1">安全资金保障</span>
                 </div>
                 <div>
-                  <span className="block text-2xl font-bold text-blue-400 tracking-tight font-mono">超1亿笔</span>
+                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">超1亿笔</span>
                   <span className="text-xs text-gray-500 block mt-1">稳定到账订单</span>
                 </div>
               </div>
@@ -379,78 +383,78 @@ export default function HomePage() {
           </div>
 
           {/* Direct Route Flow Animation */}
-          <div className="max-w-4xl mx-auto mb-16 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-3xl p-6 sm:p-8 text-left shadow-[0_0_30px_rgba(59,130,246,0.02)]">
+          <div className="max-w-4xl mx-auto mb-16 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-3xl p-6 sm:p-8 text-left shadow-[0_0_40px_rgba(59,130,246,0.03)]">
             <h3 className="text-sm font-bold text-slate-300 mb-6 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-ping" />
               直观对比：资金直达流光路径图
             </h3>
             
             <div className="space-y-8">
               {/* Route 1: Traditional */}
               <div className="relative">
-                <div className="flex justify-between text-xs text-slate-400 mb-2 font-medium">
-                  <span>传统聚合支付模式 (资金中转)</span>
-                  <span className="text-red-400">耗时 1-3 天 · 扣费 3% - 15%</span>
+                <div className="flex justify-between text-xs text-slate-400 mb-2.5 font-medium">
+                  <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-red-500" />传统聚合支付模式 (资金中转)</span>
+                  <span className="text-red-400 font-mono font-semibold">耗时 1-3 天 · 扣费 3% - 15%</span>
                 </div>
-                <div className="h-12 rounded-xl bg-[#0B1020] border border-[rgba(255,255,255,0.04)] flex items-center justify-between px-4 sm:px-6 relative overflow-hidden">
-                  <span className="text-xs font-bold text-slate-300 z-10 shrink-0">1. 用户付款</span>
+                <div className="h-14 rounded-xl bg-[#0c0f19] border border-red-500/10 flex items-center justify-between px-4 sm:px-6 relative overflow-hidden">
+                  <span className="text-xs font-bold text-slate-400 z-10 shrink-0 bg-[#070A12] px-2.5 py-1.5 rounded-lg border border-white/5">1. 用户付款</span>
                   
                   {/* Flow Path */}
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
-                    <line x1="15%" y1="50%" x2="85%" y2="50%" stroke="rgba(239, 68, 68, 0.2)" strokeWidth="2" strokeDasharray="5,5" />
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <line x1="15" y1="50" x2="85" y2="50" stroke="rgba(239, 68, 68, 0.15)" strokeWidth="2" strokeDasharray="1, 1.5" />
                     {/* Flow pulse */}
-                    <circle r="4" fill="#EF4444">
-                      <animateMotion path="M 100,24 L 380,24" dur="4s" repeatCount="indefinite" />
+                    <circle r="1.5" fill="#EF4444">
+                      <animateMotion path="M 15,50 L 85,50" dur="4.5s" repeatCount="indefinite" />
                     </circle>
                   </svg>
                   
-                  <span className="text-[10px] text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full z-10 font-bold max-w-[120px] sm:max-w-none truncate flex items-center gap-1">
-                    <Shield className="w-3 h-3 text-red-400 shrink-0" /> 三方平台代收扣率
+                  <span className="text-[10px] text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-full z-10 font-bold max-w-[125px] sm:max-w-none truncate flex items-center gap-1.5 shadow-[0_0_15px_rgba(239,68,68,0.05)]">
+                    <Shield className="w-3 h-3 text-red-400 shrink-0 animate-pulse" /> 三方平台代收扣率
                   </span>
                   
-                  <span className="text-xs font-bold text-slate-300 z-10 shrink-0">2. 提现结算</span>
+                  <span className="text-xs font-bold text-slate-400 z-10 shrink-0 bg-[#070A12] px-2.5 py-1.5 rounded-lg border border-white/5">2. 提现结算</span>
                 </div>
               </div>
-
+ 
               {/* Route 2: Coder Pay Direct */}
               <div className="relative">
-                <div className="flex justify-between text-xs text-slate-400 mb-2 font-medium">
-                  <span>Coder Pay 模式 (直达钱包)</span>
-                  <span className="text-emerald-400 font-bold">秒级到账 · 0% 资金扣留</span>
+                <div className="flex justify-between text-xs text-slate-300 mb-2.5 font-medium">
+                  <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />Coder Pay 模式 (直达钱包)</span>
+                  <span className="text-emerald-400 font-mono font-extrabold">秒级到账 · 0% 资金扣留</span>
                 </div>
-                <div className="h-16 rounded-xl bg-gradient-to-r from-blue-950/20 to-emerald-950/20 border border-blue-500/20 flex items-center justify-between px-4 sm:px-6 relative overflow-hidden">
+                <div className="h-20 rounded-xl bg-[#0F172A] border border-emerald-500/20 flex items-center justify-between px-4 sm:px-6 relative overflow-hidden shadow-[0_0_20px_rgba(16,185,129,0.05)]">
                   {/* Glowing background flow */}
-                  <div className="absolute inset-0 bg-blue-500/5 blur-xl opacity-30" />
+                  <div className="absolute inset-0 bg-emerald-500/5 blur-xl opacity-40 animate-pulse" />
                   
-                  <span className="text-xs font-bold text-white z-10 shrink-0">用户付款</span>
+                  <span className="text-xs font-bold text-white z-10 shrink-0 bg-blue-950/40 border border-blue-500/20 px-3 py-2 rounded-lg shadow-md">用户付款</span>
                   
                   {/* Realtime flowing gradient paths */}
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
                     <defs>
                       <linearGradient id="flowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#3B82F6" />
-                        <stop offset="50%" stopColor="#10B981" />
-                        <stop offset="100%" stopColor="#3B82F6" />
+                        <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4" />
+                        <stop offset="50%" stopColor="#10B981" stopOpacity="1" />
+                        <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.4" />
                       </linearGradient>
                     </defs>
-                    <path d="M 80,32 L 380,32" stroke="url(#flowGrad)" strokeWidth="3" strokeDasharray="100 500" strokeDashoffset="100" className="animate-[dash_3s_linear_infinite]" />
+                    <path d="M 12,50 L 88,50" stroke="url(#flowGrad)" strokeWidth="3" strokeDasharray="30 150" strokeDashoffset="0" strokeLinecap="round" className="animate-[dash_3s_linear_infinite]" />
                     <style>{`
                       @keyframes dash {
                         to {
-                          stroke-dashoffset: -500;
+                          stroke-dashoffset: -180;
                         }
                       }
                     `}</style>
                   </svg>
-
-                  <div className="flex flex-col items-center z-10">
-                    <span className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full animate-bounce flex items-center gap-1">
-                      <Zap className="w-3 h-3 text-emerald-400 shrink-0" /> 资金直达
+ 
+                  <div className="flex flex-col items-center z-10 bg-slate-900/80 border border-slate-700/50 px-4 py-1.5 rounded-full shadow-[0_4px_15px_rgba(0,0,0,0.3)]">
+                    <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-bounce" /> 资金直达
                     </span>
-                    <span className="text-[9px] text-slate-500 font-mono mt-1">无需中间代理账户</span>
+                    <span className="text-[9px] text-slate-400 font-mono mt-0.5">无需中间代理账户</span>
                   </div>
                   
-                  <span className="text-xs font-bold text-white z-10 shrink-0">个人微信/支付宝</span>
+                  <span className="text-xs font-bold text-white z-10 shrink-0 bg-emerald-950/40 border border-emerald-500/20 px-3 py-2 rounded-lg shadow-md">个人微信/支付宝</span>
                 </div>
               </div>
             </div>
@@ -544,11 +548,23 @@ export default function HomePage() {
                   <h3 className="text-xl font-bold text-white mb-2">{p.name}</h3>
                   <p className="text-xs text-gray-400 mb-6 font-sans">{p.desc}</p>
                   
-                  <div className="flex items-baseline mb-3 font-sans">
-                    <span className="text-sm font-bold text-blue-400 mr-1 font-mono">¥</span>
-                    <span className="text-4xl font-extrabold text-white tracking-tight font-mono">{p.price}</span>
-                    <span className="text-sm text-gray-400 font-semibold">{p.period}</span>
+                  <div className="flex items-baseline mb-3 font-sans gap-2 flex-wrap">
+                    <div className="flex items-baseline">
+                      <span className="text-sm font-bold text-blue-400 mr-1 font-mono">¥</span>
+                      <span className="text-4xl font-extrabold text-white tracking-tight font-mono">{p.price}</span>
+                      <span className="text-sm text-gray-400 font-semibold">{p.period}</span>
+                    </div>
+                    {p.originalPrice && (
+                      <span className="text-xs text-gray-500 line-through self-end mb-1">
+                        原价 ¥{p.originalPrice}/月
+                      </span>
+                    )}
                   </div>
+                  {p.nextPeriodPrice && (
+                    <div className="text-[11px] text-blue-400/80 font-medium -mt-2 mb-3">
+                      {p.nextPeriodPrice}
+                    </div>
+                  )}
 
                   {/* Tech service fee details row */}
                   <div className="mt-1 mb-8 p-3.5 rounded-xl bg-slate-900/55 border border-[rgba(255,255,255,0.05)] text-xs text-blue-300 flex items-start gap-2">

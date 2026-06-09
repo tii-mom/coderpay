@@ -3,8 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { createRechargeOrder } from "@/lib/recharge";
 
+import { resolveEnvVar } from "@/lib/d1-binding";
+
 function getOrigin(req: NextRequest) {
-  let origin = process.env.NEXT_PUBLIC_APP_URL;
+  let origin = resolveEnvVar("NEXT_PUBLIC_APP_URL");
   if (!origin) {
     const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "localhost:3000";
     const proto = req.headers.get("x-forwarded-proto") || "http";

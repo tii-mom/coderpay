@@ -27,8 +27,8 @@ export default function ResetPasswordPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const message = data.error === 'Password must be at least 8 characters'
-          ? '密码至少需要 8 个字符'
+        const message = data.error === 'Password is required'
+          ? '请输入新密码'
           : data.error === 'Email and token are required'
             ? '重置链接缺少必要参数，请重新申请找回密码'
             : data.error === 'Reset link expired'
@@ -54,7 +54,7 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-[#070A12] text-slate-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-[#111827] border border-white/10 rounded-3xl p-8">
         <h1 className="text-2xl font-extrabold text-white">设置新密码</h1>
-        <p className="text-sm text-slate-500 mt-2">请输入至少 8 个字符的新密码。</p>
+        <p className="text-sm text-slate-500 mt-2">请输入新密码。</p>
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
           <div className="relative">
             <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500" />
