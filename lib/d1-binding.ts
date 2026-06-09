@@ -6,8 +6,10 @@ export function resolveD1(): any {
   if (globalThisAny.DB) return globalThisAny.DB;
 
   const requestContextSym = Symbol.for('__cloudflare-request-context__');
-  if (globalThisAny[requestContextSym]?.env?.DB) {
-    return globalThisAny[requestContextSym].env.DB;
+  const context = globalThisAny[requestContextSym];
+  if (context) {
+    const store = typeof context.getStore === 'function' ? context.getStore() : context;
+    if (store?.env?.DB) return store.env.DB;
   }
 
   // Safe fallback to next-on-pages dynamic require
