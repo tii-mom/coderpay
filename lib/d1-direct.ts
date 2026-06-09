@@ -1,35 +1,44 @@
-type D1DatabaseLike = {
-  prepare: (query: string) => {
-    bind: (...values: unknown[]) => {
-      first: <T = Record<string, unknown>>() => Promise<T | null>;
-      all: <T = Record<string, unknown>>() => Promise<{ results?: T[] }>;
-      run: () => Promise<unknown>;
-    };
-    first: <T = Record<string, unknown>>() => Promise<T | null>;
-    all: <T = Record<string, unknown>>() => Promise<{ results?: T[] }>;
-    run: () => Promise<unknown>;
-  };
-  batch?: (statements: Array<{ run: () => Promise<unknown> }>) => Promise<unknown>;
+import CryptoJS from "crypto-js";
+import { resolveD1 } from "./d1-binding";
+
+type D1RunResult = { success?: boolean; meta?: { changes?: number } };
+
+type D1BoundStatement = {
+  first: <T = Record<string, unknown>>() => Promise<T | null>;
+  all: <T = Record<string, unknown>>() => Promise<{ results?: T[] }>;
+  run: () => Promise<D1RunResult>;
 };
 
-function runtimeRequire() {
-  try {
-    return Function("return typeof require === 'undefined' ? undefined : require")();
-  } catch {
-    return undefined;
+type D1DatabaseLike = {
+  prepare: (query: string) => {
+    bind: (...values: unknown[]) => D1BoundStatement;
+    first: <T = Record<string, unknown>>() => Promise<T | null>;
+    all: <T = Record<string, unknown>>() => Promise<{ results?: T[] }>;
+    run: () => Promise<D1RunResult>;
+  };
+  batch?: (statements: D1BoundStatement[]) => Promise<D1RunResult[]>;
+};
+
+/**
+ * Commit several writes atomically. On real D1 this uses `batch()`, which runs
+ * the statements in a single implicit transaction (all-or-nothing). When the
+ * binding lacks `batch` (local fallback adapter), the statements run
+ * sequentially as a best effort — acceptable because that path is dev-only.
+ */
+export async function runAtomic(db: D1DatabaseLike, statements: D1BoundStatement[]) {
+  if (typeof db.batch === "function") {
+    return db.batch(statements);
   }
+  const results: D1RunResult[] = [];
+  for (const stmt of statements) {
+    results.push(await stmt.run());
+  }
+  return results;
 }
 
 export function getDirectD1(): D1DatabaseLike {
-  const env = process.env as any;
-  if (env.DB) return env.DB as D1DatabaseLike;
-
-  const req = runtimeRequire();
-  if (req) {
-    const { getRequestContext } = req("@cloudflare/next-on-pages");
-    const db = getRequestContext().env.DB;
-    if (db) return db as D1DatabaseLike;
-  }
+  const d1 = resolveD1();
+  if (d1) return d1 as D1DatabaseLike;
 
   throw new Error("D1 binding is not available");
 }
@@ -80,14 +89,16 @@ export async function verifyMerchantSign(params: Record<string, unknown>, appSec
     .map(key => `${key}=${params[key]}`)
     .join("&");
   const payload = `${query}&key=${appSecret}`;
-  if (signType !== "HMAC-SHA256") return false;
-  const expected = await hmacSha256Hex(payload, appSecret);
+  const expected = signType === "HMAC-SHA256"
+    ? await hmacSha256Hex(payload, appSecret)
+    : CryptoJS.MD5(payload).toString();
   return expected.toLowerCase() === providedSign.toLowerCase();
 }
 
 export async function verifyDeviceSign(deviceCode: string, timestamp: string, deviceSecret: string, providedSign: string) {
   const ts = Number(timestamp);
-  if (!Number.isFinite(ts) || Math.abs(Date.now() - ts) > 10 * 60 * 1000) return false;
+  // 2-minute window to limit replay; offline events are re-signed at send time.
+  if (!Number.isFinite(ts) || Math.abs(Date.now() - ts) > 2 * 60 * 1000) return false;
   const expected = await hmacSha256Hex(`${deviceCode}:${timestamp}`, deviceSecret);
   return expected.toLowerCase() === providedSign.toLowerCase();
 }

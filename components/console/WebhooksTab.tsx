@@ -49,12 +49,20 @@ export function WebhooksTab({ webhookLogs, orders, onTriggerToast, db }: Webhook
     onTriggerToast(`成功复制 ${desc} 到剪贴板`, 'success');
   };
 
-  const handleForceRetry = (log: WebhookLog) => {
+  const handleForceRetry = async (log: WebhookLog) => {
     onTriggerToast(`正在向 [POST] ${log.url} 调拨安全推流包...`, 'warning');
-    setTimeout(() => {
-      db.retryWebhook(log.orderId);
-      onTriggerToast(`发送完成！商户接收网关反馈: HTTP 200 (success)，核销解决完毕`, 'success');
-    }, 1200);
+    const result = await db.retryWebhook(log.orderId);
+    if (!result.ok) {
+      onTriggerToast(result.error || 'Webhook 重推失败，请稍后重试', 'error');
+      return;
+    }
+    const ok = result.log?.result === 'success';
+    onTriggerToast(
+      ok
+        ? `发送完成！商户接收网关反馈: success，核销解决完毕`
+        : `已重推，但商户网关未返回 success（${result.log?.responseSummary || '响应异常'}），请检查回调地址`,
+      ok ? 'success' : 'warning'
+    );
   };
 
   return (

@@ -4,9 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { hashAuthToken } from "@/lib/auth-tokens";
 import { hashPassword } from "@/lib/password";
 import { createSessionToken } from "@/lib/session";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    // Throttle to slow brute-forcing of the reset token.
+    const limited = enforceRateLimit(req, { name: "auth:reset-password", limit: 10, windowMs: 60_000 });
+    if (limited) return limited;
+
     const { email, token, password } = await req.json();
     const normalizedEmail = String(email || "").trim().toLowerCase();
     const rawToken = String(token || "");

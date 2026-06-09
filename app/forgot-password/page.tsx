@@ -23,10 +23,21 @@ export default function ForgotPasswordPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErrorText(data.error === 'Email service is not configured' ? '邮件服务尚未配置，暂时无法找回密码' : '发送失败，请稍后重试');
+        const message = data.error === 'Email service is not configured'
+          ? '邮件服务尚未配置，暂时无法找回密码'
+          : data.error === 'Email is required'
+            ? '请输入注册邮箱'
+            : data.error === 'Email send failed'
+              ? '邮件服务发送失败，请联系管理员或稍后重试'
+            : data.error === 'Internal server error'
+              ? '服务器暂时无法发送重置邮件，请稍后重试或联系管理员'
+            : data.error || '发送失败，请稍后重试';
+        setErrorText(message);
         return;
       }
       setSuccessText('如果该邮箱已注册，重置链接会发送到你的邮箱。');
+    } catch {
+      setErrorText('网络请求失败，请检查连接后重试');
     } finally {
       setLoading(false);
     }

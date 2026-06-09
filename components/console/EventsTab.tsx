@@ -48,8 +48,12 @@ export function EventsTab({ events, orders, devices, onTriggerToast, db }: Event
 
   const filteredEvents = events.filter(filterApp);
 
-  const handleManualReconcile = (eventId: string, orderId: string) => {
-    db.manuallyMatchOrderAndEvent(orderId, eventId);
+  const handleManualReconcile = async (eventId: string, orderId: string) => {
+    const result = await db.manuallyMatchOrderAndEvent(orderId, eventId);
+    if (!result.ok) {
+      onTriggerToast(result.error || '手工配对失败，请重试。', 'error');
+      return;
+    }
     onTriggerToast(`手工配对对账完成！检测到账金额与订单已核准绑定，商户回调已发出。`, 'success');
     setLinkingEventId(null);
   };

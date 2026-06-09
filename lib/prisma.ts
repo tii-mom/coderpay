@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaD1 } from "@prisma/adapter-d1";
 import { hashPassword } from "./password";
 import { randomHex } from "./random";
+import { resolveD1 } from "./d1-binding";
 
 const globalForPrisma = globalThis as unknown as { prisma: any };
 
@@ -21,40 +22,27 @@ function getPrisma(): PrismaClient {
 
   const env = process.env as any;
   const req = getRuntimeRequire();
+  const d1 = resolveD1();
 
-  if (env.DB) {
-    const adapter = new PrismaD1(env.DB);
+  if (d1) {
+    const adapter = new PrismaD1(d1);
     prismaInstance = new PrismaClient({ adapter });
   } else {
-    let d1: any = null;
-    if (req) {
-      try {
-        const clPackage = ["@cloudflare", "next-on-pages"].join("/");
-        const { getRequestContext } = req(clPackage);
-        d1 = getRequestContext().env.DB;
-      } catch (e) {}
+    // If we are in the Edge runtime (require is undefined) and cannot resolve D1, fail fast
+    if (!req) {
+      throw new Error("D1 database binding is not available in the Edge runtime environment");
     }
 
-    if (d1) {
-      const adapter = new PrismaD1(d1);
+    // Local fallback for Node.js runtime (next dev / build / CLI)
+    try {
+      const sqliteAdapterPackage = ["@prisma", "adapter-better-sqlite3"].join("/");
+      const { PrismaBetterSqlite3 } = req(sqliteAdapterPackage);
+      const dbUrl = env.DATABASE_URL || "file:./dev.db";
+      const adapter = new PrismaBetterSqlite3({ url: dbUrl });
       prismaInstance = new PrismaClient({ adapter });
-    } else {
-      // Local fallback for Node.js runtime (next dev / build / CLI)
-      if (req) {
-        try {
-          const sqliteAdapterPackage = ["@prisma", "adapter-better-sqlite3"].join("/");
-          const { PrismaBetterSqlite3 } = req(sqliteAdapterPackage);
-          const dbUrl = env.DATABASE_URL || "file:./dev.db";
-          const adapter = new PrismaBetterSqlite3({ url: dbUrl });
-          prismaInstance = new PrismaClient({ adapter });
-        } catch (err) {
-          console.warn("Prisma fallback adapter loading failed, creating default client:", err);
-          prismaInstance = new PrismaClient();
-        }
-      } else {
-        // Safe fallback for edge runtime evaluation at build time
-        prismaInstance = new PrismaClient();
-      }
+    } catch (err) {
+      console.warn("Prisma fallback adapter loading failed, creating default client:", err);
+      prismaInstance = new PrismaClient();
     }
   }
   return prismaInstance;

@@ -1,18 +1,25 @@
 export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth";
 import { amountToCents, centsToAmount } from "@/lib/money";
+import { getDirectD1 } from "@/lib/d1-direct";
+import { readSessionEmail } from "@/lib/session";
+
+async function getDirectSessionUser(req: NextRequest) {
+  const email = await readSessionEmail(req.cookies.get("session_email")?.value);
+  if (!email) return null;
+  return getDirectD1().prepare(`SELECT * FROM User WHERE email = ? LIMIT 1`)
+    .bind(email)
+    .first<any>();
+}
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getSessionUser(req);
+    const user = await getDirectSessionUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    
-    const codes = await prisma.paymentCode.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" }
-    });
+
+    const codes = (await getDirectD1().prepare(`
+      SELECT * FROM PaymentCode WHERE userId = ? ORDER BY createdAt DESC
+    `).bind(user.id).all()).results || [];
     
     return NextResponse.json(codes);
   } catch (err) {
@@ -23,7 +30,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getSessionUser(req);
+    const user = await getDirectSessionUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     
     const { type, codeType, amount, imageUrl, deviceId } = await req.json();
@@ -44,24 +51,36 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: err.message }, { status: 400 });
       }
     }
+    const db = getDirectD1();
     if (deviceId) {
-      const device = await prisma.device.findUnique({ where: { id: deviceId } });
+      const device = await db.prepare(`SELECT id, userId FROM Device WHERE id = ? LIMIT 1`)
+        .bind(deviceId)
+        .first<any>();
       if (!device || device.userId !== user.id) {
         return NextResponse.json({ error: "Device not found" }, { status: 404 });
       }
     }
-    
-    const code = await prisma.paymentCode.create({
-      data: {
-        type,
-        codeType,
-        amount: codeType === "any" ? 0.0 : normalizedAmount,
-        imageUrl,
-        status: "active",
-        deviceId: deviceId || null,
-        userId: user.id
-      }
-    });
+
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await db.prepare(`
+      INSERT INTO PaymentCode (id, type, codeType, amount, imageUrl, status, createdAt, updatedAt, userId, deviceId)
+      VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
+    `).bind(
+      id,
+      type,
+      codeType,
+      codeType === "any" ? 0 : normalizedAmount,
+      imageUrl,
+      now,
+      now,
+      user.id,
+      deviceId || null
+    ).run();
+
+    const code = await db.prepare(`SELECT * FROM PaymentCode WHERE id = ? LIMIT 1`)
+      .bind(id)
+      .first();
     
     return NextResponse.json(code);
   } catch (err) {

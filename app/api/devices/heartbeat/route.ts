@@ -46,11 +46,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Device signature verification failed" }, { status: 401 });
       }
     } else {
+      if (device.bindingExpiresAt && device.bindingExpiresAt.getTime() <= Date.now()) {
+        return NextResponse.json({ error: "Device binding code expired" }, { status: 410 });
+      }
       // First time pairing / binding: generate a high-strength secret
       generatedSecret = generateDeviceSecret();
       device = await prisma.device.update({
         where: { id: device.id },
-        data: { deviceSecret: generatedSecret }
+        data: { deviceSecret: generatedSecret, boundAt: new Date(), bindingExpiresAt: null }
       });
     }
     

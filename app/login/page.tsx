@@ -18,12 +18,18 @@ function getAuthErrorMessage(error?: string) {
       return '该邮箱已注册，请直接登录';
     case 'Valid email is required':
       return '请输入有效的邮箱地址';
+    case '请输入完整的注册邮箱':
+      return '请使用完整注册邮箱登录，例如 name@example.com';
     case 'Password must be at least 8 characters':
       return '密码至少需要 8 个字符';
     case 'Email not verified':
       return '邮箱还未验证，我们已重新发送验证邮件，请先打开邮箱完成验证';
     case 'Email service is not configured':
       return '邮件服务尚未配置，暂时无法注册或找回密码';
+    case 'Email send failed':
+      return '邮件服务发送失败，请联系管理员或稍后重试';
+    case 'Internal server error':
+      return '服务器暂时无法完成请求，请稍后重试或联系管理员';
     default:
       return error || '请求失败，请稍后重试';
   }
@@ -42,6 +48,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [errorText, setErrorText] = useState('');
   const [successText, setSuccessText] = useState('');
+  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
@@ -62,25 +69,37 @@ export default function LoginPage() {
       return;
     }
 
-    if (isLogin) {
-      const result = await db.login(identifier, password);
-      if (!result.ok) {
-        setErrorText(getAuthErrorMessage(result.error));
-        return;
+    if (!identifier.includes('@')) {
+      setErrorText('请使用完整注册邮箱登录，例如 name@example.com');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (isLogin) {
+        const result = await db.login(identifier, password);
+        if (!result.ok) {
+          setErrorText(getAuthErrorMessage(result.error));
+          return;
+        }
+        localStorage.setItem('coderpay:last-login', identifier);
+        setSuccessText('安全验证成功！正在为您转跳控制台...');
+        setTimeout(() => {
+          router.push(redirectTarget);
+        }, 500);
+      } else {
+        const result = await db.register(identifier, password);
+        if (!result.ok) {
+          setErrorText(getAuthErrorMessage(result.error));
+          return;
+        }
+        localStorage.setItem('coderpay:last-login', identifier);
+        setSuccessText('注册成功！验证邮件已发送，请打开邮箱完成验证后再登录。');
       }
-      localStorage.setItem('coderpay:last-login', identifier);
-      setSuccessText('安全验证成功！正在为您转跳控制台...');
-      setTimeout(() => {
-        router.push(redirectTarget);
-      }, 1000);
-    } else {
-      const result = await db.register(identifier, password);
-      if (!result.ok) {
-        setErrorText(getAuthErrorMessage(result.error));
-        return;
-      }
-      localStorage.setItem('coderpay:last-login', identifier);
-      setSuccessText('注册成功！验证邮件已发送，请打开邮箱完成验证后再登录。');
+    } catch {
+      setErrorText('网络请求失败，请检查连接后重试');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -134,14 +153,14 @@ export default function LoginPage() {
             
             {/* Email Field */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-300">开发者账号 / 邮箱</label>
+              <label className="text-xs font-semibold text-slate-300">注册邮箱</label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500" />
                 <input
-                  type="text"
+                  type="email"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="用户名或 name@example.com"
+                  placeholder="name@example.com"
                   className="w-full pl-11 pr-4 py-3 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all font-mono"
                   required
                 />
@@ -195,10 +214,10 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={!!successText}
+              disabled={loading || !!successText}
               className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3.5 px-4 rounded-xl text-sm transition-all shadow-[0_4px_12px_rgba(37,99,235,0.2)] disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {isLogin ? '安全登录控制台' : '注册并极速接入'}
+              {loading ? '处理中...' : isLogin ? '安全登录控制台' : '注册并极速接入'}
             </button>
 
           </form>

@@ -89,16 +89,24 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
   };
 
   // Delete App
-  const handleDeleteApp = (app: App) => {
+  const handleDeleteApp = async (app: App) => {
     if (confirm(`警告：您确定要永久删除应用 [${app.name}] 吗？相匹配的订单记录将失去系统校验！`)) {
-      db.deleteApp(app.id);
+      const result = await db.deleteApp(app.id);
+      if (!result.ok) {
+        onTriggerToast(result.error || `删除应用 [${app.name}] 失败`, 'error');
+        return;
+      }
       onTriggerToast(`应用 [${app.name}] 已安全移出 CP 系统。`, 'warning');
     }
   };
 
   // Edit App configuration save
-  const handleUpdateApp = (id: string, updates: Partial<App>) => {
-    db.updateApp(id, updates);
+  const handleUpdateApp = async (id: string, updates: Partial<App>) => {
+    const result = await db.updateApp(id, updates);
+    if (!result.ok) {
+      onTriggerToast(result.error || '应用参数更新失败', 'error');
+      return;
+    }
     onTriggerToast('应用对接端参数更新保存成功！', 'success');
     setEditingAppId(null);
   };

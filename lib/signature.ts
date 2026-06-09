@@ -20,11 +20,13 @@ export function verifySignature(params: Record<string, any>, appSecret: string, 
 
 export function verifyDeviceSignature(deviceCode: string, timestamp: string, deviceSecret: string, providedSign: string): boolean {
   const ts = Number(timestamp);
-  // Allow a 10-minute window for clock drift
-  if (isNaN(ts) || Math.abs(Date.now() - ts) > 10 * 60 * 1000) {
+  // 2-minute window: tolerates clock drift while limiting signature replay.
+  // Offline events are re-signed with the send-time timestamp, so this is safe
+  // for delayed uploads.
+  if (isNaN(ts) || Math.abs(Date.now() - ts) > 2 * 60 * 1000) {
     return false;
   }
-  
+
   const stringToSign = `${deviceCode}:${timestamp}`;
   const calculatedSign = CryptoJS.HmacSHA256(stringToSign, deviceSecret).toString();
   return calculatedSign.toLowerCase() === providedSign.toLowerCase();

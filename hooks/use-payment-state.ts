@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CoderPayState } from '@/types';
 
 export function usePaymentState() {
@@ -26,9 +26,47 @@ export function usePaymentState() {
     userEmail: '',
   }));
 
-  const fetchState = async () => {
+  // Guards against overlapping polls: if a fetch is still in flight when the
+  // next tick fires, skip it rather than stacking requests.
+  const isFetchingRef = useRef(false);
+
+  const fetchWithTimeout = async (url: string, timeoutMs = 8000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const meRes = await fetch("/api/auth/me");
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(id);
+      return res;
+    } catch (err) {
+      clearTimeout(id);
+      throw err;
+    }
+  };
+
+  const fetchJsonSafely = async (url: string, defaultValue: any) => {
+    try {
+      const res = await fetchWithTimeout(url, 8000);
+      if (!res.ok) {
+        console.warn(`Fetch to ${url} failed with status ${res.status}`);
+        return defaultValue;
+      }
+      const data = await res.json();
+      if (data && data.error) {
+        console.warn(`Fetch to ${url} returned error:`, data.error);
+        return defaultValue;
+      }
+      return data;
+    } catch (err) {
+      console.error(`Fetch to ${url} failed:`, err);
+      return defaultValue;
+    }
+  };
+
+  const fetchState = async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    try {
+      const meRes = await fetchWithTimeout("/api/auth/me", 8000);
       if (!meRes.ok) {
         setState(prev => ({
           ...prev,
@@ -55,14 +93,14 @@ export function usePaymentState() {
       const me = await meRes.json();
 
       const [apps, codes, devices, orders, events, exceptions, webhookLogs, billingData] = await Promise.all([
-        fetch("/api/apps").then(r => r.json()),
-        fetch("/api/codes").then(r => r.json()),
-        fetch("/api/devices").then(r => r.json()),
-        fetch("/api/orders").then(r => r.json()),
-        fetch("/api/events").then(r => r.json()),
-        fetch("/api/exceptions").then(r => r.json()),
-        fetch("/api/webhook/logs").then(r => r.json()),
-        fetch("/api/billing").then(r => r.json())
+        fetchJsonSafely("/api/apps", []),
+        fetchJsonSafely("/api/codes", []),
+        fetchJsonSafely("/api/devices", []),
+        fetchJsonSafely("/api/orders", []),
+        fetchJsonSafely("/api/events", []),
+        fetchJsonSafely("/api/exceptions", []),
+        fetchJsonSafely("/api/webhook/logs", []),
+        fetchJsonSafely("/api/billing", { records: [], feeBalance: 0, packageType: 'free' })
       ]);
 
       setState(prev => ({
@@ -89,14 +127,69 @@ export function usePaymentState() {
     } catch (err) {
       console.error("Error fetching state:", err);
       setState(prev => ({ ...prev, isLoggedIn: false, isAuthChecked: true }));
+    } finally {
+      isFetchingRef.current = false;
     }
   };
 
   useEffect(() => {
-    setTimeout(fetchState, 0);
-    const interval = setInterval(fetchState, 3000);
-    return () => clearInterval(interval);
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const start = () => {
+      if (interval) return;
+      interval = setInterval(() => {
+        if (!document.hidden) void fetchState();
+      }, 5000);
+    };
+    const stop = () => {
+      if (interval) { clearInterval(interval); interval = null; }
+    };
+
+    // Initial load (deferred a tick so we don't setState during the effect body).
+    const initial = setTimeout(() => void fetchState(), 0);
+    start();
+
+    // Pause polling when the tab is hidden; refresh immediately on return so the
+    // user never stares at stale data, and we make zero requests in the background.
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        void fetchState();
+        start();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearTimeout(initial);
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
+
+  // Shared mutation helper: always resolves (never throws) to { ok, error, data }
+  // so callers can surface failures instead of failing silently or hanging.
+  const mutate = async (
+    url: string,
+    options: { method?: string; body?: any } = {}
+  ): Promise<{ ok: boolean; error?: string; data?: any }> => {
+    try {
+      const res = await fetch(url, {
+        method: options.method || "POST",
+        headers: options.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      });
+      const data = await res.json().catch(() => ({}));
+      await fetchState();
+      if (!res.ok) {
+        return { ok: false, error: data?.error || `请求失败 (${res.status})`, data };
+      }
+      return { ok: true, data };
+    } catch {
+      return { ok: false, error: "网络异常，请检查连接后重试" };
+    }
+  };
 
   const db = {
     getState: () => state,
@@ -109,7 +202,9 @@ export function usePaymentState() {
         body: JSON.stringify({ identifier, email: identifier, password })
       });
       const data = await res.json().catch(() => ({}));
-      await fetchState();
+      if (res.ok) {
+        void fetchState();
+      }
       return { ok: res.ok, error: data.error };
     },
 
@@ -120,7 +215,9 @@ export function usePaymentState() {
         body: JSON.stringify({ email, password })
       });
       const data = await res.json().catch(() => ({}));
-      await fetchState();
+      if (res.ok) {
+        void fetchState();
+      }
       return { ok: res.ok, error: data.error };
     },
 
@@ -145,12 +242,7 @@ export function usePaymentState() {
     },
 
     updateApp: async (id: string, updates: any) => {
-      await fetch(`/api/apps/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates)
-      });
-      await fetchState();
+      return mutate(`/api/apps/${id}`, { method: "PUT", body: updates });
     },
 
     resetAppSecret: async (id: string) => {
@@ -161,54 +253,32 @@ export function usePaymentState() {
     },
 
     deleteApp: async (id: string) => {
-      await fetch(`/api/apps/${id}`, { method: "DELETE" });
-      await fetchState();
+      return mutate(`/api/apps/${id}`, { method: "DELETE" });
     },
 
     createPaymentCode: async (code: any) => {
-      await fetch("/api/codes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(code)
-      });
-      await fetchState();
+      return mutate("/api/codes", { method: "POST", body: code });
     },
 
     updatePaymentCode: async (id: string, updates: any) => {
-      await fetch(`/api/codes/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates)
-      });
-      await fetchState();
+      return mutate(`/api/codes/${id}`, { method: "PUT", body: updates });
     },
 
     deletePaymentCode: async (id: string) => {
-      await fetch(`/api/codes/${id}`, { method: "DELETE" });
-      await fetchState();
+      return mutate(`/api/codes/${id}`, { method: "DELETE" });
     },
 
     createDevice: async (name: string) => {
-      await fetch("/api/devices", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name })
-      });
-      await fetchState();
+      const result = await mutate("/api/devices", { method: "POST", body: { name } });
+      return { ...result, device: result.data };
     },
 
     updateDevice: async (id: string, updates: any) => {
-      await fetch(`/api/devices/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates)
-      });
-      await fetchState();
+      return mutate(`/api/devices/${id}`, { method: "PUT", body: updates });
     },
 
     deleteDevice: async (id: string) => {
-      await fetch(`/api/devices/${id}`, { method: "DELETE" });
-      await fetchState();
+      return mutate(`/api/devices/${id}`, { method: "DELETE" });
     },
 
     resetDeviceSecret: async (id: string) => {
@@ -220,15 +290,9 @@ export function usePaymentState() {
 
     toggleDeviceStatus: async (id: string) => {
       const dev = state.devices.find(d => d.id === id);
-      if (dev) {
-        const nextStatus = dev.status === "active" ? "inactive" : "active";
-        await fetch(`/api/devices/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: nextStatus })
-        });
-        await fetchState();
-      }
+      if (!dev) return { ok: false, error: "设备不存在" };
+      const nextStatus = dev.status === "active" ? "inactive" : "active";
+      return mutate(`/api/devices/${id}`, { method: "PUT", body: { status: nextStatus } });
     },
 
     createOrder: async (order: any) => {
@@ -286,23 +350,12 @@ export function usePaymentState() {
     },
 
     updateOrderStatus: async (id: string, status: string) => {
-      await fetch(`/api/orders/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status })
-      });
-      await fetchState();
+      return mutate(`/api/orders/${id}`, { method: "PUT", body: { status } });
     },
 
     retryWebhook: async (orderId: string) => {
-      const res = await fetch("/api/webhook/retry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId })
-      });
-      const data = await res.json();
-      await fetchState();
-      return data.log;
+      const result = await mutate("/api/webhook/retry", { method: "POST", body: { orderId } });
+      return { ...result, log: result.data?.log };
     },
 
     uploadPaymentEvent: async (deviceId: string, payType: string, amount: number) => {
@@ -323,12 +376,15 @@ export function usePaymentState() {
     },
 
     manuallyMatchOrderAndEvent: async (orderId: string, eventId: string) => {
-      await fetch(`/api/orders/${orderId}/match`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId })
-      });
-      await fetchState();
+      return mutate(`/api/orders/${orderId}/match`, { method: "POST", body: { eventId } });
+    },
+
+    resolveException: async (id: string) => {
+      return mutate(`/api/exceptions/${id}`, { method: "PUT", body: { status: "resolved" } });
+    },
+
+    ignoreException: async (id: string) => {
+      return mutate(`/api/exceptions/${id}`, { method: "PUT", body: { status: "ignored" } });
     },
 
     manuallyConfirmPaid: async (orderId: string) => {

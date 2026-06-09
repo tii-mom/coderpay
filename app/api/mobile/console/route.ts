@@ -1,31 +1,18 @@
 export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyDeviceSignature } from "@/lib/signature";
 import { omitDeviceSecret } from "@/lib/devices";
 import { centsToAmount, getOrderAmountCents, getOrderRealAmountCents } from "@/lib/money";
 import { getOrderExpiresAt } from "@/lib/payment-matching";
+import { getMobileDevice } from "@/lib/mobile-auth";
 
 export async function GET(req: NextRequest) {
   try {
-    const deviceCode = req.headers.get("x-coderpay-device") || "";
-    const timestamp = req.headers.get("x-coderpay-timestamp") || "";
-    const sign = req.headers.get("x-coderpay-sign") || "";
+    const auth = await getMobileDevice(req);
+    if (auth.error) return auth.error;
+    const device = auth.device;
 
-    if (!deviceCode || !timestamp || !sign) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const device = await prisma.device.findUnique({
-      where: { deviceCode },
-      include: { user: true },
-    });
-
-    if (!device || !device.deviceSecret || !verifyDeviceSignature(deviceCode, timestamp, device.deviceSecret, sign)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const [orders, paymentCodes, devices, billingRecords] = await Promise.all([
+    const [orders, paymentCodes, devices, billingRecords, exceptions] = await Promise.all([
       prisma.order.findMany({
         where: { app: { userId: device.userId } },
         include: { app: true },
@@ -42,6 +29,11 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
       }),
       prisma.billingRecord.findMany({
+        where: { userId: device.userId },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      }),
+      prisma.exceptionItem.findMany({
         where: { userId: device.userId },
         orderBy: { createdAt: "desc" },
         take: 30,
@@ -76,6 +68,7 @@ export async function GET(req: NextRequest) {
       paymentCodes,
       devices: devices.map(omitDeviceSecret),
       billingRecords,
+      exceptions,
     });
   } catch (err) {
     console.error("Mobile console request failed:", err);

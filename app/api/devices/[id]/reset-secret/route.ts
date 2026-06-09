@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { omitDeviceSecret } from "@/lib/devices";
 import { prisma } from "@/lib/prisma";
+import { randomHex } from "@/lib/random";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -18,7 +19,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const updated = await prisma.device.update({
       where: { id },
       data: {
+        deviceCode: `dev_${randomHex(16)}`,
         deviceSecret: "",
+        bindingExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        boundAt: null,
         online: false,
         lastHeartbeat: new Date(),
       },
@@ -27,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({
       status: "success",
       device: omitDeviceSecret(updated),
-      message: "Device secret reset. Reconnect this device from the Android app to issue a new secret.",
+      message: "Device secret reset. Use the new device code to reconnect this device from the Android app.",
     });
   } catch (err) {
     console.error("Device secret reset failed:", err);

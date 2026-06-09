@@ -14,6 +14,9 @@ tsconfig.tsbuildinfo
 .vercel/
 .wrangler/
 scratch/
+
+# Database backups (may contain production data)
+backups/
 *.png
 *.jpeg
 *.jpg
@@ -23,6 +26,9 @@ coderpay-android/.gradle/
 coderpay-android/.idea/
 coderpay-android/app/build/
 coderpay-android/local.properties
+coderpay-android/keystore.properties
+coderpay-android/*.jks
+coderpay-android/*.keystore
 
 # Allow specific asset images
 !public/**/*.png

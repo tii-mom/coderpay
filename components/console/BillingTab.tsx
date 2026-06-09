@@ -28,6 +28,7 @@ interface BillingTabProps {
 export function BillingTab({ plan, billingRecords, onTriggerToast, db }: BillingTabProps) {
   const [activeTab, setActiveTab] = useState<'balance' | 'pricing'>('balance');
   const [rechargeLoading, setRechargeLoading] = useState(false);
+  const [planLoading, setPlanLoading] = useState(false);
   const [customFee, setCustomFee] = useState<number>(30);
 
   const handleRechargeTechnicalFee = async (amount: number) => {
@@ -51,17 +52,23 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
   };
 
   const handleUpgradePlan = async (planName: string, price: number, planId: string) => {
+    if (planLoading) return; // guard against double-submit / double-charge
     if (plan.balance < price) {
       onTriggerToast(`当前余额 ¥${plan.balance.toFixed(2)} 不足抵扣该套餐费用 ¥${price.toFixed(2)}。请先充值余额。`, 'error');
       return;
     }
 
-    const result = await db.changePlan(planId);
-    if (!result.ok) {
-      onTriggerToast(result.error || `购买 [${planName}] 失败`, 'error');
-      return;
+    setPlanLoading(true);
+    try {
+      const result = await db.changePlan(planId);
+      if (!result.ok) {
+        onTriggerToast(result.error || `购买 [${planName}] 失败`, 'error');
+        return;
+      }
+      onTriggerToast(`成功购买并续期 [${planName}]，套餐已生效。`, 'success');
+    } finally {
+      setPlanLoading(false);
     }
-    onTriggerToast(`成功购买并续期 [${planName}]，套餐已生效。`, 'success');
   };
 
   return (
@@ -292,7 +299,8 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
 
             <button
               onClick={() => handleUpgradePlan('专业版', plan.firstProDiscountUsed ? 69 : 39, 'pro')}
-              className="w-full py-2.5 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-500 rounded-xl text-center font-bold transition-colors"
+              disabled={planLoading}
+              className="w-full py-2.5 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-500 rounded-xl text-center font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               余额扣减 ¥{(plan.firstProDiscountUsed ? 69 : 39).toFixed(2)} 并购买起效
             </button>
@@ -319,7 +327,8 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
 
             <button
               onClick={() => handleUpgradePlan('至尊免服务费版', plan.firstMaxDiscountUsed ? 199 : 149, 'max')}
-              className="w-full py-2.5 text-xs font-extrabold text-slate-200 bg-[#0B1020] hover:bg-[#151B2E] border border-[rgba(255,255,255,0.08)] rounded-xl text-center font-semibold transition-colors"
+              disabled={planLoading}
+              className="w-full py-2.5 text-xs font-extrabold text-slate-200 bg-[#0B1020] hover:bg-[#151B2E] border border-[rgba(255,255,255,0.08)] rounded-xl text-center font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               余额扣减 ¥{(plan.firstMaxDiscountUsed ? 199 : 149).toFixed(2)} 并购买
             </button>

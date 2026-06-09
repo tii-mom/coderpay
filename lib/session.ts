@@ -51,6 +51,8 @@ export async function createSessionToken(email: string) {
   return `${payload}.${await sign(payload)}`;
 }
 
+const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days, matches cookie maxAge
+
 export async function readSessionEmail(token?: string) {
   if (!token || !token.includes(".")) return null;
 
@@ -61,7 +63,11 @@ export async function readSessionEmail(token?: string) {
     const expected = await sign(payload);
     if (signature !== expected) return null;
     const parsed = JSON.parse(fromBase64Url(payload));
-    return typeof parsed.email === "string" ? parsed.email : null;
+    if (typeof parsed.email !== "string") return null;
+    // Reject tokens past their maximum lifetime even if the cookie outlives them.
+    const iat = typeof parsed.iat === "number" ? parsed.iat : 0;
+    if (!iat || Date.now() - iat > SESSION_MAX_AGE_MS) return null;
+    return parsed.email;
   } catch {
     return null;
   }

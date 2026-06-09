@@ -2,7 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
-import { randomNumericCode } from "@/lib/random";
+import { randomHex } from "@/lib/random";
 import { omitDeviceSecret } from "@/lib/devices";
 
 export async function GET(req: NextRequest) {
@@ -32,17 +32,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
     
-    const deviceCode = `dev-${randomNumericCode(4)}`;
+    const deviceCode = `dev_${randomHex(16)}`;
+    const bindingExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     
     const device = await prisma.device.create({
       data: {
         deviceCode,
         name,
-        online: true,
-        wechatListener: "running",
-        alipayListener: "running",
-        notificationPermission: true,
-        batteryOptimization: "ignored",
+        bindingExpiresAt,
+        online: false,
+        wechatListener: "stopped",
+        alipayListener: "stopped",
+        notificationPermission: false,
+        batteryOptimization: "unknown",
         status: "active",
         userId: user.id
       }

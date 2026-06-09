@@ -18,7 +18,7 @@ model User {
   emailVerifyExpiresAt DateTime?
   passwordResetTokenHash String?
   passwordResetExpiresAt DateTime?
-  feeBalance   Float           @default(99.602)
+  feeBalance   Float           @default(0)
   packageType  String          @default("free") // free, pro, max
   freeOrderUsed Int            @default(0)
   subscriptionStartedAt DateTime?
@@ -75,6 +75,8 @@ model Device {
   deviceCode             String        @unique
   deviceSecret           String        @default("")
   name                   String
+  bindingExpiresAt       DateTime?
+  boundAt                DateTime?
   online                 Boolean       @default(true)
   lastHeartbeat          DateTime?
   androidVersion         String?
@@ -111,6 +113,9 @@ model Order {
   paymentCodeId String?
   paymentCode   PaymentCode?  @relation(fields: [paymentCodeId], references: [id], onDelete: SetNull)
   webhookLogs   WebhookLog[]
+
+  @@unique([appId, outOrderNo])
+  @@index([paymentCodeId, status, realAmountCents, expiresAt])
 }
 
 model PaymentEvent {

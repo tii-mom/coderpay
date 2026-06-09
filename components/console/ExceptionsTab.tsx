@@ -44,14 +44,38 @@ export function ExceptionsTab({ exceptions, onTriggerToast, onSwitchTab, db }: E
     completedAt: string | null;
   } | null>(null);
 
-  const handleResolve = (exc: ExceptionItem) => {
-    db.resolveException(exc.id);
+  const handleResolve = async (exc: ExceptionItem) => {
+    const result = await db.resolveException(exc.id);
+    if (!result.ok) {
+      onTriggerToast(result.error || '核销失败，请重试。', 'error');
+      return;
+    }
     onTriggerToast('核销成功：异常项已被标记为手动已核对已解决。', 'success');
   };
 
-  const handleIgnore = (exc: ExceptionItem) => {
-    db.ignoreException(exc.id);
+  const handleIgnore = async (exc: ExceptionItem) => {
+    const result = await db.ignoreException(exc.id);
+    if (!result.ok) {
+      onTriggerToast(result.error || '操作失败，请重试。', 'error');
+      return;
+    }
     onTriggerToast('异常已标记为手动忽略，系统将隐藏对应警告流。', 'warning');
+  };
+
+  const handleRetryWebhookException = async (exc: ExceptionItem) => {
+    onTriggerToast('正在命令 Webhook 网关重新注入请求队列...', 'warning');
+    const result = await db.retryWebhook(exc.refId);
+    if (!result.ok) {
+      onTriggerToast(result.error || 'Webhook 重推失败，请稍后重试', 'error');
+      return;
+    }
+    const ok = result.log?.result === 'success';
+    onTriggerToast(
+      ok
+        ? '重新投递成功！商户系统已正常响应 success，异常自动消退！'
+        : `已重推，但商户未返回 success（${result.log?.responseSummary || '响应异常'}），请检查回调地址。`,
+      ok ? 'success' : 'warning'
+    );
   };
 
   const handleSendAlertTest = () => {
@@ -199,13 +223,7 @@ export function ExceptionsTab({ exceptions, onTriggerToast, onSwitchTab, db }: E
                         )}
                         {exc.type === 'webhook_failed' && (
                           <button
-                            onClick={() => {
-                              onTriggerToast('正在命令 Webhook 网关重新注入请求队列...', 'warning');
-                              setTimeout(() => {
-                                db.retryWebhook(exc.refId);
-                                onTriggerToast('重新投递成功！商户系统已正常响应 200 OK，异常自动消退！', 'success');
-                              }, 1000);
-                            }}
+                            onClick={() => handleRetryWebhookException(exc)}
                             className="px-2.5 py-1 bg-rose-950/40 border border-rose-500/20 text-rose-400 text-[10px] font-bold rounded"
                           >
                             重发回调推流

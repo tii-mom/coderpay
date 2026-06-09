@@ -1,17 +1,15 @@
-# Coder Pay
+# CoderPay
 
-Coder Pay 是一款面向独立开发者的微信/支付宝个人免签自动收款系统，由 **Web/云端系统** 与 **Android CP Watcher** 共同构成。
+CoderPay 是一款面向独立开发者的微信/支付宝个人免签自动收款系统，由 **Web/云端系统** 与 **Android App** 共同构成。
 
 ## 核心架构
 
-1. **Web / 云端系统 (CP Cloud)**: 负责应用管理、密钥分发、收款码调度、订单管理、设备在线状态监控、到账匹配引擎以及异步 Webhook 回调推送。
-2. **Android CP Watcher**: 挂机监控端，负责利用系统通知监听机制（NotificationListenerService）读取微信/支付宝支付成功通知，结构化提取金额后实时上报给云端匹配引擎。
+1. **Web / 云端系统**：负责应用管理、密钥分发、收款码调度、订单管理、设备在线状态监控、到账匹配引擎以及异步 Webhook 回调推送。
+2. **Android App**：负责通知监听、到账事件补传、设备健康检查，以及受限移动运营能力，包括充值、套餐订阅、收款码上传/管理和异常查看。
 
 ## 本地开发指南
 
-### 前端/控制台原型预览
-
-本项目当前为 Coder Pay 前端控制台高保真交互原型，采用 Next.js + React + TailwindCSS 构建。
+本项目采用 Next.js + React + TailwindCSS 构建 Web 控制台，Android App 位于 `coderpay-android/`。
 
 1. **安装依赖**：
    ```bash
@@ -24,10 +22,34 @@ Coder Pay 是一款面向独立开发者的微信/支付宝个人免签自动收
    ```
    打开 [http://localhost:3000](http://localhost:3000) 即可预览控制台界面。
 
-### 生产部署（前端容器化）
+## 上线前检查
+
+生产发布前先运行自动化验证：
+
+```bash
+npm test
+npx tsc --noEmit
+npm run lint
+npm run build
+npm run check:prod
+```
+
+Android 构建：
+
+```bash
+cd coderpay-android
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 PATH=/opt/homebrew/opt/openjdk@17/bin:$PATH ./gradlew assembleDebug
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 PATH=/opt/homebrew/opt/openjdk@17/bin:$PATH ./gradlew assembleRelease
+```
+
+`npm run check:prod` 会检查生产环境变量、邮件配置、平台充值账号和 Android release 签名配置。它不会打印密钥值。
+
+## 生产部署
 
 本项目已开启 Next.js `standalone` 独立输出，适合容器化部署：
+
 ```bash
 npm run build
 ```
+
 编译后将生成 `.next/standalone` 目录。

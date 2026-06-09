@@ -79,7 +79,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
 
   const selectedDev = devices.find(d => d.id === selectedDevId);
 
-  const handleBindDevice = (e: React.FormEvent) => {
+  const handleBindDevice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDevName) {
       onTriggerToast('请输入设备名称', 'error');
@@ -87,14 +87,17 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
     }
 
     setIsLoadingOperation(true);
-    setTimeout(() => {
-      const dev = db.createDevice(newDevName, Number(todayLimit));
-      onTriggerToast(`成功绑定 CoderPay 探针终端 [${dev.name}] ！设备令牌及专属 API Key 已生成并输出到终端，请扫码绑定您的旧手机。`, 'success');
-      setNewDevName('');
-      setTodayLimit(5000);
-      setIsBinding(false);
-      setIsLoadingOperation(false);
-    }, 700);
+    const result = await db.createDevice(newDevName);
+    setIsLoadingOperation(false);
+    if (!result.ok) {
+      onTriggerToast(result.error || '设备绑定失败，请重试', 'error');
+      return;
+    }
+    const devName = result.device?.name || newDevName;
+    onTriggerToast(`成功绑定 CoderPay 探针终端 [${devName}] ！设备令牌及专属 API Key 已生成并输出到终端，请扫码绑定您的旧手机。`, 'success');
+    setNewDevName('');
+    setTodayLimit(5000);
+    setIsBinding(false);
   };
 
   const handleRunHealthCheck = () => {
@@ -145,43 +148,49 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
     }, 1000);
   };
 
-  const handleDiagnostics = (dev: Device) => {
+  const handleDiagnostics = async (dev: Device) => {
     setIsLoadingOperation(true);
     onTriggerToast(`正在刷新设备 [${dev.name}] 的云端状态标记。真实权限请以 Android App 内体检为准。`, 'warning');
-    setTimeout(() => {
-      db.updateDevice(dev.id, {
-        online: true,
-        lastHeartbeat: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        wechatListener: 'running',
-        alipayListener: 'running',
-        notificationPermission: true,
-        batteryOptimization: 'ignored'
-      });
-      setIsLoadingOperation(false);
-      onTriggerToast(`设备状态已刷新为在线。请在 Android App 内确认通知读取和电池保活已开启。`, 'success');
-    }, 1200);
+    const result = await db.updateDevice(dev.id, {
+      online: true,
+      lastHeartbeat: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      wechatListener: 'running',
+      alipayListener: 'running',
+      notificationPermission: true,
+      batteryOptimization: 'ignored'
+    });
+    setIsLoadingOperation(false);
+    if (!result.ok) {
+      onTriggerToast(result.error || '设备状态刷新失败', 'error');
+      return;
+    }
+    onTriggerToast(`设备状态已刷新为在线。请在 Android App 内确认通知读取和电池保活已开启。`, 'success');
   };
 
-  const handleToggleActive = (dev: Device) => {
+  const handleToggleActive = async (dev: Device) => {
     setIsLoadingOperation(true);
-    setTimeout(() => {
-      db.toggleDeviceStatus(dev.id);
-      setIsLoadingOperation(false);
-      onTriggerToast(`已${dev.status === 'active' ? '停用' : '激活'}设备 Watcher 的收款匹配任务。`, 'warning');
-    }, 600);
+    const result = await db.toggleDeviceStatus(dev.id);
+    setIsLoadingOperation(false);
+    if (!result.ok) {
+      onTriggerToast(result.error || '设备状态切换失败', 'error');
+      return;
+    }
+    onTriggerToast(`已${dev.status === 'active' ? '停用' : '激活'}设备 Watcher 的收款匹配任务。`, 'warning');
   };
 
-  const handleDeleteDevice = (dev: Device) => {
+  const handleDeleteDevice = async (dev: Device) => {
     if (confirm(`警告：确定要永久解绑设备 [${dev.name}] 吗？解绑后，该手机将无法上传任何扫码付款流水通知，且配套码流水也会失效。`)) {
       setIsLoadingOperation(true);
-      setTimeout(() => {
-        db.deleteDevice(dev.id);
-        setIsLoadingOperation(false);
-        onTriggerToast(`设备 [${dev.name}] 解绑解离完毕。`, 'warning');
-        if (selectedDevId === dev.id) {
-          setActiveView('list');
-        }
-      }, 800);
+      const result = await db.deleteDevice(dev.id);
+      setIsLoadingOperation(false);
+      if (!result.ok) {
+        onTriggerToast(result.error || `设备 [${dev.name}] 解绑失败`, 'error');
+        return;
+      }
+      onTriggerToast(`设备 [${dev.name}] 解绑解离完毕。`, 'warning');
+      if (selectedDevId === dev.id) {
+        setActiveView('list');
+      }
     }
   };
 

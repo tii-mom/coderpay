@@ -3,9 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { addMinutes, createRawToken, hashAuthToken } from "@/lib/auth-tokens";
 import { assertEmailConfigured, buildVerificationEmail, sendEmail } from "@/lib/email";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    // Strict: each call sends an email. Throttle to prevent inbox bombing.
+    const limited = enforceRateLimit(req, { name: "auth:resend-verification", limit: 5, windowMs: 300_000 });
+    if (limited) return limited;
+
     const { email } = await req.json();
     const normalizedEmail = String(email || "").trim().toLowerCase();
     if (!normalizedEmail) {

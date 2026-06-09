@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { addMinutes, createRawToken, hashAuthToken } from "@/lib/auth-tokens";
 import { assertEmailConfigured, buildVerificationEmail, sendEmail } from "@/lib/email";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -19,6 +20,10 @@ function isValidPassword(value: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    // Limit signups per IP to curb account spam and verification-email abuse.
+    const limited = enforceRateLimit(req, { name: "auth:register", limit: 5, windowMs: 300_000 });
+    if (limited) return limited;
+
     const { email, password } = await req.json();
     const normalizedEmail = normalizeEmail(String(email || ""));
     const rawPassword = String(password || "");
@@ -61,7 +66,12 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("Registration failed:", err);
     const status = typeof (err as any)?.status === "number" ? (err as any).status : 500;
-    const error = status === 503 ? "Email service is not configured" : "Internal server error";
+    let error = "Internal server error";
+    if (status === 503) {
+      error = "Email service is not configured";
+    } else if ((err as any)?.message === "Email send failed") {
+      error = "Email send failed";
+    }
     return NextResponse.json({ error }, { status });
   }
 }

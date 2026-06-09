@@ -1,6 +1,7 @@
 export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { amountFromCents, centsFromAmount, formatAmount, getDirectD1, randomOrderId, verifyMerchantSign } from "@/lib/d1-direct";
+import { FREE_ORDER_LIMIT, LOW_BALANCE_WARNING_YUAN, getEffectivePackageType } from "@/lib/billing-plans";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest) {
     const db = getDirectD1();
     const app = await db.prepare(`
       SELECT App.id, App.appId, App.appSecret, App.signType, App.expireMinutes, App.userId,
-             User.feeBalance, User.packageType, User.freeOrderUsed
+             User.feeBalance, User.packageType, User.freeOrderUsed, User.subscriptionExpiresAt
       FROM App
       JOIN User ON User.id = App.userId
       WHERE App.appId = ?
@@ -38,8 +39,14 @@ export async function POST(req: NextRequest) {
     if (Number(app.feeBalance) <= 0) {
       return NextResponse.json({ error: "账户余额已低于或等于 0 元，请充值后继续使用 CoderPay 服务" }, { status: 402 });
     }
-    const freeOrderLimit = 20;
-    if (app.packageType === "free" && Number(app.freeOrderUsed || 0) >= freeOrderLimit) {
+    // Effective package falls back to "free" when a paid subscription has expired,
+    // so expired users are correctly subject to the free debug quota again.
+    const effectivePackageType = getEffectivePackageType({
+      packageType: app.packageType,
+      subscriptionExpiresAt: app.subscriptionExpiresAt
+    });
+    const isFreeTier = effectivePackageType === "free";
+    if (isFreeTier && Number(app.freeOrderUsed || 0) >= FREE_ORDER_LIMIT) {
       return NextResponse.json({ error: "免费调试额度已用完，请开通订阅后继续创建订单" }, { status: 403 });
     }
 
@@ -114,25 +121,34 @@ export async function POST(req: NextRequest) {
 
     const orderId = randomOrderId();
     const expiresAt = new Date(Date.now() + app.expireMinutes * 60 * 1000);
-    await db.prepare(`
-      INSERT INTO "Order" (id, outOrderNo, title, payType, amount, realAmount, amountCents, realAmountCents, status, createdAt, expiresAt, webhookStatus, appId, paymentCodeId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, 'unsent', ?, ?)
-    `).bind(
-      orderId,
-      out_order_no,
-      title,
-      pay_type,
-      amountFromCents(amountCents),
-      amountFromCents(realAmountCents),
-      amountCents,
-      realAmountCents,
-      now.toISOString(),
-      expiresAt.toISOString(),
-      app.id,
-      selectedCode.id
-    ).run();
+    try {
+      await db.prepare(`
+        INSERT INTO "Order" (id, outOrderNo, title, payType, amount, realAmount, amountCents, realAmountCents, status, createdAt, expiresAt, webhookStatus, appId, paymentCodeId)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, 'unsent', ?, ?)
+      `).bind(
+        orderId,
+        out_order_no,
+        title,
+        pay_type,
+        amountFromCents(amountCents),
+        amountFromCents(realAmountCents),
+        amountCents,
+        realAmountCents,
+        now.toISOString(),
+        expiresAt.toISOString(),
+        app.id,
+        selectedCode.id
+      ).run();
+    } catch (insertErr: any) {
+      // Unique index on (appId, outOrderNo) makes duplicate creation atomic:
+      // concurrent requests with the same merchant order number collide here.
+      if (String(insertErr?.message || "").includes("UNIQUE") || String(insertErr?.cause?.message || "").includes("UNIQUE")) {
+        return NextResponse.json({ error: "Duplicate out_order_no" }, { status: 400 });
+      }
+      throw insertErr;
+    }
 
-    if (app.packageType === "free") {
+    if (isFreeTier) {
       await db.prepare(`UPDATE User SET freeOrderUsed = COALESCE(freeOrderUsed, 0) + 1, updatedAt = ? WHERE id = ?`)
         .bind(new Date().toISOString(), app.userId)
         .run();
@@ -161,8 +177,8 @@ export async function POST(req: NextRequest) {
         pay_type,
         payment_url: paymentUrl,
         expired_at: expiresAt.toISOString(),
-        free_order_remaining: app.packageType === "free" ? Math.max(0, freeOrderLimit - Number(app.freeOrderUsed || 0) - 1) : null,
-        low_balance_warning: Number(app.feeBalance) <= 5
+        free_order_remaining: isFreeTier ? Math.max(0, FREE_ORDER_LIMIT - Number(app.freeOrderUsed || 0) - 1) : null,
+        low_balance_warning: Number(app.feeBalance) <= LOW_BALANCE_WARNING_YUAN
       }
     });
   } catch (err) {

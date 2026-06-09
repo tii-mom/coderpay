@@ -99,7 +99,7 @@ export async function sendEmail(input: SendEmailInput) {
   if (!response.ok) {
     const body = await response.text();
     console.error(`${provider} email send failed:`, response.status, body.slice(0, 500));
-    throw Object.assign(new Error("Email send failed"), { status: 502 });
+    throw Object.assign(new Error("Email send failed"), { status: 500 });
   }
 }
 

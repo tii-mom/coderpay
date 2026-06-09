@@ -1,0 +1,37 @@
+# Code-quality gate for the CoderPay web console.
+#
+# Scope on purpose: this runs only the secret-free checks (tests, types, lint,
+# production build). It does NOT run `check:prod` (needs real .env + Android
+# keystore), uses NO real secrets, and NEVER deploys. Production config
+# validation and deployment live in `npm run pages:deploy`, run from a trusted
+# machine, not here.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    name: Verify (test, types, lint, build)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run quality gate
+        run: npm run verify

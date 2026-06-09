@@ -89,7 +89,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
     
     setIsLoadingCodeOperation(true);
     try {
-      await db.createPaymentCode({
+      const result = await db.createPaymentCode({
         type,
         codeType,
         amount: codeType === 'any' ? 0 : Number(amount),
@@ -99,8 +99,13 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
         alipayUserId: type === 'alipay' ? alipayUserId : null
       });
 
+      if (!result.ok) {
+        onTriggerToast(result.error || '收款码配置失败，请重试。', 'error');
+        return;
+      }
+
       onTriggerToast(`成功配置并挂载首个${type === 'wechat' ? '微信' : '支付宝'}个人收款码！`, 'success');
-      
+
       // Reset Form
       setType('wechat');
       setCodeType('any');
@@ -115,24 +120,28 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
     }
   };
 
-  const handleToggleCodeStatus = (code: PaymentCode) => {
+  const handleToggleCodeStatus = async (code: PaymentCode) => {
     setIsLoadingCodeOperation(true);
-    setTimeout(() => {
-      const nextStatus = code.status === 'active' ? 'inactive' : 'active';
-      db.updatePaymentCode(code.id, { status: nextStatus });
-      onTriggerToast(`收款码状态已变更为: [${nextStatus === 'active' ? '启用中' : '已停用'}]`, 'warning');
-      setIsLoadingCodeOperation(false);
-    }, 600);
+    const nextStatus = code.status === 'active' ? 'inactive' : 'active';
+    const result = await db.updatePaymentCode(code.id, { status: nextStatus });
+    setIsLoadingCodeOperation(false);
+    if (!result.ok) {
+      onTriggerToast(result.error || '收款码状态变更失败', 'error');
+      return;
+    }
+    onTriggerToast(`收款码状态已变更为: [${nextStatus === 'active' ? '启用中' : '已停用'}]`, 'warning');
   };
 
-  const handleDeleteCode = (code: PaymentCode) => {
+  const handleDeleteCode = async (code: PaymentCode) => {
     if (confirm(`您确定要删除此笔收款码吗？此操作不可撤销，且会解除绑定设备。`)) {
       setIsLoadingCodeOperation(true);
-      setTimeout(() => {
-        db.deletePaymentCode(code.id);
-        onTriggerToast(`收款码已成功从系统中移除。`, 'warning');
-        setIsLoadingCodeOperation(false);
-      }, 700);
+      const result = await db.deletePaymentCode(code.id);
+      setIsLoadingCodeOperation(false);
+      if (!result.ok) {
+        onTriggerToast(result.error || '收款码删除失败', 'error');
+        return;
+      }
+      onTriggerToast(`收款码已成功从系统中移除。`, 'warning');
     }
   };
 

@@ -27,11 +27,24 @@ export default function ResetPasswordPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErrorText(data.error === 'Password must be at least 8 characters' ? '密码至少需要 8 个字符' : '重置链接无效或已过期');
+        const message = data.error === 'Password must be at least 8 characters'
+          ? '密码至少需要 8 个字符'
+          : data.error === 'Email and token are required'
+            ? '重置链接缺少必要参数，请重新申请找回密码'
+            : data.error === 'Reset link expired'
+              ? '重置链接已过期，请重新申请找回密码'
+              : data.error === 'Invalid reset link'
+                ? '重置链接无效，请重新申请找回密码'
+                : data.error === 'Internal server error'
+                  ? '服务器暂时无法重置密码，请稍后重试或联系管理员'
+                  : data.error || '重置链接无效或已过期';
+        setErrorText(message);
         return;
       }
       setSuccessText('密码已重置，正在进入控制台...');
       setTimeout(() => router.push('/console'), 1000);
+    } catch {
+      setErrorText('网络请求失败，请检查连接后重试');
     } finally {
       setLoading(false);
     }

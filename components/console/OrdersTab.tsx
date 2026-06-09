@@ -94,12 +94,20 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
     }
   };
 
-  const handleForceRetryWebhook = (ord: Order) => {
+  const handleForceRetryWebhook = async (ord: Order) => {
     onTriggerToast(`正在重建签名参数，并向商户接入端重发通知回调中...`, 'warning');
-    setTimeout(() => {
-      db.retryWebhook(ord.id);
-      onTriggerToast(`发送成功！商户接收路径: [POST] 正常返回 "success"，回调记录已核销更新。`, 'success');
-    }, 1200);
+    const result = await db.retryWebhook(ord.id);
+    if (!result.ok) {
+      onTriggerToast(result.error || 'Webhook 重推失败，请稍后重试', 'error');
+      return;
+    }
+    const ok = result.log?.result === 'success';
+    onTriggerToast(
+      ok
+        ? `发送成功！商户接收路径正常返回 "success"，回调记录已核销更新。`
+        : `已重发，但商户未返回 success（${result.log?.responseSummary || '响应异常'}），请检查回调地址。`,
+      ok ? 'success' : 'warning'
+    );
   };
 
   const handleOpenDetails = (ord: Order) => {
