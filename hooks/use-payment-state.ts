@@ -62,6 +62,18 @@ export function usePaymentState() {
     }
   };
 
+  const readApiError = async (res: Response) => {
+    const text = await res.text().catch(() => "");
+    if (!text) return `请求失败 (${res.status})`;
+
+    try {
+      const data = JSON.parse(text);
+      return data?.error || data?.message || `请求失败 (${res.status})`;
+    } catch {
+      return text.slice(0, 160) || `请求失败 (${res.status})`;
+    }
+  };
+
   const fetchState = async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
@@ -201,11 +213,11 @@ export function usePaymentState() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identifier, email: identifier, password })
       });
-      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         void fetchState();
+        return { ok: true };
       }
-      return { ok: res.ok, error: data.error };
+      return { ok: false, error: await readApiError(res) };
     },
 
     register: async (email: string, password: string) => {
@@ -214,11 +226,11 @@ export function usePaymentState() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })
       });
-      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         void fetchState();
+        return { ok: true };
       }
-      return { ok: res.ok, error: data.error };
+      return { ok: false, error: await readApiError(res) };
     },
 
     logout: async () => {

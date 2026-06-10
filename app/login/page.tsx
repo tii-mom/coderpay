@@ -14,10 +14,14 @@ function getAuthErrorMessage(error?: string) {
       return '密码错误，请确认后重试';
     case 'Password is required':
       return '请输入密码';
+    case 'Account is required':
+      return '请输入注册邮箱';
     case 'Account already exists':
       return '该邮箱已注册，请直接登录';
     case 'Valid email is required':
       return '请输入有效的邮箱地址';
+    case '请求过于频繁，请稍后再试':
+      return '请求过于频繁，请稍后再试';
     case '请输入完整的注册邮箱':
       return '请使用完整注册邮箱登录，例如 name@example.com';
     case 'Internal server error':
