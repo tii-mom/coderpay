@@ -58,10 +58,14 @@ class NotificationService : NotificationListenerService() {
         
         // Parse payment confirmation keywords
         if (isWeChatConfirm(title, text, isWeChat) || isAlipayConfirm(title, text, isAlipay)) {
-                val amount = extractAmount("$title $text")
+            val amount = extractAmount("$title $text")
             if (amount != null && amount > 0) {
                 processPaymentArrival(payType, amount, text, sbn.postTime)
+            } else {
+                LogTracker.log("通知识别：${payType} 通知关键词已匹配，但金额解析失败。标题: ${title.take(24)} 内容: ${text.take(48)}")
             }
+        } else {
+            LogTracker.log("通知忽略：收到 ${payType} 通知，但未匹配到账关键词。标题: ${title.take(24)} 内容: ${text.take(48)}")
         }
     }
 

@@ -115,7 +115,15 @@ class ForegroundKeepAliveService : Service() {
                     if (it.isNotEmpty()) settings.alipayRegex = it
                 }
                 val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-                updateNotification("监控正常运行中 | 上次心跳: $time")
+                val risk = mutableListOf<String>()
+                if (!isNotificationGranted) risk.add("通知未授权")
+                if (!isIgnoringBattery) risk.add("电池未豁免")
+                val content = if (risk.isEmpty()) {
+                    "监听运行中｜通知已授权｜电池已豁免｜$time"
+                } else {
+                    "监听风险：${risk.joinToString(" / ")}｜$time"
+                }
+                updateNotification(content)
                 LogTracker.log("探针心跳上报成功。状态: 在线，电池忽略: $isIgnoringBattery, 通知授权: $isNotificationGranted")
             } else {
                 LogTracker.log("心跳错误：云端通信返回码 - ${response.code()}")

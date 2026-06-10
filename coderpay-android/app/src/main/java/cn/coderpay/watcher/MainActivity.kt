@@ -3,6 +3,7 @@ package cn.coderpay.watcher
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ActivityNotFoundException
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
@@ -10,6 +11,7 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.Base64
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,6 +21,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,7 +60,9 @@ private val CpBlueDark = Color(0xFF2563EB)
 private val CpGreen = Color(0xFF10B981)
 private val CpGreenDark = Color(0xFF064E3B)
 private val CpAmber = Color(0xFFF59E0B)
+private val CpAmberDark = Color(0xFF92400E)
 private val CpRed = Color(0xFFEF4444)
+private val CpRedDark = Color(0xFF7F1D1D)
 private val CpText = Color(0xFFF8FAFC)
 private val CpMuted = Color(0xFF94A3B8)
 private val CpSubtle = Color(0xFF64748B)
@@ -71,8 +76,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         settings = SettingsManager(applicationContext)
 
-        // If already bound, auto-start foreground service to ensure it runs
-        if (settings.isBound) {
+        // If already bound, auto-start foreground service to ensure it runs.
+        // A bound flag without deviceSecret means local app data is inconsistent
+        // with the server; let the UI recover by asking for a fresh bind code.
+        if (settings.isBound && settings.deviceSecret.isNotBlank()) {
             ForegroundKeepAliveService.startService(this)
         }
 
@@ -99,10 +106,17 @@ class MainActivity : ComponentActivity() {
     fun WatcherDashboard() {
         var serverUrl by remember { mutableStateOf(settings.serverUrl) }
         var deviceCode by remember { mutableStateOf(settings.deviceCode) }
-        var isBound by remember { mutableStateOf(settings.isBound) }
+        val missingLocalSecret = settings.isBound && settings.deviceSecret.isBlank()
+        var isBound by remember { mutableStateOf(settings.isBound && !missingLocalSecret) }
         var activeConsoleTab by remember { mutableStateOf<String?>(null) }
         var isPairing by remember { mutableStateOf(false) }
-        var pairingMessage by remember { mutableStateOf<String?>(null) }
+        var pairingMessage by remember {
+            mutableStateOf<String?>(
+                if (missingLocalSecret) "本机设备密钥丢失。请在网页控制台设备详情中点击“重置设备密钥”，复制新的 dev_ 绑定码后重新连接。"
+                else null
+            )
+        }
+        var sandboxMessage by remember { mutableStateOf<String?>(null) }
         
         var isNotificationPermissionGranted by remember { mutableStateOf(isNotificationServiceEnabled()) }
         var isBatteryOptimizedIgnored by remember { mutableStateOf(isBatteryOptimizationIgnored()) }
@@ -110,6 +124,13 @@ class MainActivity : ComponentActivity() {
         val scope = rememberCoroutineScope()
         val listState = rememberLazyListState()
         val pageScrollState = rememberScrollState()
+
+        LaunchedEffect(missingLocalSecret) {
+            if (missingLocalSecret) {
+                settings.isBound = false
+                LogTracker.log("检测到本机密钥丢失，已进入重新绑定模式。")
+            }
+        }
 
         if (activeConsoleTab != null) {
             NativeConsoleScreen(
@@ -328,6 +349,11 @@ class MainActivity : ComponentActivity() {
                         disabledText = "需设置",
                         onClick = { requestIgnoreBatteryOptimization() }
                     )
+                    PermissionStatusCard(
+                        isBound = isBound,
+                        notificationEnabled = isNotificationPermissionGranted,
+                        batteryIgnored = isBatteryOptimizedIgnored
+                    )
                 }
             }
 
@@ -383,6 +409,24 @@ class MainActivity : ComponentActivity() {
             }
 
             SectionTitle("联调工具", "Sandbox")
+            Text(
+                text = "以下按钮只模拟本机到账事件，用于验证本地队列、签名和云端匹配；不会触发微信或支付宝真实通知。真实收款必须开启通知读取权限，并由微信/支付宝弹出到账通知。",
+                fontSize = 11.sp,
+                color = CpMuted,
+                lineHeight = 16.sp
+            )
+            sandboxMessage?.let { message ->
+                Text(
+                    text = message,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CpPanelSoft, RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                    color = if (message.contains("成功")) Color(0xFFA7F3D0) else CpAmber,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -403,9 +447,16 @@ class MainActivity : ComponentActivity() {
                                 isUploaded = false
                             )
                             db.localEventDao().insertEvent(event)
-                            LogTracker.log("联调模拟：成功伪造一笔微信付款 ¥0.01，存入本地，激发推送队列。")
-                            EventSyncer.syncPending(this@MainActivity)
+                            LogTracker.log("联调模拟：已写入一笔微信模拟到账 ¥0.01，开始尝试上传云端。")
+                            val ok = EventSyncer.syncPending(this@MainActivity)
                             WorkerHelper.triggerSync(this@MainActivity)
+                            withContext(Dispatchers.Main) {
+                                sandboxMessage = if (ok) {
+                                    "模拟微信到账成功：已写入本地队列，并已尝试上传云端。请在调试控制台查看匹配结果。"
+                                } else {
+                                    "模拟微信到账已写入本地队列，但上传云端失败；后台会继续重试，请查看调试控制台错误。"
+                                }
+                            }
                         }
                     },
                     modifier = Modifier.weight(1f),
@@ -416,7 +467,7 @@ class MainActivity : ComponentActivity() {
                     shape = RoundedCornerShape(18.dp),
                     contentPadding = PaddingValues(vertical = 14.dp)
                 ) {
-                    Text("测试微信 ¥0.01", fontSize = 12.sp)
+                    Text("模拟微信到账", fontSize = 12.sp)
                 }
 
                 Button(
@@ -435,9 +486,16 @@ class MainActivity : ComponentActivity() {
                                 isUploaded = false
                             )
                             db.localEventDao().insertEvent(event)
-                            LogTracker.log("联调模拟：成功伪造一笔支付宝付款 ¥0.02，存入本地，激发推送队列。")
-                            EventSyncer.syncPending(this@MainActivity)
+                            LogTracker.log("联调模拟：已写入一笔支付宝模拟到账 ¥0.02，开始尝试上传云端。")
+                            val ok = EventSyncer.syncPending(this@MainActivity)
                             WorkerHelper.triggerSync(this@MainActivity)
+                            withContext(Dispatchers.Main) {
+                                sandboxMessage = if (ok) {
+                                    "模拟支付宝到账成功：已写入本地队列，并已尝试上传云端。请在调试控制台查看匹配结果。"
+                                } else {
+                                    "模拟支付宝到账已写入本地队列，但上传云端失败；后台会继续重试，请查看调试控制台错误。"
+                                }
+                            }
                         }
                     },
                     modifier = Modifier.weight(1f),
@@ -448,7 +506,7 @@ class MainActivity : ComponentActivity() {
                     shape = RoundedCornerShape(18.dp),
                     contentPadding = PaddingValues(vertical = 14.dp)
                 ) {
-                    Text("测试支付宝 ¥0.02", fontSize = 12.sp)
+                    Text("模拟支付宝到账", fontSize = 12.sp)
                 }
             }
 
@@ -658,7 +716,8 @@ class MainActivity : ComponentActivity() {
             Button(
                 onClick = onClick,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (enabled) CpGreen else CpAmber
+                    containerColor = if (enabled) CpGreen else CpAmberDark,
+                    contentColor = Color.White
                 ),
                 shape = RoundedCornerShape(10.dp),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
@@ -671,6 +730,34 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    @Composable
+    private fun PermissionStatusCard(
+        isBound: Boolean,
+        notificationEnabled: Boolean,
+        batteryIgnored: Boolean
+    ) {
+        val healthy = isBound && notificationEnabled && batteryIgnored
+        val message = when {
+            !isBound -> "先完成设备绑定。绑定成功后，App 才会上传心跳和到账事件。"
+            !notificationEnabled && !batteryIgnored -> "还需要开启通知读取权限，并把 CoderPay 加入电池优化白名单，否则真实到账通知可能无法识别或后台被系统清理。"
+            !notificationEnabled -> "还需要开启通知读取权限。未授权时，微信/支付宝真实到账通知不会被 App 读取。"
+            !batteryIgnored -> "还需要忽略电池省电限制。未豁免时，息屏或后台运行一段时间后可能停止心跳。"
+            else -> "监听链路已具备上线运行条件。请保持前台守护通知常驻。"
+        }
+        val bg = if (healthy) Color(0xFF052E2B) else Color(0xFF2A1F0A)
+        val textColor = if (healthy) Color(0xFFA7F3D0) else Color(0xFFFDE68A)
+        Text(
+            text = message,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(bg, RoundedCornerShape(14.dp))
+                .padding(12.dp),
+            color = textColor,
+            fontSize = 11.sp,
+            lineHeight = 16.sp
+        )
     }
 
     @Composable
@@ -944,17 +1031,23 @@ class MainActivity : ComponentActivity() {
                                                     Button(
                                                         onClick = { rechargePayType = key },
                                                         modifier = Modifier.weight(1f),
-                                                        colors = ButtonDefaults.buttonColors(containerColor = if (rechargePayType == key) CpBlueDark else CpPanelSoft),
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = if (rechargePayType == key) CpBlueDark else CpPanelSoft,
+                                                            contentColor = Color.White
+                                                        ),
                                                         shape = RoundedCornerShape(12.dp)
                                                     ) { Text(label, fontSize = 11.sp) }
                                                 }
                                             }
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                listOf("50", "100", "300").forEach { amount ->
+                                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                items(listOf("10", "50", "100", "500", "5000", "10000")) { amount ->
                                                     Button(
                                                         onClick = { rechargeAmount = amount },
-                                                        modifier = Modifier.weight(1f),
-                                                        colors = ButtonDefaults.buttonColors(containerColor = CpPanelSoft),
+                                                        modifier = Modifier.widthIn(min = 76.dp),
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = if (rechargeAmount == amount) CpBlueDark else CpPanelSoft,
+                                                            contentColor = Color.White
+                                                        ),
                                                         shape = RoundedCornerShape(12.dp)
                                                     ) { Text("¥$amount", fontSize = 11.sp) }
                                                 }
@@ -985,7 +1078,7 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 },
                                                 modifier = Modifier.fillMaxWidth(),
-                                                colors = ButtonDefaults.buttonColors(containerColor = CpGreen),
+                                                colors = ButtonDefaults.buttonColors(containerColor = CpGreen, contentColor = Color.White),
                                                 shape = RoundedCornerShape(14.dp)
                                             ) { Text("创建充值单") }
                                         }
@@ -1009,9 +1102,9 @@ class MainActivity : ComponentActivity() {
                                     PanelCard {
                                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                             SectionTitle("订阅套餐", "Plans")
-                                            Text("Pro 适合稳定运营，Max 适合高并发和更低费率。余额不足时请先充值。", fontSize = 11.sp, color = CpMuted)
+                                            Text("专业版适合稳定运营，高级版适合高流水和更低费率。充值满 ¥500 送 1 个月专业版，满 ¥2000 送 1 个月高级版，满 ¥5000 送 3 个月高级版。售后 Telegram：@coderpay3。", fontSize = 11.sp, color = CpMuted, lineHeight = 16.sp)
                                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                listOf("pro" to "开通 Pro", "max" to "开通 Max").forEach { (planId, label) ->
+                                                listOf("pro" to "开通专业版", "max" to "开通高级版").forEach { (planId, label) ->
                                                     Button(
                                                         onClick = {
                                                             scope.launch(Dispatchers.IO) {
@@ -1023,7 +1116,7 @@ class MainActivity : ComponentActivity() {
                                                             }
                                                         },
                                                         modifier = Modifier.weight(1f),
-                                                        colors = ButtonDefaults.buttonColors(containerColor = CpBlueDark),
+                                                        colors = ButtonDefaults.buttonColors(containerColor = CpBlueDark, contentColor = Color.White),
                                                         shape = RoundedCornerShape(12.dp)
                                                     ) { Text(label, fontSize = 11.sp) }
                                                 }
@@ -1060,7 +1153,10 @@ class MainActivity : ComponentActivity() {
                                                     Button(
                                                         onClick = { codePayType = key },
                                                         modifier = Modifier.weight(1f),
-                                                        colors = ButtonDefaults.buttonColors(containerColor = if (codePayType == key) CpBlueDark else CpPanelSoft),
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = if (codePayType == key) CpBlueDark else CpPanelSoft,
+                                                            contentColor = Color.White
+                                                        ),
                                                         shape = RoundedCornerShape(12.dp)
                                                     ) { Text(label, fontSize = 11.sp) }
                                                 }
@@ -1070,7 +1166,10 @@ class MainActivity : ComponentActivity() {
                                                     Button(
                                                         onClick = { codeMode = key },
                                                         modifier = Modifier.weight(1f),
-                                                        colors = ButtonDefaults.buttonColors(containerColor = if (codeMode == key) CpBlueDark else CpPanelSoft),
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = if (codeMode == key) CpBlueDark else CpPanelSoft,
+                                                            contentColor = Color.White
+                                                        ),
                                                         shape = RoundedCornerShape(12.dp)
                                                     ) { Text(label, fontSize = 11.sp) }
                                                 }
@@ -1102,7 +1201,7 @@ class MainActivity : ComponentActivity() {
                                                 Button(
                                                     onClick = { imagePicker.launch("image/*") },
                                                     modifier = Modifier.weight(1f),
-                                                    colors = ButtonDefaults.buttonColors(containerColor = CpPanelSoft),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = CpPanelSoft, contentColor = CpText),
                                                     shape = RoundedCornerShape(12.dp)
                                                 ) { Text("选择图片") }
                                                 Button(
@@ -1138,7 +1237,7 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     },
                                                     modifier = Modifier.weight(1f),
-                                                    colors = ButtonDefaults.buttonColors(containerColor = CpGreen),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = CpGreen, contentColor = Color.White),
                                                     shape = RoundedCornerShape(12.dp)
                                                 ) { Text("创建通道") }
                                             }
@@ -1192,7 +1291,7 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 },
                                                 modifier = Modifier.fillMaxWidth(),
-                                                colors = ButtonDefaults.buttonColors(containerColor = CpAmber),
+                                                colors = ButtonDefaults.buttonColors(containerColor = CpAmberDark, contentColor = Color.White),
                                                 shape = RoundedCornerShape(12.dp)
                                             ) { Text("重置当前设备密钥") }
                                         }
@@ -1258,14 +1357,15 @@ class MainActivity : ComponentActivity() {
             "exceptions" to "异常",
             "docs" to "文档"
         )
-        Row(
+        LazyRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 2.dp)
         ) {
-            tabs.forEach { (key, label) ->
+            items(tabs) { (key, label) ->
                 Button(
                     onClick = { onSelect(key) },
-                    modifier = Modifier.weight(1f).height(38.dp),
+                    modifier = Modifier.height(38.dp).widthIn(min = 72.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (activeTab == key) CpBlueDark else CpPanelSoft,
                         contentColor = Color.White
@@ -1306,7 +1406,7 @@ class MainActivity : ComponentActivity() {
                 Button(
                     onClick = onRefresh,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = CpBlueDark),
+                    colors = ButtonDefaults.buttonColors(containerColor = CpBlueDark, contentColor = Color.White),
                     shape = RoundedCornerShape(12.dp)
                 ) { Text("刷新充值状态") }
             }
@@ -1365,13 +1465,13 @@ class MainActivity : ComponentActivity() {
                     Button(
                         onClick = onToggle,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = if (code.status == "active") CpAmber else CpGreen),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (code.status == "active") CpAmberDark else CpGreen, contentColor = Color.White),
                         shape = RoundedCornerShape(12.dp)
                     ) { Text(if (code.status == "active") "停用" else "启用", fontSize = 11.sp) }
                     Button(
                         onClick = onDelete,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = CpRed),
+                        colors = ButtonDefaults.buttonColors(containerColor = CpRed, contentColor = Color.White),
                         shape = RoundedCornerShape(12.dp)
                     ) { Text("删除", fontSize = 11.sp) }
                 }
@@ -1544,17 +1644,44 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestIgnoreBatteryOptimization() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            Toast.makeText(this, "当前系统无需单独设置电池优化。", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val intents = listOf(
+            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+            },
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:$packageName")
+            },
+            Intent(Settings.ACTION_SETTINGS)
+        )
+
+        for ((index, intent) in intents.withIndex()) {
             try {
-                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                    data = Uri.parse("package:$packageName")
-                }
                 startActivity(intent)
-            } catch (e: Exception) {
-                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                startActivity(intent)
-                LogTracker.log("跳转失败，请手动前往设置关闭省电优化以保活。")
+                LogTracker.log(
+                    when (index) {
+                        0 -> "已打开电池优化豁免申请，请允许 CoderPay 在后台运行。"
+                        1 -> "已打开系统电池优化列表，请将 CoderPay 设置为不优化。"
+                        2 -> "已打开应用详情页，请进入电池/耗电管理并允许后台运行。"
+                        else -> "已打开系统设置，请手动搜索电池优化并放行 CoderPay。"
+                    }
+                )
+                return
+            } catch (_: ActivityNotFoundException) {
+                // Try the next fallback intent.
+            } catch (_: SecurityException) {
+                // Some OEM systems block direct battery optimization intents.
+            } catch (_: Exception) {
+                // Keep fallback chain robust across OEM Android variants.
             }
         }
+
+        Toast.makeText(this, "无法自动打开电池设置，请手动允许 CoderPay 后台运行。", Toast.LENGTH_LONG).show()
+        LogTracker.log("电池设置跳转失败：请手动允许 CoderPay 后台运行，并关闭省电限制。")
     }
 }
