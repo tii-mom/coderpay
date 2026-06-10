@@ -7,9 +7,9 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: '/favicon.ico' },
-      { url: '/icon.png', type: 'image/png', sizes: '1024x1024' }
+      { url: '/icon.png', type: 'image/png', sizes: '256x256' }
     ],
-    apple: [{ url: '/icon.png', type: 'image/png', sizes: '1024x1024' }]
+    apple: [{ url: '/icon.png', type: 'image/png', sizes: '256x256' }]
   },
 };
 

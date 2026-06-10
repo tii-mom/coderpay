@@ -23,7 +23,7 @@ export const API_SPEC = {
         amount: '19.90',
         real_amount: '19.88',
         pay_type: 'wechat',
-        payment_url: 'https://www.3api.shop/pay/CP482910',
+        payment_url: 'https://www.3api.shop/pay/checkout?id=CP482910',
         expired_at: '2026-06-06T03:30:00.000Z'
       }
     }

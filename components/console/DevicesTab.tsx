@@ -1,28 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Device, PaymentCode } from '@/types';
 import { 
   Plus, 
   Smartphone, 
-  Settings, 
-  RotateCw, 
-  Activity, 
   CheckCircle, 
   XCircle, 
   Trash2, 
   ShieldAlert, 
   Bell, 
   Zap, 
-  Terminal,
   KeyRound,
   ChevronLeft,
-  Search,
   Wifi,
   Sliders,
   Check,
   X,
-  Download
+  Download,
+  Copy
 } from 'lucide-react';
 
 interface DevicesTabProps {
@@ -44,40 +40,33 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
   const [newDevName, setNewDevName] = useState('');
   const [todayLimit, setTodayLimit] = useState(5000);
 
-  // Unified loading overlay state for sandbox latency
   const [isLoadingOperation, setIsLoadingOperation] = useState(false);
-
-  // Sandbox assessment Bento state variables
-  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
-  const [healthData, setHealthData] = useState<{
-    batteryLevel: number;
-    batteryTemp: number;
-    delayMs: number;
-    signalDb: number;
-    cpuUsage: number;
-    ramAvailable: string;
-    lastCheckTime: string | null;
-  }>({
-    batteryLevel: 94,
-    batteryTemp: 32.5,
-    delayMs: 14,
-    signalDb: -68,
-    cpuUsage: 12,
-    ramAvailable: '3.4 GB / 8 GB',
-    lastCheckTime: '16:59:22'
-  });
-
-  // Sandbox device log rows for debugging details
-  const [mockLogs, setMockLogs] = useState<string[]>([
-    'Watcher Core: CoderPay v1.0.3 system service bootstrapped successfully.',
-    'Notification Listener: Registered System OS notification listener binder.',
-    'Listener Loop: Socket client connection established with CP Cloud server latency: 28ms.',
-    'Status Sync: Synchronizing active QR specifications metadata (4 bound).',
-    'Heartbeat: Telemetry report status online. Battery status: 94%, charging: false.',
-    'WeChat Agent: Active. Alipay Agent: Active. Listening notifications...'
-  ]);
+  const [onlineReferenceTime, setOnlineReferenceTime] = useState(0);
 
   const selectedDev = devices.find(d => d.id === selectedDevId);
+
+  useEffect(() => {
+    const updateNow = () => setOnlineReferenceTime(Date.now());
+    const firstTick = window.setTimeout(updateNow, 0);
+    const interval = window.setInterval(updateNow, 30_000);
+    return () => {
+      window.clearTimeout(firstTick);
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const formatHeartbeat = (value?: string | null) => {
+    if (!value) return '暂无心跳';
+    const time = new Date(value);
+    if (Number.isNaN(time.getTime())) return value;
+    return time.toLocaleString('zh-CN', { hour12: false });
+  };
+
+  const isRecentlyOnline = (dev: Device) => {
+    if (!dev.online || dev.status !== 'active' || !dev.lastHeartbeat || onlineReferenceTime <= 0) return false;
+    const time = new Date(dev.lastHeartbeat).getTime();
+    return Number.isFinite(time) && onlineReferenceTime - time <= 3 * 60 * 1000;
+  };
 
   const handleBindDevice = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,77 +83,11 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
       return;
     }
     const devName = result.device?.name || newDevName;
-    onTriggerToast(`成功绑定 CoderPay 探针终端 [${devName}] ！设备令牌及专属 API Key 已生成并输出到终端，请扫码绑定您的旧手机。`, 'success');
+    const deviceCode = result.device?.deviceCode;
+    onTriggerToast(`设备 [${devName}] 的绑定码已生成${deviceCode ? `：${deviceCode}` : ''}。请在 Android App 中输入该绑定码完成绑定。`, 'success');
     setNewDevName('');
     setTodayLimit(5000);
     setIsBinding(false);
-  };
-
-  const handleRunHealthCheck = () => {
-    setIsCheckingHealth(true);
-    onTriggerToast('正在执行沙箱设备体检，不会读取手机真实硬件传感器。', 'warning');
-    
-    setTimeout(() => {
-      const mockResult = {
-        batteryLevel: Math.floor(65 + Math.random() * 30),
-        batteryTemp: Number((29 + Math.random() * 9).toFixed(1)),
-        delayMs: Math.floor(8 + Math.random() * 25),
-        signalDb: Math.floor(-82 + Math.random() * 24),
-        cpuUsage: Math.floor(5 + Math.random() * 30),
-        ramAvailable: `${(2.2 + Math.random() * 2.5).toFixed(1)} GB / 8 GB`,
-        lastCheckTime: new Date().toLocaleTimeString()
-      };
-      setHealthData(mockResult);
-      setIsCheckingHealth(false);
-      onTriggerToast('沙箱体检完成，诊断面板已刷新。真实设备状态以最近心跳和 Android App 权限页为准。', 'success');
-      
-      setMockLogs(prev => [
-        `[Health Check] Battery: ${mockResult.batteryLevel}%, Temp: ${mockResult.batteryTemp}°C, Read Latency: ${mockResult.delayMs}ms.`,
-        `[Health Check] Network Signal Strength: ${mockResult.signalDb} dBm. Resource Usage: CPU ${mockResult.cpuUsage}%, RAM ${mockResult.ramAvailable}.`,
-        ...prev
-      ]);
-    }, 1200);
-  };
-
-  const handleTestPingListener = (dev: Device) => {
-    setIsLoadingOperation(true);
-    onTriggerToast(`正在为 [${dev.name}] 创建沙箱到账事件，用于验证订单匹配和异常流。`, 'warning');
-    setTimeout(() => {
-      // Create random simulated arrival to check matcher
-      const channels: ('wechat' | 'alipay')[] = ['wechat', 'alipay'];
-      const selectChan = channels[Math.floor(Math.random() * channels.length)];
-      const randomAmounts = [9.90, 29.90, 15.00, 10.00];
-      const selectAmt = randomAmounts[Math.floor(Math.random() * randomAmounts.length)];
-      
-      db.uploadPaymentEvent(dev.id, selectChan, selectAmt);
-      setIsLoadingOperation(false);
-      onTriggerToast(`沙箱到账事件已上报：¥${selectAmt.toFixed(2)} [${selectChan === 'wechat' ? '微信' : '支付宝'}]。该结果用于调试，不代表真实收款。`, 'success');
-      
-      // Add custom log line inside details
-      setMockLogs(prev => [
-        `System Event: Successfully broadcast payment arrive event ¥${selectAmt.toFixed(2)} on client OS.`,
-        ...prev
-      ]);
-    }, 1000);
-  };
-
-  const handleDiagnostics = async (dev: Device) => {
-    setIsLoadingOperation(true);
-    onTriggerToast(`正在刷新设备 [${dev.name}] 的云端状态标记。真实权限请以 Android App 内体检为准。`, 'warning');
-    const result = await db.updateDevice(dev.id, {
-      online: true,
-      lastHeartbeat: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      wechatListener: 'running',
-      alipayListener: 'running',
-      notificationPermission: true,
-      batteryOptimization: 'ignored'
-    });
-    setIsLoadingOperation(false);
-    if (!result.ok) {
-      onTriggerToast(result.error || '设备状态刷新失败', 'error');
-      return;
-    }
-    onTriggerToast(`设备状态已刷新为在线。请在 Android App 内确认通知读取和电池保活已开启。`, 'success');
   };
 
   const handleToggleActive = async (dev: Device) => {
@@ -175,7 +98,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
       onTriggerToast(result.error || '设备状态切换失败', 'error');
       return;
     }
-    onTriggerToast(`已${dev.status === 'active' ? '停用' : '激活'}设备 Watcher 的收款匹配任务。`, 'warning');
+    onTriggerToast(`已${dev.status === 'active' ? '停用' : '激活'}设备的自动收款匹配。`, 'warning');
   };
 
   const handleDeleteDevice = async (dev: Device) => {
@@ -195,7 +118,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
   };
 
   const handleResetDeviceSecret = async (dev: Device) => {
-    if (!confirm(`确定重置设备 [${dev.name}] 的连接密钥吗？重置后，请在 Android App 中重新点击“保存并连接探针”。`)) {
+    if (!confirm(`确定重置设备 [${dev.name}] 的连接密钥吗？重置后，请在 Android App 中重新点击“保存并连接”。`)) {
       return;
     }
 
@@ -219,6 +142,15 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
     setActiveView('details');
   };
 
+  const handleCopyDeviceCode = async (deviceCode: string) => {
+    try {
+      await navigator.clipboard.writeText(deviceCode);
+      onTriggerToast('设备绑定码已复制。', 'success');
+    } catch {
+      onTriggerToast('复制失败，请手动选中设备绑定码复制。', 'error');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 text-left animate-fade-in" id="devices-tab-panel">
       
@@ -233,20 +165,12 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
               <ChevronLeft className="w-4 h-4" /> 返回设备列表
             </button>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handleDiagnostics(selectedDev)}
-                className="px-3 py-1.5 rounded-lg bg-indigo-950/40 hover:bg-indigo-900/45 border border-indigo-500/20 text-indigo-400 text-xs font-semibold transition-all flex items-center gap-1"
-              >
-                <Activity className="w-3.5 h-3.5" /> 刷新云端状态
-              </button>
-              <button
-                onClick={() => handleTestPingListener(selectedDev)}
-                className="px-3 py-1.5 rounded-lg bg-blue-950/40 hover:bg-blue-900/45 border border-blue-500/20 text-blue-400 text-xs font-semibold transition-all flex items-center gap-1"
-              >
-                <RotateCw className="w-3.5 h-3.5" /> 沙箱到账
-              </button>
-            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-3 py-1.5 rounded-lg bg-[#0B1020] hover:bg-[#151B2E] border border-[rgba(255,255,255,0.08)] text-slate-300 text-xs font-semibold transition-all"
+            >
+              刷新页面
+            </button>
           </div>
 
           {/* Primary detailed panel dashboard */}
@@ -263,7 +187,17 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                     </div>
                     <div>
                       <h3 className="text-base font-bold text-white leading-none">{selectedDev.name}</h3>
-                      <span className="text-[10px] text-slate-500 mt-1 block font-mono">硬件识别序列码 (DEVICE ID): {selectedDev.id}</span>
+                      <span className="text-[10px] text-slate-500 mt-1 flex items-center gap-1.5 font-mono">
+                        设备绑定码: {selectedDev.deviceCode}
+                        <button
+                          type="button"
+                          onClick={() => handleCopyDeviceCode(selectedDev.deviceCode)}
+                          className="text-slate-400 hover:text-blue-300"
+                          title="复制设备绑定码"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </span>
                     </div>
                   </div>
 
@@ -272,56 +206,55 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                       ? 'bg-emerald-950/50 border-emerald-500/30 text-emerald-400'
                       : 'bg-slate-800 border-slate-700 text-slate-500'
                   }`}>
-                    {selectedDev.online && selectedDev.status === 'active' ? '● 物理网络连通在线' : '○ 通道挂起离线中'}
+                    {isRecentlyOnline(selectedDev) ? '● 在线' : '○ 离线或心跳超时'}
                   </span>
                 </div>
 
                 {/* Sub status parameters table specs */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-[#0B1020]/50 border border-[rgba(255,255,255,0.04)] rounded-xl p-4.5 text-xs text-left">
                   <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-slate-500 font-sans">安卓 OS系统内核</span>
-                    <span className="text-slate-200 font-bold font-mono">Android {selectedDev.androidVersion}</span>
+                    <span className="text-[10px] text-slate-500 font-sans">安卓系统</span>
+                    <span className="text-slate-200 font-bold font-mono">{selectedDev.androidVersion ? `Android ${selectedDev.androidVersion}` : '未上报'}</span>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-slate-500 font-sans">Watcher App 客户端</span>
-                    <span className="text-slate-200 font-bold font-mono">{selectedDev.appVersion}</span>
+                    <span className="text-[10px] text-slate-500 font-sans">App 版本</span>
+                    <span className="text-slate-200 font-bold font-mono">{selectedDev.appVersion || '未上报'}</span>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-slate-500 font-sans">网络心跳延迟</span>
-                    <span className="text-emerald-400 font-bold font-mono">14ms (高速连通)</span>
+                    <span className="text-[10px] text-slate-500 font-sans">最近心跳</span>
+                    <span className="text-emerald-400 font-bold font-mono">{formatHeartbeat(selectedDev.lastHeartbeat)}</span>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-slate-500 font-sans">今日到账流水上报</span>
-                    <span className="text-indigo-400 font-bold font-mono">{selectedDev.todayEvents} 笔收到, {selectedDev.todayMatchedOrders} 匹配</span>
+                    <span className="text-[10px] text-slate-500 font-sans">今日到账上报</span>
+                    <span className="text-indigo-400 font-bold font-mono">{selectedDev.todayEvents} 笔，{selectedDev.todayMatchedOrders} 笔匹配</span>
                   </div>
                 </div>
 
-                {/* Android physical OS run permissions diagnostic status cards dashboard */}
                 <div className="flex flex-col gap-3 text-xs">
-                  <span className="text-xs font-bold text-slate-400 border-b border-[rgba(255,255,255,0.04)] pb-2 block">Android 底层底层权限与守护引擎校验</span>
+                  <span className="text-xs font-bold text-slate-400 border-b border-[rgba(255,255,255,0.04)] pb-2 block">手机端权限与监听状态</span>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     
                     <div className="flex items-center justify-between p-3.5 bg-[#0B1020]/25 rounded-xl border border-cp">
                       <div className="flex items-center gap-2">
                         <Bell className="w-4 h-4 text-slate-400" />
-                        <span className="text-slate-300 font-medium">通知读取特权 (Notification Access)</span>
+                        <span className="text-slate-300 font-medium">通知读取权限</span>
                       </div>
-                      <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> 已激活
+                      <span className={`text-xs font-bold flex items-center gap-1 ${selectedDev.notificationPermission ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {selectedDev.notificationPermission ? <><Check className="w-3.5 h-3.5" /> 已开启</> : '未开启'}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between p-3.5 bg-[#0B1020]/25 rounded-xl border border-cp">
                       <div className="flex items-center gap-2">
                         <Zap className="w-4 h-4 text-slate-400" />
-                        <span className="text-slate-300 font-medium">电池管理深度白名单保护</span>
+                        <span className="text-slate-300 font-medium">电池优化豁免</span>
                       </div>
                       <span className={`text-xs font-bold flex items-center gap-1 ${selectedDev.batteryOptimization === 'ignored' ? 'text-emerald-400' : 'text-amber-400'}`}>
                         {selectedDev.batteryOptimization === 'ignored' ? (
-                          <><Check className="w-3.5 h-3.5" /> 已锁定豁免忽略</>
+                          <><Check className="w-3.5 h-3.5" /> 已忽略</>
                         ) : (
-                          <>尚未白名单运行</>
+                          <>建议设为无限制</>
                         )}
                       </span>
                     </div>
@@ -329,132 +262,21 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                     <div className="flex items-center justify-between p-3.5 bg-[#0B1020]/25 rounded-xl border border-cp">
                       <div className="flex items-center gap-2">
                         <Smartphone className="w-4 h-4 text-slate-400" />
-                        <span className="text-slate-300 font-medium">微信前台通知上报通道</span>
+                        <span className="text-slate-300 font-medium">微信到账监听</span>
                       </div>
-                      <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> 监测线程正常 
+                      <span className={`text-xs font-bold flex items-center gap-1 ${selectedDev.wechatListener === 'running' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {selectedDev.wechatListener === 'running' ? <><Check className="w-3.5 h-3.5" /> 运行中</> : '未运行'}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between p-3.5 bg-[#0B1020]/25 rounded-xl border border-cp">
                       <div className="flex items-center gap-2">
                         <Wifi className="w-4 h-4 text-slate-400" />
-                        <span className="text-slate-300 font-medium">支付宝到账语音上报通道</span>
+                        <span className="text-slate-300 font-medium">支付宝到账监听</span>
                       </div>
-                      <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> 监测线程正常
+                      <span className={`text-xs font-bold flex items-center gap-1 ${selectedDev.alipayListener === 'running' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {selectedDev.alipayListener === 'running' ? <><Check className="w-3.5 h-3.5" /> 运行中</> : '未运行'}
                       </span>
-                    </div>
-
-                  </div>
-                </div>
-
-                {/* Simulated Physical Device Health check Bento Grid */}
-                <div className="flex flex-col gap-3 text-xs border-t border-[rgba(255,255,255,0.04)] pt-4" id="bento-grid-health-check">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
-                      <Activity className="w-4 h-4 text-emerald-400" />
-                      沙箱设备诊断面板
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleRunHealthCheck}
-                      disabled={isCheckingHealth}
-                      className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 transition-all hover:scale-105"
-                    >
-                      {isCheckingHealth ? (
-                        <>
-                          <RotateCw className="w-3 h-3 animate-spin" /> 执行诊断中...
-                        </>
-                      ) : (
-                        <>刷新沙箱诊断</>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Bento Grid Layout */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" id="physical-bento-grid">
-                    
-                    {/* Bento Box 1: Battery & Temperature */}
-                    <div className="bg-[#0B1020]/30 border border-cp hover:border-blue-500/30 transition-all p-4 rounded-2xl flex flex-col justify-between gap-3 group relative overflow-hidden" id="bento-battery">
-                      <div className="absolute top-[-10px] right-[-10px] w-20 h-20 bg-blue-500/5 rounded-full blur-lg" />
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-400">电池与温控</span>
-                        <Zap className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
-                      </div>
-                      <div>
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-2xl font-extrabold text-white font-mono">{healthData.batteryLevel}%</span>
-                          <span className="text-[10px] text-slate-500">剩余电量</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-2">
-                          <div className="flex-1 h-1.5 bg-[#030712] rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-1000 ${
-                                healthData.batteryLevel > 30 ? 'bg-emerald-500' : 'bg-rose-500'
-                              }`}
-                              style={{ width: `${healthData.batteryLevel}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] text-slate-400 font-mono font-bold leading-none">{healthData.batteryTemp}°C</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Bento Box 2: Latency Assessment */}
-                    <div className="bg-[#0B1020]/30 border border-cp hover:border-emerald-500/30 transition-all p-4 rounded-2xl flex flex-col justify-between gap-3 group relative overflow-hidden" id="bento-latency">
-                      <div className="absolute top-[-10px] right-[-10px] w-20 h-20 bg-emerald-500/5 rounded-full blur-lg" />
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-400">通知栏延迟</span>
-                        <Terminal className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
-                      </div>
-                      <div>
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-2xl font-extrabold text-emerald-400 font-mono">{healthData.delayMs} ms</span>
-                          <span className="text-[10px] text-emerald-500 font-bold">极速感应</span>
-                        </div>
-                        <p className="text-[10px] text-slate-500 mt-2 leading-tight">底层 OS 捕获框架在毫秒内回传 notify 广播包通道</p>
-                      </div>
-                    </div>
-
-                    {/* Bento Box 3: Network Signal & Signal Strength */}
-                    <div className="bg-[#0B1020]/30 border border-cp hover:border-indigo-500/30 transition-all p-4 rounded-2xl flex flex-col justify-between gap-3 group relative overflow-hidden" id="bento-signal">
-                      <div className="absolute top-[-10px] right-[-10px] w-20 h-20 bg-indigo-500/5 rounded-full blur-lg" />
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-400">基站信号强度</span>
-                        <Wifi className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
-                      </div>
-                      <div>
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-2xl font-extrabold text-indigo-300 font-mono">{healthData.signalDb} dBm</span>
-                          <span className={`text-[10px] font-bold ${healthData.signalDb > -75 ? 'text-indigo-400' : 'text-amber-400'}`}>
-                            {healthData.signalDb > -75 ? '优 (Good)' : '普通'}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-slate-500 mt-2 leading-tight">物理摆放及 WiFi / 行动网络丢包率: 0.0%</p>
-                      </div>
-                    </div>
-
-                    {/* Bento Box 4: Load Status */}
-                    <div className="bg-[#0B1020]/30 col-span-1 sm:col-span-3 border border-cp hover:border-purple-500/30 transition-all p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3.5 group" id="bento-resources">
-                      <div className="flex-1 text-left">
-                        <span className="text-xs font-semibold text-slate-400 block">系统内核总负载与驻留资源</span>
-                        <div className="flex items-baseline gap-4 mt-1.5 flex-wrap">
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-base font-extrabold text-white font-mono">CPU: {healthData.cpuUsage}%</span>
-                          </div>
-                          <div className="flex items-baseline gap-1 border-l border-[rgba(255,255,255,0.1)] pl-4">
-                            <span className="text-xs text-slate-500 font-normal">RAM 驻留:</span>
-                            <span className="text-sm font-bold text-indigo-300 font-mono">{healthData.ramAvailable}</span>
-                          </div>
-                          {healthData.lastCheckTime && (
-                            <span className="text-[9px] text-slate-600 font-mono">上次沙箱诊断: {healthData.lastCheckTime}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="w-full sm:w-auto bg-[#070A12] border border-cp rounded-xl px-3.5 py-2 font-mono text-[10px] text-slate-400 text-left">
-                        安全监控层：CoderPay Daemon 物理探头连接绿灯
-                      </div>
                     </div>
 
                   </div>
@@ -478,7 +300,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                       </div>
                     ))}
                     {paymentCodes.filter(c => c.deviceId === selectedDev.id).length === 0 && (
-                      <span className="text-xs text-slate-600 block py-2 text-left">该 Watcher 硬件上尚未挂置任何收款二维码。请到[收款码管理]绑定挂设。</span>
+                      <span className="text-xs text-slate-600 block py-2 text-left">该设备尚未绑定任何收款码。请到「收款码」页面绑定微信或支付宝收款码。</span>
                     )}
                   </div>
                 </div>
@@ -487,29 +309,39 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
 
             </div>
 
-            {/* Right Box: Live Shell Terminal Logs */}
-            <div className="lg:col-span-4 bg-cp-card border border-cp rounded-2xl p-5 flex flex-col gap-4 text-xs font-mono h-[36rem] overflow-hidden text-left relative">
+            <div className="lg:col-span-4 bg-cp-card border border-cp rounded-2xl p-5 flex flex-col gap-4 text-xs text-left relative">
               
               <div className="flex items-center gap-2 border-b border-[rgba(255,255,255,0.06)] pb-3 font-sans justify-between shrink-0">
                 <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <Terminal className="w-4 h-4 text-blue-400" />
-                  Watcher 瞬时网络捕获日志
+                  <ShieldAlert className="w-4 h-4 text-blue-400" />
+                  当前状态说明
                 </span>
-                <span className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold rounded px-1.5 py-0.5 uppercase tracking-widest leading-none">STREAMING</span>
               </div>
 
-              <div className="flex-1 overflow-y-auto flex flex-col gap-3 font-mono text-[10px] text-slate-400 leading-relaxed pr-1">
-                {mockLogs.map((log, idx) => (
-                  <div key={idx} className="pb-2 border-b border-[rgba(255,255,255,0.02)]">
-                    <span className="text-slate-500 select-none block">[2026-06-05 {new Date().toLocaleTimeString()}]</span>
-                    <span className="text-blue-300 block mt-0.5">{log}</span>
+              <div className="flex flex-col gap-3">
+                {[
+                  {
+                    title: '绑定状态',
+                    desc: selectedDev.online ? '手机端已经完成绑定，并向云端上报过心跳。' : '尚未收到有效心跳，请在 Android App 输入绑定码后点击保存并连接。'
+                  },
+                  {
+                    title: '在线判断',
+                    desc: '系统按最近 3 分钟心跳判断是否在线。设备离线时，普通订单仍可进入人工确认流程。'
+                  },
+                  {
+                    title: '自动确认条件',
+                    desc: '设备在线、通知读取权限开启、微信/支付宝到账通知正常弹出时，订单会自动匹配到账。'
+                  },
+                  {
+                    title: '没有反应时',
+                    desc: '请安装最新版 Android App，服务地址填写 https://www.3api.shop，绑定码完整复制 dev_ 开头的字符串。'
+                  }
+                ].map(item => (
+                  <div key={item.title} className="p-3.5 rounded-xl bg-[#0B1020]/35 border border-[rgba(255,255,255,0.05)]">
+                    <span className="text-slate-200 font-bold block">{item.title}</span>
+                    <p className="text-slate-500 mt-1 leading-relaxed">{item.desc}</p>
                   </div>
                 ))}
-              </div>
-
-              {/* Clean background console indicator */}
-              <div className="absolute bottom-3 right-5 pointer-events-none text-[8px] uppercase tracking-widest text-slate-700 select-none font-bold">
-                ROOT SHELL SECURITY TERMINAL
               </div>
 
             </div>
@@ -523,9 +355,9 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
               <div className="flex flex-col text-left">
                 <span className="text-sm font-extrabold text-white flex items-center gap-2">
                   <Zap className="w-4.5 h-4.5 text-amber-500 fill-amber-500 animate-pulse" />
-                  CoderPay 挂载保活与权限校准指引
+                  CoderPay 设备保活与权限设置
                 </span>
-                <span className="text-[10px] text-slate-500 block mt-1">请为作为物理监控监控节点的 Android 旧手机严格配置以下权限与保活项，否则系统将在息屏后休眠被杀，导致漏单</span>
+                <span className="text-[10px] text-slate-500 block mt-1">请为备用 Android 手机开启通知读取、自启动和电池无限制，避免息屏后被系统清理。</span>
               </div>
 
               {/* Guide Sub tabs */}
@@ -539,7 +371,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  核心配置 10 步法门
+                  核心配置 10 步
                 </button>
                 <button
                   type="button"
@@ -567,27 +399,27 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                   {
                     step: '02',
                     title: '通信授权与密钥配对',
-                    desc: '启动 Watcher 客户端后，扫描网页中此设备的配对二维码进行一键免手输配对。系统会根据设备的专属 Token API 金钥与 Coder Pay 核心云服务器建立高频 Socket 端对端心跳连接。'
+                    desc: '启动 CoderPay App 后，填写 https://www.3api.shop 和本页生成的 dev_ 绑定码，点击“保存并连接”。'
                   },
                   {
                     step: '03',
                     title: '开启微信到账通知监听',
-                    desc: '在 App 中开启通知读取监听权限。系统会自动跳转到通知访问设置，请在系统服务列表中找到 CoderPay 并允许读取通知。'
+                    desc: '在 App 中开启通知读取权限。系统会跳转到通知访问设置，请找到 CoderPay 并允许读取通知。'
                   },
                   {
                     step: '04',
                     title: '开启支付宝到账通知监听',
-                    desc: '在客户端 App 开启【支付宝收款挂载监听】开关。按照系统引导，进入「通知服务权限」或「通知读取读取通道（NotificationListenerService）」，授予 CP 相应读取限权，允许提取消息体。'
+                    desc: '确保支付宝到账通知能在通知栏正常弹出。CoderPay 通过系统通知读取到账金额。'
                   },
                   {
                     step: '05',
                     title: '保持微信/支付宝原生推送',
-                    desc: '微信/支付宝的设置中，必须开启“新消息通知”、“到奖伴随语音”，且手机通知栏必须允许展现支付到账横幅。如果通知栏静默或被折叠，Watcher 底层将无法通过系统通知捕捉付款。'
+                    desc: '微信/支付宝必须开启收款通知，手机系统也要允许通知横幅和通知栏展示。通知被静默或折叠会影响自动匹配。'
                   },
                   {
                     step: '06',
                     title: '豁免省电模式与电池优化',
-                    desc: '进入系统[设置] -> [电池 optimization] / [省电策略] 找到 CoderPay，将其配置为【无限制】/【不锁定/不优化后台活动】。这可以防止手机强制进入低耗深度休眠而断连。'
+                    desc: '进入系统设置的电池或省电策略，找到 CoderPay，将其配置为“无限制”或“不优化后台活动”。'
                   },
                   {
                     step: '07',
@@ -597,17 +429,17 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                   {
                     step: '08',
                     title: '多任务后台挂锁保留',
-                    desc: '按手机任务键进入近期应用控制台，长按 CoderPay 的卡片。点击弹出的「小锁头 (Lock app)」标志锁死，这样在使用系统「一键加速/内存释放」时不会意外强杀进程。'
+                    desc: '进入最近任务列表，长按 CoderPay 卡片并加锁，避免一键清理时误杀后台服务。'
                   },
                   {
                     step: '09',
                     title: '一键安全双端握手自测',
-                    desc: '点击本页顶部的“沙箱到账”或在 App 中点击测试按钮，可生成沙箱到账事件，用于验证订单匹配和回调链路。真实收款仍以微信/支付宝系统通知为准。'
+                    desc: '用另一台手机发起一笔小额真实支付，确认控制台订单能自动变为成功。'
                   },
                   {
                     step: '10',
                     title: '长期插线保持活性屏幕',
-                    desc: '在 Watcher 设置中打开「智能屏幕微光防灭」和「静音保温模式」。建议将挂机机长期直插充电器连接稳定的 2.4GHz/5GHz 专设局域网 WiFi，避免手机断电或者由于网络重置被下线。'
+                    desc: '建议备用机长期插电并连接稳定 WiFi。不要频繁切换网络或关闭微信/支付宝后台通知。'
                   }
                 ].map((item, index) => (
                   <div key={index} className="flex gap-3.5 p-4 rounded-xl bg-[#090D1A]/50 border border-[rgba(255,255,255,0.03)] hover:border-blue-500/10 hover:bg-[#0B1020]/20 transition-all text-xs items-start">
@@ -785,7 +617,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                       <div className="space-y-3.5 text-[11px]">
                         <p className="font-semibold text-slate-200">如果您的设备出现了无法到账的情况，请立即参考以下三个关键问题进行系统自查：</p>
                         <ul className="list-disc pl-4.5 space-y-2">
-                          <li><strong>无障碍（AccessibilityService）断开：</strong>微信到账完全依赖客户端在辅助服务中对通知和界面的 DOM 辅助监控，部分安卓系统在升级或者运行游戏高载时，会自动关闭该服务。如果没到账，请先点入 Watcher App 查看它是否仍然绿灯在线。</li>
+                          <li><strong>通知读取权限被关闭：</strong>部分安卓系统升级或清理后台后，会关闭通知读取权限。如果没到账，请先打开 CoderPay App 查看是否仍然在线。</li>
                           <li><strong>通知读取权被拦截：</strong>支付宝通知到账使用 NotificationListenerService 读取接收。请确认您未在手机上安装各种第三方手机助手（如腾讯手机管家、360卫士等），这些助手包含通知静默和折叠，容易拦阻系统通知转发。</li>
                           <li><strong>保持手机屏幕微温微闪：</strong>备用监控机最好是直插 USB 供电。手机屏幕睡眠后，系统的应用活跃等级（Bucket Level）会迅速调低。开启 App 内的息屏常亮微光保温可长效解决此状态。</li>
                         </ul>
@@ -800,7 +632,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
 
         </div>
       ) : (
-        /* Standard Watcher Lists Cards */
+        /* Standard device list cards */
         <div className="flex flex-col gap-6">
           
           <div className="flex justify-end pt-1">
@@ -808,7 +640,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
               onClick={() => setIsBinding(true)}
               className="px-5 py-2.5 rounded-xl text-xs sm:text-sm bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-md flex items-center gap-1.5"
             >
-              <Plus className="w-4.5 h-4.5" /> 绑定添加 Watcher 探针
+              <Plus className="w-4.5 h-4.5" /> 添加安卓设备
             </button>
           </div>
 
@@ -828,7 +660,17 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                     </div>
                     <div className="text-left min-w-0">
                       <span className="font-bold text-white block text-sm truncate">{dev.name}</span>
-                      <span className="text-[10px] text-slate-500 mt-1 block font-mono">序列号: {dev.id}</span>
+                      <span className="text-[10px] text-slate-500 mt-1 flex items-center gap-1.5 font-mono">
+                        绑定码: {dev.deviceCode}
+                        <button
+                          type="button"
+                          onClick={() => handleCopyDeviceCode(dev.deviceCode)}
+                          className="text-slate-400 hover:text-blue-300"
+                          title="复制设备绑定码"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </span>
                     </div>
                   </div>
 
@@ -837,23 +679,25 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                       ? 'bg-emerald-950/40 border-emerald-500/20 text-emerald-400' 
                       : 'bg-slate-800 border-slate-700 text-slate-500'
                   }`}>
-                    {dev.online ? '● 连通在线' : '○ 断开离线'}
+                    {isRecentlyOnline(dev) ? '● 在线' : '○ 离线或心跳超时'}
                   </span>
                 </div>
 
                 {/* Body stats block details */}
                 <div className="grid grid-cols-2 gap-y-3.5 gap-x-2 text-left bg-[#0B1020]/25 border border-[rgba(255,255,255,0.04)] rounded-xl p-4 mb-5 text-xs">
                   <div className="flex flex-col">
-                    <span className="text-[10px] text-slate-500">最近心跳侦测</span>
-                    <span className="text-slate-300 font-bold font-mono mt-0.5">{dev.lastHeartbeat}</span>
+                    <span className="text-[10px] text-slate-500">最近心跳</span>
+                    <span className="text-slate-300 font-bold font-mono mt-0.5">{formatHeartbeat(dev.lastHeartbeat)}</span>
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[10px] text-slate-500">微信/支付宝监听状态</span>
-                    <span className="text-slate-300 font-bold font-mono mt-0.5">WX 侦测中 · AlIPAY 侦测中</span>
+                    <span className="text-slate-300 font-bold font-mono mt-0.5">
+                      微信 {dev.wechatListener === 'running' ? '运行中' : '未运行'} · 支付宝 {dev.alipayListener === 'running' ? '运行中' : '未运行'}
+                    </span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-[10px] text-slate-500">今日到账通知流总上报</span>
-                    <span className="text-indigo-400 font-bold font-mono mt-0.5">{dev.todayEvents} 笔检测流水</span>
+                    <span className="text-[10px] text-slate-500">今日到账上报</span>
+                    <span className="text-indigo-400 font-bold font-mono mt-0.5">{dev.todayEvents} 笔</span>
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[10px] text-slate-500">成功匹配订单</span>
@@ -867,24 +711,10 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                     onClick={() => handleOpenDetails(dev)}
                     className="px-3.5 py-1.5 bg-[#0B1020] hover:bg-[#151B2E] border border-[rgba(255,255,255,0.08)] text-slate-300 hover:text-white font-semibold rounded-lg transition-colors flex items-center gap-1 shrink-0"
                   >
-                    <Sliders className="w-3.5 h-3.5 text-blue-400" /> 进入设备管治详情 页
+                    <Sliders className="w-3.5 h-3.5 text-blue-400" /> 查看设备详情
                   </button>
 
                   <div className="flex items-center gap-2 shrink-0 ml-auto">
-                    <button
-                      onClick={() => handleTestPingListener(dev)}
-                      className="p-1.5 rounded-lg bg-blue-950/20 hover:bg-blue-900/30 border border-blue-500/20 text-blue-400"
-                      title="沙箱到账事件"
-                    >
-                      <RotateCw className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDiagnostics(dev)}
-                      className="p-1.5 rounded-lg bg-indigo-950/10 hover:bg-indigo-900/20 border border-indigo-500/20 text-indigo-400"
-                      title="刷新云端状态"
-                    >
-                      <Activity className="w-4 h-4" />
-                    </button>
                     <button
                       onClick={() => handleResetDeviceSecret(dev)}
                       className="p-1.5 rounded-lg bg-amber-950/20 hover:bg-amber-900/20 border border-amber-500/20 text-amber-400"
@@ -899,9 +729,9 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                           ? 'bg-rose-950/20 hover:bg-rose-900/20 border-rose-500/20 text-rose-400' 
                           : 'bg-emerald-950/20 hover:bg-emerald-900/20 border-emerald-500/20 text-emerald-400'
                       }`}
-                      title={dev.status === 'active' ? '下架物理挂载' : '上挂监听'}
+                      title={dev.status === 'active' ? '停用自动匹配' : '启用自动匹配'}
                     >
-                      {dev.status === 'active' ? '下架' : '上挂'}
+                      {dev.status === 'active' ? '停用' : '启用'}
                     </button>
                     <button
                       onClick={() => handleDeleteDevice(dev)}
@@ -933,10 +763,10 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
 
             <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2">
               <Plus className="w-5 h-5 text-blue-400" />
-              绑定全新的 Android Watcher 探针
+              生成安卓设备绑定码
             </h3>
             <p className="text-xs text-slate-400 mb-5 leading-relaxed">
-              请在被淘汰的旧安卓手机中安装 <b>CoderPay App</b>，随后在此配置设备通信节点通道以生成令牌密钥绑定。
+              请先在备用安卓手机安装 <b>CoderPay App</b>。点击确认后，系统会生成一个 <b>dev_</b> 开头的设备绑定码。打开 App，填写 <b>https://www.3api.shop</b> 和该绑定码即可完成绑定。
             </p>
             <a
               href={androidApkUrl}
@@ -949,10 +779,10 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
 
             <form onSubmit={handleBindDevice} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-slate-300">设备标注/使用名称 (描述)</label>
+                <label className="text-xs font-semibold text-slate-300">设备名称</label>
                 <input
                   type="text"
-                  placeholder="例如：Redmi Note 11 (挂机主线微信)"
+                  placeholder="例如：Redmi Note 11 微信监听机"
                   value={newDevName}
                   onChange={(e) => setNewDevName(e.target.value)}
                   className="px-4 py-2.5 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
@@ -961,7 +791,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-slate-300">日交易预设最大安全限额 (元)</label>
+                <label className="text-xs font-semibold text-slate-300">每日建议收款上限 (元)</label>
                 <input
                   type="number"
                   placeholder="默认 5000"
@@ -983,7 +813,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                   type="submit"
                   className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl text-xs text-white shadow-md"
                 >
-                  确认授权并颁发令牌
+                  生成绑定码
                 </button>
               </div>
             </form>
@@ -999,7 +829,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
             <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
           </div>
           <span className="text-xs font-semibold text-slate-200 animate-pulse font-mono bg-slate-900/80 px-4 py-2 rounded-2xl border border-[rgba(255,255,255,0.05)]">
-            正在向安全通道广播物理指令变动并同步云端数据库...
+            正在同步设备信息...
           </span>
         </div>
       )}

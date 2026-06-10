@@ -195,7 +195,7 @@ const sign = crypto.createHmac('sha256', appSecret)
 
               <div className="p-5 bg-slate-900/50 border border-white/5 rounded-2xl flex flex-col gap-3">
                 <span className="w-7 h-7 rounded-full bg-blue-600/10 border border-blue-500/30 text-blue-400 font-mono text-xs font-bold flex items-center justify-center">03</span>
-                <h4 className="text-xs font-bold text-white">第三步：部署 Watcher</h4>
+                <h4 className="text-xs font-bold text-white">第三步：绑定安卓监听设备</h4>
                 <p className="text-[11px] text-slate-500 leading-relaxed">
                   在备用安卓机安装 CoderPay 安卓 App，授予通知读取权限。开启收款到账语音/系统通知提醒，实现秒级侦测。
                 </p>
@@ -285,7 +285,7 @@ const sign = crypto.createHmac('sha256', appSecret)
                   <div>
                     <h5 className="text-xs font-bold text-slate-200">配置微信与支付宝通知详情</h5>
                     <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                      为了使 Watcher 解析收款金额，您的微信和支付宝在系统通知管理中<span className="text-rose-400 font-semibold">必须开启“显示通知详情/通知文字内容”</span>。隐藏消息详情（只显示“收到一条新消息”）会导致匹配失效。
+                      为了使 CoderPay 解析收款金额，您的微信和支付宝在系统通知管理中<span className="text-rose-400 font-semibold">必须开启“显示通知详情/通知文字内容”</span>。隐藏消息详情（只显示“收到一条新消息”）会导致匹配失效。
                     </p>
                   </div>
                 </div>
@@ -301,19 +301,19 @@ const sign = crypto.createHmac('sha256', appSecret)
                 <div className="p-4 bg-slate-900/40 border border-white/5 rounded-xl flex flex-col gap-1">
                   <span className="text-xs text-blue-400 font-mono block">3.1 / 获取配对码</span>
                   <p className="text-xs text-slate-400 leading-relaxed mt-1">
-                    登录 Coder Pay 控制台，在“设备通道”中添加挂载一个新备用机设备，系统将生成授权配对码（例如：<code className="text-slate-300 font-mono">dev-1001</code>）。
+                    登录 CoderPay 控制台，在“安卓监听设备”中添加一个备用手机设备，系统将生成 <code className="text-slate-300 font-mono">dev_</code> 开头的绑定码。
                   </p>
                 </div>
                 <div className="p-4 bg-slate-900/40 border border-white/5 rounded-xl flex flex-col gap-1">
-                  <span className="text-xs text-blue-400 font-mono block">3.2 / 探针握手激活</span>
+                  <span className="text-xs text-blue-400 font-mono block">3.2 / 手机端连接</span>
                   <p className="text-xs text-slate-400 leading-relaxed mt-1">
-                    在手机 CoderPay 软件中填入控制台分配的 API 云地址及设备授权码 <code className="text-slate-300 font-mono">dev-1001</code>，点击“保存并连接探针”，此时控制台该设备状态会瞬间点亮为“在线”。
+                    在手机 CoderPay App 中填写 <code className="text-slate-300 font-mono">https://www.3api.shop</code> 和完整绑定码，点击“保存并连接”。绑定成功后，控制台会显示最近心跳和权限状态。
                   </p>
                 </div>
                 <div className="p-4 bg-slate-900/40 border border-white/5 rounded-xl flex flex-col gap-1">
-                  <span className="text-xs text-blue-400 font-mono block">3.3 / 首笔模拟核销</span>
+                  <span className="text-xs text-blue-400 font-mono block">3.3 / 首笔真实小额验收</span>
                   <p className="text-xs text-slate-400 leading-relaxed mt-1">
-                    在后台发起首笔 ¥0.01 的沙箱订单。在手机 App 底部点击 <code className="text-emerald-400 font-bold">测试微信 ¥0.01</code> 模拟到账，收银台网页如果在一秒内成功核销跳转，代表全链路联调握手完毕！
+                    创建一笔小额测试订单，用另一台手机真实扫码付款。订单自动变为成功并触发回调，才代表自动到账链路验收完成。
                   </p>
                 </div>
               </div>

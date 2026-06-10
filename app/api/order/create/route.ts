@@ -89,6 +89,8 @@ export async function POST(req: NextRequest) {
       code.lastHeartbeat &&
       new Date(code.lastHeartbeat).toISOString() >= threeMinutesAgo
     );
+    const channelOnline = onlineCodes.length > 0;
+    const confirmMode = channelOnline ? "auto" : "manual";
     const candidateCodes = onlineCodes.length > 0 ? onlineCodes : activeCodes;
 
     let selectedCode: any = null;
@@ -129,8 +131,8 @@ export async function POST(req: NextRequest) {
     const expiresAt = new Date(Date.now() + app.expireMinutes * 60 * 1000);
     try {
       await db.prepare(`
-        INSERT INTO "Order" (id, outOrderNo, title, payType, amount, realAmount, amountCents, realAmountCents, status, createdAt, expiresAt, webhookStatus, appId, paymentCodeId)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, 'unsent', ?, ?)
+        INSERT INTO "Order" (id, outOrderNo, title, payType, amount, realAmount, amountCents, realAmountCents, status, confirmMode, createdAt, expiresAt, webhookStatus, appId, paymentCodeId)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, 'unsent', ?, ?)
       `).bind(
         orderId,
         out_order_no,
@@ -140,6 +142,7 @@ export async function POST(req: NextRequest) {
         amountFromCents(realAmountCents),
         amountCents,
         realAmountCents,
+        confirmMode,
         now.toISOString(),
         expiresAt.toISOString(),
         app.id,
@@ -170,7 +173,7 @@ export async function POST(req: NextRequest) {
     if (origin.endsWith("/")) {
       origin = origin.slice(0, -1);
     }
-    const paymentUrl = `${origin}/pay/${orderId}`;
+    const paymentUrl = `${origin}/pay/checkout?id=${encodeURIComponent(orderId)}`;
     
     return NextResponse.json({
       code: 200,
@@ -183,6 +186,9 @@ export async function POST(req: NextRequest) {
         pay_type,
         payment_url: paymentUrl,
         expired_at: expiresAt.toISOString(),
+        confirm_mode: confirmMode,
+        channel_online: channelOnline,
+        manual_confirm_required: confirmMode === "manual",
         free_order_remaining: isFreeTier ? Math.max(0, FREE_ORDER_LIMIT - Number(app.freeOrderUsed || 0) - 1) : null,
         low_balance_warning: Number(app.feeBalance) <= LOW_BALANCE_WARNING_YUAN
       }

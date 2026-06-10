@@ -48,6 +48,10 @@ export async function POST(req: NextRequest) {
         order_id: order.id,
         out_order_no: order.outOrderNo,
         status: order.status,
+        confirm_mode: order.confirmMode,
+        manual_confirmed_at: order.manualConfirmedAt ? order.manualConfirmedAt.toISOString().slice(0, 19).replace('T', ' ') : null,
+        manual_confirmed_by: order.manualConfirmedBy,
+        manual_confirm_note: order.manualConfirmNote,
         amount: formatCents(getOrderAmountCents(order)),
         real_amount: formatCents(getOrderRealAmountCents(order)),
         pay_time: order.payTime ? order.payTime.toISOString().slice(0, 19).replace('T', ' ') : null

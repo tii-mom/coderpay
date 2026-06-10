@@ -47,6 +47,12 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
   const selectedOrder = orders.find(o => o.id === selectedOrderId);
   const formatExpiry = (order: Order) => order.expiresAt ? new Date(order.expiresAt).toLocaleString('zh-CN', { hour12: false }) : '未记录';
   const isExpiredByServer = (order: Order) => order.status === 'expired' || (!!order.expiresAt && new Date(order.expiresAt).getTime() <= now);
+  const isManualPending = (order: Order) => order.confirmMode === 'manual' && order.status !== 'success' && order.status !== 'failed';
+  const getConfirmModeLabel = (order: Order) => {
+    if (order.manualConfirmedAt) return { text: '已人工确认', className: 'bg-emerald-950/40 border-emerald-500/20 text-emerald-400' };
+    if (isManualPending(order)) return { text: '设备离线，待人工确认', className: 'bg-amber-950/40 border-amber-500/20 text-amber-300' };
+    return { text: '自动监听', className: 'bg-blue-950/40 border-blue-500/20 text-blue-300' };
+  };
 
   // Copy helper
   const handleCopyText = (text: string, desc: string) => {
@@ -67,7 +73,8 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
       o.title.toLowerCase().includes(searchQuery.toLowerCase());
     
     // Status filter
-    const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
+    const matchesStatus = statusFilter === 'all'
+      || (statusFilter === 'manual_pending' ? isManualPending(o) : o.status === statusFilter);
 
     // Channel filter
     const matchesChannel = channelFilter === 'all' || o.payType === channelFilter;
@@ -87,11 +94,28 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
     }
   };
 
-  const handleManualMarkPaid = (ord: Order) => {
-    if (confirm(`手动标记收款审核：您是否确定已在微信/支付宝私款钱包中收妥资金 ¥${ord.amount.toFixed(2)} 元，并强制标记订单 ${ord.id} 为到账成功？一旦同意系统将立即激发商户自动核验Webhook！`)) {
-      db.manuallyConfirmPaid(ord.id);
-      onTriggerToast(`订单 ${ord.id} 已完成手动收款，并成功触发 Webhook 回调激发至商户中。`, 'success');
+  const handleManualMarkPaid = async (ord: Order) => {
+    const confirmed = confirm(
+      [
+        '请确认已实际收到该笔款项：',
+        `CP订单号：${ord.id}`,
+        `商户订单号：${ord.outOrderNo}`,
+        `支付方式：${ord.payType === 'wechat' ? '微信' : '支付宝'}`,
+        `订单金额：¥${ord.amount.toFixed(2)}`,
+        `实付金额：¥${ord.realAmount.toFixed(2)}`,
+        '',
+        '确认后系统会扣除技术服务费、标记订单成功并触发商户 Webhook。'
+      ].join('\n')
+    );
+    if (!confirmed) return;
+
+    const note = window.prompt('可选：填写人工确认备注，例如“已核对支付宝到账截图”', '') || '';
+    const result = await db.manuallyConfirmPaid(ord.id, note);
+    if (!result.ok) {
+      onTriggerToast(result.error || '人工确认失败，请稍后重试', 'error');
+      return;
     }
+    onTriggerToast(`订单 ${ord.id} 已人工确认成功，Webhook 已进入发送流程。`, 'success');
   };
 
   const handleForceRetryWebhook = async (ord: Order) => {
@@ -135,7 +159,7 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
                   onClick={() => handleManualMarkPaid(selectedOrder)}
                   className="px-3.5 py-1.5 bg-emerald-950/40 hover:bg-emerald-900/45 border border-emerald-500/20 text-emerald-400 text-xs font-semibold rounded-lg transition-all"
                 >
-                  确认已手动收款并回调
+                  我已收款，确认成功
                 </button>
               )}
               {selectedOrder.status === 'success' && (
@@ -184,6 +208,10 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
                 </span>
               </div>
 
+              <div className={`w-fit px-3 py-1 rounded-full text-[11px] font-bold border ${getConfirmModeLabel(selectedOrder).className}`}>
+                {getConfirmModeLabel(selectedOrder).text}
+              </div>
+
               {/* Order data parameter segments */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-[#0B1020]/30 border border-[rgba(255,255,255,0.04)] rounded-xl p-5 text-xs text-slate-300">
                 
@@ -230,9 +258,29 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
                     <span className="text-slate-500">锁定收款码:</span>
                     <span className="font-mono text-slate-200">{selectedOrder.paymentCodeId || '未锁定'}</span>
                   </div>
+                  <div className="flex justify-between border-b border-[rgba(255,255,255,0.02)] pb-2">
+                    <span className="text-slate-500">确认模式:</span>
+                    <span className="font-semibold text-slate-200">{getConfirmModeLabel(selectedOrder).text}</span>
+                  </div>
                 </div>
 
               </div>
+
+              {selectedOrder.manualConfirmedAt && (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-4 text-xs text-emerald-100 leading-relaxed">
+                  <strong className="block text-emerald-300 mb-1">人工确认记录</strong>
+                  <div>确认时间：{selectedOrder.manualConfirmedAt}</div>
+                  <div>确认账号：{selectedOrder.manualConfirmedBy || '当前开发者'}</div>
+                  {selectedOrder.manualConfirmNote && <div>备注：{selectedOrder.manualConfirmNote}</div>}
+                </div>
+              )}
+
+              {isManualPending(selectedOrder) && (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 p-4 text-xs text-amber-100 leading-relaxed">
+                  <strong className="block text-amber-300 mb-1">待人工确认</strong>
+                  创建订单时收款设备离线。付款用户完成扫码后，请开发者在微信/支付宝账户中核对到账，再点击“我已收款，确认成功”。
+                </div>
+              )}
 
               {selectedOrder.status === 'manual_review' && (
                 <div className="rounded-xl border border-purple-500/20 bg-purple-950/20 p-4 text-xs text-purple-100 leading-relaxed">
@@ -378,6 +426,7 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
               >
                 <option value="all">所有状态订单</option>
                 <option value="pending">待支付扫码</option>
+                <option value="manual_pending">设备离线待确认</option>
                 <option value="success">到账成功</option>
                 <option value="expired">已过期</option>
                 <option value="manual_review">人工审核</option>
@@ -421,6 +470,7 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
                         failed: { bg: 'bg-rose-500/10 text-rose-400 border-rose-500/20', val: '故障' },
                         manual_review: { bg: 'bg-purple-500/10 text-purple-400 border-purple-500/20', val: '人工待核' },
                       }[ord.status];
+                      const modeBadge = getConfirmModeLabel(ord);
 
                       return (
                         <tr key={ord.id} className="hover:bg-cp-hover/30 transition-colors">
@@ -459,6 +509,9 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
                           <td className="py-4 px-4 text-center">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${statusConfig.bg}`}>
                               {statusConfig.val}
+                            </span>
+                            <span className={`mt-1 inline-block px-2 py-0.5 rounded text-[9px] font-semibold border ${modeBadge.className}`}>
+                              {modeBadge.text}
                             </span>
                           </td>
                           <td className="py-4 px-4 text-center font-semibold text-[11px]">

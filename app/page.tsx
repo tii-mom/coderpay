@@ -1,8 +1,4 @@
-'use client';
-
-import React from 'react';
-import { useRouter } from 'next/navigation';
-import { motion } from 'motion/react';
+import Link from 'next/link';
 import {
   Shield,
   Smartphone,
@@ -21,33 +17,6 @@ import {
 } from 'lucide-react';
 
 export default function HomePage() {
-  const router = useRouter();
-  const [mounted, setMounted] = React.useState(false);
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setMounted(true);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (!mounted) {
-    return <div className="min-h-screen bg-[#070A12]" />;
-  }
-
-  const handleNavigateConsole = () => {
-    router.push('/console');
-  };
-
-  const handleNavigateLogin = () => {
-    router.push('/login');
-  };
-
-  const handleNavigateDocs = (hash = '') => {
-    // Navigate to dedicated docs page
-    router.push(`/docs${hash}`);
-  };
-
   const androidApkUrl = '/downloads/coderpay-android.apk';
 
   const flowSteps = [
@@ -188,7 +157,7 @@ export default function HomePage() {
       {/* Top Header */}
       <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.06)] bg-[#070A12]/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between" id="header-container">
-          <div className="flex items-center gap-2.5 cursor-pointer group" onClick={() => router.push('/')} id="brand-logo">
+          <Link href="/" className="flex items-center gap-2.5 cursor-pointer group" id="brand-logo">
             <div className="relative w-10 h-10 flex items-center justify-center">
               {/* Dual-color premium ambient glow behind circular logo */}
               <div className="absolute inset-0 rounded-full bg-blue-500/20 blur-sm scale-95 group-hover:scale-110 group-hover:bg-blue-500/30 transition-all duration-300" />
@@ -200,30 +169,30 @@ export default function HomePage() {
                 className="w-10 h-10 object-contain rounded-full relative z-10 border border-white/10 group-hover:scale-105 group-hover:border-white/20 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.15)]" 
               />
             </div>
-          </div>
+          </Link>
 
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300" id="header-nav">
             <a href="#product-flow" className="hover:text-blue-400 hover:translate-y-[-1px] transition-all">运作原理</a>
             <a href="#product-features" className="hover:text-blue-400 hover:translate-y-[-1px] transition-all">核心优势</a>
             <a href="#pricing-grid" className="hover:text-blue-400 hover:translate-y-[-1px] transition-all">套餐费用</a>
-            <span onClick={() => handleNavigateDocs('#api-create')} className="cursor-pointer hover:text-blue-400 hover:translate-y-[-1px] transition-all">接口文档</span>
+            <a href="/docs#api-create" className="cursor-pointer hover:text-blue-400 hover:translate-y-[-1px] transition-all">接口文档</a>
           </nav>
 
           <div className="flex items-center gap-3" id="header-ctas">
-            <button
-              onClick={handleNavigateLogin}
+            <a
+              href="/login"
               className="px-4 py-2 text-sm text-slate-300 hover:text-white transition-colors"
               id="btn-login-home"
             >
               登录
-            </button>
-            <button
-              onClick={handleNavigateConsole}
+            </a>
+            <a
+              href="/console"
               className="px-5 py-2.5 rounded-xl text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-[0_4px_12px_rgba(37,99,235,0.2)] transition-all flex items-center gap-1.5"
               id="btn-console-home"
             >
               开发者控制台 <ChevronRight className="w-4 h-4" />
-            </button>
+            </a>
           </div>
         </div>
       </header>
@@ -252,18 +221,18 @@ export default function HomePage() {
                 上传你的微信/支付宝个人收款码，安装 CoderPay 安卓挂机端，用户付款后自动识别到账并回调你的网站。资金首尾直达你个人账户，CP 安全云端完全不接管资金。
               </p>
               <div className="flex flex-wrap items-center gap-4">
-                <button
-                  onClick={handleNavigateConsole}
+                <a
+                  href="/console"
                   className="px-8 py-4 rounded-xl text-base bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-[0_8px_20px_rgba(37,99,235,0.3)] hover:shadow-[0_8px_25px_rgba(37,99,235,0.4)] transition-all flex items-center gap-2"
                 >
                   开始接入 <ArrowRight className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleNavigateDocs()}
+                </a>
+                <a
+                  href="/docs"
                   className="px-6 py-4 rounded-xl text-base bg-[#111827] border border-[rgba(255,255,255,0.08)] hover:bg-[#151B2E] text-slate-300 hover:text-white font-medium transition-all"
                 >
                   查看说明文档
-                </button>
+                </a>
                 <a
                   href={androidApkUrl}
                   download
@@ -590,8 +559,8 @@ export default function HomePage() {
                 </div>
 
                 <div className="mt-8 pt-4">
-                  <button
-                    onClick={handleNavigateConsole}
+                  <a
+                    href="/console"
                     className={`w-full py-3.5 px-4 rounded-xl text-xs sm:text-sm font-bold tracking-wider uppercase transition-all duration-300 flex items-center justify-center gap-1.5 ${
                       p.primary
                         ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_5px_15px_rgba(37,99,235,0.3)] hover:translate-y-[-1px]'
@@ -599,7 +568,7 @@ export default function HomePage() {
                     }`}
                   >
                     {p.cta} <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                  </a>
                 </div>
               </div>
             ))}
@@ -622,18 +591,18 @@ export default function HomePage() {
             </span>
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button
-              onClick={handleNavigateConsole}
+            <a
+              href="/console"
               className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-[0_8px_20px_rgba(37,99,235,0.3)] transition-all flex items-center gap-2 w-full sm:w-auto justify-center"
             >
               免费开通接入 <ChevronRight className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => handleNavigateDocs('#api-create')}
+            </a>
+            <a
+              href="/docs#api-create"
               className="px-8 py-4 bg-[#111827] hover:bg-[#151B2E] border border-[rgba(255,255,255,0.08)] text-slate-300 font-medium rounded-xl transition-all w-full sm:w-auto text-center"
             >
               获取 API 文档
-            </button>
+            </a>
           </div>
         </div>
       </section>
@@ -650,7 +619,7 @@ export default function HomePage() {
             <a href="https://t.me/coderpay3" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 text-blue-500 font-medium">售后商务 Telegram</a>
             <a href="#product-flow" className="hover:text-slate-400">服务条款</a>
             <a href="#product-features" className="hover:text-slate-400">隐私声明</a>
-            <span className="text-blue-500 font-mono">CoderPay Android v1.0.3</span>
+            <span className="text-blue-500 font-mono">CoderPay Android v1.0.5</span>
           </div>
         </div>
       </footer>

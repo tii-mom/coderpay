@@ -173,7 +173,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
     onTriggerToast(`注册联调测试订单 ${o.id} 成功！即将为您打开手机扫码收银台进行联调检测...`, 'success');
     setTimeout(() => {
       // Open in a new tab safely
-      window.open(`/pay/${o.id}`, '_blank');
+      window.open(`/pay/checkout?id=${encodeURIComponent(o.id)}`, '_blank');
     }, 1200);
   };
 

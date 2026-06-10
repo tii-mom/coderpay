@@ -101,6 +101,8 @@ class MainActivity : ComponentActivity() {
         var deviceCode by remember { mutableStateOf(settings.deviceCode) }
         var isBound by remember { mutableStateOf(settings.isBound) }
         var activeConsoleTab by remember { mutableStateOf<String?>(null) }
+        var isPairing by remember { mutableStateOf(false) }
+        var pairingMessage by remember { mutableStateOf<String?>(null) }
         
         var isNotificationPermissionGranted by remember { mutableStateOf(isNotificationServiceEnabled()) }
         var isBatteryOptimizedIgnored by remember { mutableStateOf(isBatteryOptimizationIgnored()) }
@@ -158,6 +160,19 @@ class MainActivity : ComponentActivity() {
                 ) {
                     SectionTitle("设备绑定", if (isBound) "Connected" else "Pairing")
 
+                    pairingMessage?.let { message ->
+                        Text(
+                            text = message,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(if (isBound) CpGreenDark else CpPanelSoft, RoundedCornerShape(12.dp))
+                                .padding(12.dp),
+                            color = if (isBound) Color(0xFFA7F3D0) else CpMuted,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+                    }
+
                     OutlinedTextField(
                         value = serverUrl,
                         onValueChange = { serverUrl = it },
@@ -181,9 +196,12 @@ class MainActivity : ComponentActivity() {
                         Button(
                             onClick = {
                                 if (serverUrl.isBlank() || deviceCode.isBlank()) {
+                                    pairingMessage = "云端服务 URL 和设备绑定码不能为空。"
                                     LogTracker.log("配对失败：URL 和授权码不能为空。")
                                     return@Button
                                 }
+                                isPairing = true
+                                pairingMessage = "正在连接 CoderPay 云端，请稍候..."
                                 scope.launch(Dispatchers.IO) {
                                     LogTracker.log("正在与云端服务器握手对位...")
                                     try {
@@ -211,7 +229,6 @@ class MainActivity : ComponentActivity() {
                                         val body = response.body()
                                         if (response.isSuccessful && body?.status == "success") {
                                             settings.isBound = true
-                                            isBound = true
                                             body.deviceSecret?.let {
                                                 if (it.isNotEmpty()) settings.deviceSecret = it
                                             }
@@ -222,33 +239,47 @@ class MainActivity : ComponentActivity() {
                                                 if (it.isNotEmpty()) settings.alipayRegex = it
                                             }
                                             withContext(Dispatchers.Main) {
+                                                isBound = true
+                                                isPairing = false
+                                                pairingMessage = "绑定成功。设备已在线，后台监听服务已启动。"
                                                 ForegroundKeepAliveService.startService(this@MainActivity)
                                             }
                                             LogTracker.log("绑定成功！已拉起后台常驻保活，心跳正常建立。")
                                         } else {
+                                            val errorText = response.errorBody()?.string() ?: "授权码无效或已过期"
                                             settings.clearBinding()
-                                            LogTracker.log("绑定失败：云端响应拒绝 - ${response.errorBody()?.string() ?: "授权码无效"}")
+                                            withContext(Dispatchers.Main) {
+                                                isPairing = false
+                                                pairingMessage = "绑定失败：$errorText"
+                                            }
+                                            LogTracker.log("绑定失败：云端响应拒绝 - $errorText")
                                         }
                                     } catch (e: Exception) {
                                         settings.clearBinding()
+                                        withContext(Dispatchers.Main) {
+                                            isPairing = false
+                                            pairingMessage = "连接失败：请检查服务地址和网络。${e.message ?: ""}"
+                                        }
                                         LogTracker.log("通信失败：连接超时，请检查服务地址。${e.message}")
                                     }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
+                            enabled = !isPairing,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = CpBlueDark,
                                 contentColor = Color.White
                             ),
                             shape = RoundedCornerShape(14.dp)
                         ) {
-                            Text("保存并连接探针")
+                            Text(if (isPairing) "正在连接..." else "保存并连接")
                         }
                     } else {
                         Button(
                             onClick = {
                                 settings.clearBinding()
                                 isBound = false
+                                pairingMessage = "设备已解除绑定。"
                                 ForegroundKeepAliveService.stopService(this@MainActivity)
                                 LogTracker.log("已主动解除设备绑定。前台守护服务终止。")
                             },

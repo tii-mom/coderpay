@@ -10,7 +10,7 @@ class SettingsManager(context: Context) {
     )
 
     var serverUrl: String
-        get() = prefs.getString("server_url", "https://3api.shop") ?: "https://3api.shop"
+        get() = prefs.getString("server_url", "https://www.3api.shop") ?: "https://www.3api.shop"
         set(value) = prefs.edit().putString("server_url", value).apply()
 
     var deviceCode: String

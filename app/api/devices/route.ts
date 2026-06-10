@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
     
-    const deviceCode = `dev_${randomHex(16)}`;
+    const deviceCode = `dev_${randomHex(10)}`;
     const bindingExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     
     const device = await prisma.device.create({

@@ -34,7 +34,7 @@ export function usePaymentState() {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { signal: controller.signal });
+      const res = await fetch(url, { signal: controller.signal, credentials: 'same-origin' });
       clearTimeout(id);
       return res;
     } catch (err) {
@@ -85,6 +85,11 @@ export function usePaymentState() {
     try {
       const meRes = await fetchWithTimeout("/api/auth/me", 8000);
       if (!meRes.ok) {
+        if (meRes.status !== 401 && meRes.status !== 403) {
+          console.warn(`Auth check failed with transient status ${meRes.status}; keeping current session state.`);
+          setState(prev => ({ ...prev, isAuthChecked: true }));
+          return;
+        }
         setState(prev => ({
           ...prev,
           apps: [],
@@ -143,7 +148,7 @@ export function usePaymentState() {
       }));
     } catch (err) {
       console.error("Error fetching state:", err);
-      setState(prev => ({ ...prev, isLoggedIn: false, isAuthChecked: true }));
+      setState(prev => ({ ...prev, isAuthChecked: true }));
     } finally {
       isFetchingRef.current = false;
     }
@@ -196,6 +201,7 @@ export function usePaymentState() {
         method: options.method || "POST",
         headers: options.body !== undefined ? { "Content-Type": "application/json" } : undefined,
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+        credentials: 'same-origin',
       });
       const data = await res.json().catch(() => ({}));
       await fetchState();
@@ -216,7 +222,8 @@ export function usePaymentState() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier, email: identifier, password })
+        body: JSON.stringify({ identifier, email: identifier, password }),
+        credentials: 'same-origin',
       });
       if (res.ok) {
         void fetchState();
@@ -229,7 +236,8 @@ export function usePaymentState() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password }),
+        credentials: 'same-origin',
       });
       if (res.ok) {
         void fetchState();
@@ -239,7 +247,7 @@ export function usePaymentState() {
     },
 
     logout: async () => {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch("/api/auth/logout", { method: "POST", credentials: 'same-origin' });
       await fetchState();
     },
 
@@ -339,20 +347,39 @@ export function usePaymentState() {
         ...order,
         realAmount: Number(resData.data.real_amount),
         status: "pending",
+        confirmMode: resData.data.confirm_mode,
+        channelOnline: resData.data.channel_online,
+        manualConfirmRequired: resData.data.manual_confirm_required,
         freeOrderRemaining: resData.data.free_order_remaining,
         lowBalanceWarning: resData.data.low_balance_warning
       };
     },
 
     rechargeFees: async (amount: number, payType: 'wechat' | 'alipay' = 'alipay') => {
-      const res = await fetch("/api/billing/recharge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, payType })
-      });
-      const data = await res.json().catch(() => ({}));
-      await fetchState();
-      return { ok: res.ok, ...data };
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+        const res = await fetch("/api/billing/recharge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount, payType }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        const data = await res.json().catch(() => ({}));
+        await fetchState();
+        if (!res.ok) {
+          return { ok: false, error: data?.error || `充值单创建失败 (${res.status})`, ...data };
+        }
+        return { ok: true, ...data };
+      } catch (err: any) {
+        return {
+          ok: false,
+          error: err?.name === "AbortError"
+            ? "创建充值单超时，请确认平台收款手机在线后重试。"
+            : "网络异常，请检查连接后重试",
+        };
+      }
     },
 
     changePlan: async (planId: string) => {
@@ -404,17 +431,11 @@ export function usePaymentState() {
       return mutate(`/api/exceptions/${id}`, { method: "PUT", body: { status: "ignored" } });
     },
 
-    manuallyConfirmPaid: async (orderId: string) => {
-      const res = await fetch(`/api/orders/${orderId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "success" })
+    manuallyConfirmPaid: async (orderId: string, note = "") => {
+      return mutate(`/api/orders/${orderId}/manual-confirm`, {
+        method: "POST",
+        body: { note }
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || "确认收款失败");
-      }
-      await fetchState();
     }
   };
 

@@ -74,7 +74,7 @@ export function DocsTab({ apps, onTriggerToast, db }: DocsTabProps) {
     onTriggerToast(`联调订单 ${o.id} 通道创建成功！正在为您向浏览器新窗口推送用户款台测试面...`, 'success');
     
     setTimeout(() => {
-      window.open(`/pay/${o.id}`, '_blank');
+      window.open(`/pay/checkout?id=${encodeURIComponent(o.id)}`, '_blank');
     }, 1200);
   };
 

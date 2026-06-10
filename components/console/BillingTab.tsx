@@ -30,6 +30,7 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
   const [rechargeLoading, setRechargeLoading] = useState(false);
   const [planLoading, setPlanLoading] = useState(false);
   const [customFee, setCustomFee] = useState<number>(100);
+  const [rechargePayType, setRechargePayType] = useState<'alipay' | 'wechat'>('alipay');
   const rechargeAmounts = [10, 50, 100, 500, 5000, 10000];
 
   const handleRechargeTechnicalFee = async (amount: number) => {
@@ -38,9 +39,10 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
       return;
     }
     setRechargeLoading(true);
-    onTriggerToast(`正在创建平台真实充值单 ¥${amount.toFixed(2)}，请稍候...`, 'warning');
+    const payTypeLabel = rechargePayType === 'alipay' ? '支付宝' : '微信';
+    onTriggerToast(`正在创建${payTypeLabel}平台真实充值单 ¥${amount.toFixed(2)}，请稍候...`, 'warning');
     try {
-      const result = await db.rechargeFees(amount, 'alipay');
+      const result = await db.rechargeFees(amount, rechargePayType);
       if (!result.ok) {
         onTriggerToast(result.error || '充值单创建失败，请检查平台收款码和监听设备配置。', 'error');
         return;
@@ -137,12 +139,35 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
               </div>
 
               <div className="flex items-center gap-3 mt-4 flex-wrap">
+                <div className="flex items-center gap-1 rounded-xl bg-[#0B1020] border border-[rgba(255,255,255,0.08)] p-1">
+                  {([
+                    ['alipay', '支付宝'],
+                    ['wechat', '微信'],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      disabled={rechargeLoading}
+                      onClick={() => setRechargePayType(value)}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                        rechargePayType === value
+                          ? value === 'alipay'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-emerald-600 text-white'
+                          : 'text-slate-400 hover:text-slate-100'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
                 {rechargeAmounts.map((amount) => (
                   <button
                     key={amount}
                     disabled={rechargeLoading}
                     onClick={() => handleRechargeTechnicalFee(amount)}
-                    className="px-4 py-2 rounded-xl bg-[#0B1020] hover:bg-[#151B2E] border border-[rgba(255,255,255,0.08)] text-slate-200 font-mono text-xs font-bold transition-all"
+                    className="px-4 py-2 rounded-xl bg-[#0B1020] hover:bg-[#151B2E] disabled:opacity-60 disabled:cursor-not-allowed border border-[rgba(255,255,255,0.08)] text-slate-200 font-mono text-xs font-bold transition-all"
                   >
                     充值 ¥{amount.toFixed(2)}
                   </button>
@@ -160,7 +185,7 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
                 <button
                   disabled={rechargeLoading}
                   onClick={() => handleRechargeTechnicalFee(customFee)}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all"
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold transition-all"
                 >
                   立即充入
                 </button>

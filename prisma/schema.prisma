@@ -25,6 +25,7 @@ model User {
   subscriptionExpiresAt DateTime?
   firstProDiscountUsed Boolean @default(false)
   firstMaxDiscountUsed Boolean @default(false)
+  adminNote    String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   apps         App[]
@@ -104,9 +105,13 @@ model Order {
   amountCents   Int           @default(0)
   realAmountCents Int         @default(0)
   status        String // pending / success / expired / failed / manual_review
+  confirmMode   String        @default("auto") // auto / manual
   createdAt     DateTime      @default(now())
   expiresAt     DateTime?
   payTime       DateTime?
+  manualConfirmedAt DateTime?
+  manualConfirmedBy String?
+  manualConfirmNote String?
   webhookStatus String        @default("unsent") // unsent / success / failed
   appId         String
   app           App           @relation(fields: [appId], references: [id], onDelete: Cascade)
@@ -185,4 +190,16 @@ model RechargeOrder {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   paymentCodeId String?
   paymentCode   PaymentCode? @relation(fields: [paymentCodeId], references: [id], onDelete: SetNull)
+}
+
+model AdminAuditLog {
+  id          String   @id @default(uuid())
+  adminEmail  String
+  action      String
+  targetType  String
+  targetId    String
+  beforeJson  String?
+  afterJson   String?
+  reason      String?
+  createdAt   DateTime @default(now())
 }

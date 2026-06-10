@@ -57,9 +57,13 @@ export interface Order {
   amountCents?: number;
   realAmountCents?: number;
   status: OrderStatus;
+  confirmMode?: 'auto' | 'manual';
   createdAt: string;
   expiresAt?: string | null;
   payTime: string | null;
+  manualConfirmedAt?: string | null;
+  manualConfirmedBy?: string | null;
+  manualConfirmNote?: string | null;
   webhookStatus: 'unsent' | 'success' | 'failed' | 'retrying';
   paymentCodeId: string | null;
 }
@@ -113,7 +117,7 @@ export interface Plan {
 
 export interface BillingRecord {
   id: string;
-  type: 'charge' | 'fee' | 'subscription' | 'refund' | 'promotion';
+  type: 'charge' | 'fee' | 'subscription' | 'refund' | 'promotion' | 'admin_adjust' | 'admin_subscription';
   amount: number;
   balance: number;
   description: string;

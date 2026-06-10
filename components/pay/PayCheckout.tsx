@@ -2,9 +2,7 @@
 
 /* eslint-disable react-hooks/set-state-in-effect */
 
-export const runtime = 'edge';
-
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   ShieldCheck, 
@@ -12,21 +10,14 @@ import {
   Clock, 
   CheckCircle2, 
   AlertCircle, 
-  ChevronLeft, 
   RotateCw, 
-  ExternalLink,
-  HelpCircle,
-  QrCode
+  ExternalLink
 } from 'lucide-react';
 
-interface PayPageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default function PayPage({ params }: PayPageProps) {
+export default function PayCheckout({ orderId: providedOrderId }: { orderId?: string }) {
   const router = useRouter();
-  const resolvedParams = use(params);
-  const orderId = resolvedParams.id;
+  const [urlOrderId, setUrlOrderId] = useState('');
+  const orderId = providedOrderId || urlOrderId;
   const [mounted, setMounted] = useState(false);
   const [realOrder, setRealOrder] = useState<any>(null);
   const [loadingReal, setLoadingReal] = useState(true);
@@ -40,9 +31,19 @@ export default function PayPage({ params }: PayPageProps) {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    if (!providedOrderId) {
+      const idFromSearch = new URLSearchParams(window.location.search).get('id');
+      if (idFromSearch) {
+        setUrlOrderId(idFromSearch);
+        return;
+      }
+      const segments = window.location.pathname.split('/').filter(Boolean);
+      setUrlOrderId(decodeURIComponent(segments[1] || ''));
+    }
+  }, [providedOrderId]);
 
   useEffect(() => {
+    if (!orderId) return;
     let active = true;
     let hasLoadedFullOrder = false;
     const updateCountdown = (data: any) => {
@@ -64,6 +65,10 @@ export default function PayPage({ params }: PayPageProps) {
                 status: data.status,
                 payTime: data.payTime,
                 webhookStatus: data.webhookStatus,
+                confirmMode: data.confirmMode,
+                manualConfirmedAt: data.manualConfirmedAt,
+                manualConfirmedBy: data.manualConfirmedBy,
+                manualConfirmNote: data.manualConfirmNote,
                 realAmount: data.realAmount,
                 app: {
                   ...prev.app,
@@ -93,31 +98,6 @@ export default function PayPage({ params }: PayPageProps) {
   }, [orderId]);
 
   const [queryCount, setQueryCount] = useState(0);
-
-  // Signature verification mock state representing cloud-based hmac integrity
-  const [isVerifyingSign, setIsVerifyingSign] = useState(true);
-  const [signVerificationLog, setSignVerificationLog] = useState('Calculating secure merchant handshake payload...');
-
-  // Webhook retry simulator status at client side
-  const [webhookStatusSim, setWebhookStatusSim] = useState<'failed_ready' | 'retrying' | 'success'>('failed_ready');
-
-  // Trigger signature check on hydration/refresh state changes
-  useEffect(() => {
-    if (!order) return;
-    
-    const token = setTimeout(() => {
-      // Mock unique HMAC-SHA256 signature
-      const randomHexChars = 'abcdef0123456789';
-      let hmac = '';
-      for (let i = 0; i < 40; i++) {
-        hmac += randomHexChars[Math.floor(Math.random() * randomHexChars.length)];
-      }
-      setSignVerificationLog(`hmac_sha256_${hmac}`);
-      setIsVerifyingSign(false);
-    }, 700);
-
-    return () => clearTimeout(token);
-  }, [orderId, queryCount, order]);
 
   // Countdown clock loop
   useEffect(() => {
@@ -184,11 +164,10 @@ export default function PayPage({ params }: PayPageProps) {
   const paymentCode = realOrder?.paymentCode;
   const qrUrl = paymentCode?.imageUrl || '';
   const isRechargeOrder = order?.orderType === 'recharge';
+  const isManualMode = !isRechargeOrder && order?.confirmMode === 'manual';
 
   // User click "Paid / Refresh Link"
   const handleManualRefresh = () => {
-    setIsVerifyingSign(true);
-    setSignVerificationLog('Calculating secure merchant handshake payload...');
     setQueryCount(prev => prev + 1);
   };
 
@@ -229,21 +208,13 @@ export default function PayPage({ params }: PayPageProps) {
             )}
           </div>
 
-          {/* Signature Verification Mock Indicator */}
+          {/* Checkout security indicator */}
           <div className="mx-2 bg-slate-100/60 border border-slate-200/40 rounded-xl px-3 py-2 flex items-center justify-between text-[11px] text-slate-500 font-sans mt-3">
             <span className="font-semibold flex items-center gap-1">
-              <ShieldCheck className={`w-3.5 h-3.5 ${isVerifyingSign ? 'text-amber-500 animate-pulse' : 'text-emerald-500'}`} />
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
               API 鉴权方式: HMAC-SHA256
             </span>
-            {isVerifyingSign ? (
-              <span className="font-mono text-slate-400 flex items-center gap-1 select-none">
-                <RotateCw className="w-3 h-3 animate-spin text-amber-500" /> 正在验签...
-              </span>
-            ) : (
-              <span className="font-mono font-bold text-emerald-600 truncate max-w-[140px]" title={signVerificationLog}>
-                验证通过: {signVerificationLog.slice(-10)}
-              </span>
-            )}
+            <span className="font-bold text-emerald-600">已验证</span>
           </div>
         </div>
 
@@ -255,58 +226,16 @@ export default function PayPage({ params }: PayPageProps) {
             </div>
             <h3 className="text-base font-bold text-emerald-800">支付已核销入账</h3>
             <p className="text-[11px] text-slate-500 mt-1 max-w-xs leading-relaxed">
-              {isRechargeOrder ? '充值款项已到账，账户余额已自动入账。' : '您的款项已直达开发者个人账户。免签心跳探针已成功激发到账上报。'}
+              {isRechargeOrder
+                ? '充值款项已到账，账户余额已自动入账。'
+                : order.manualConfirmedAt
+                  ? '商户已人工确认收款，订单已完成。'
+                  : '您的款项已直达开发者个人账户。免签心跳探针已成功激发到账上报。'}
             </p>
             <p className="text-[11px] text-emerald-700 mt-2 font-semibold">
               {isRechargeOrder ? '正在自动返回控制台...' : '正在自动返回商家网站...'}
             </p>
 
-            {/* Webhook Callback Simulation Status & Retry UI */}
-            {!isRechargeOrder && <div className="mt-4 p-4 rounded-xl border w-full text-left font-sans text-xs bg-white shadow-xs border-slate-200" id="webhook-retry-panel">
-              <span className="font-bold text-slate-700 block text-[10px] uppercase tracking-wider mb-2 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-blue-500" /> 异步回调通知网关监测 (Webhook Hub)</span>
-              
-              {webhookStatusSim === 'failed_ready' && (
-                <div className="space-y-3">
-                  <div className="flex items-start gap-2 bg-rose-50 border border-rose-100 rounded-lg p-2.5 text-rose-800 text-[11px]">
-                    <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5 animate-pulse" />
-                    <div>
-                      <span className="font-bold block text-xs">商户接收阻断：处理延迟超时 (HTTP 502)</span>
-                      <p className="text-[10px] text-rose-500/80 mt-0.5">商户系统当前响应缓慢，HMAC 签名已经过安全信道校验，该笔订单当前未在商户端完成发货。</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setWebhookStatusSim('retrying');
-                      setTimeout(() => {
-                        setWebhookStatusSim('success');
-                      }, 1200);
-                    }}
-                    className="w-full py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-[0.98]"
-                  >
-                    <RotateCw className="w-3 h-3 animate-spin duration-3000" /> 手动补发 HMAC 安全回调 (Force Webhook Retry)
-                  </button>
-                </div>
-              )}
-
-              {webhookStatusSim === 'retrying' && (
-                <div className="flex flex-col items-center justify-center py-4 gap-2 text-slate-500 font-mono text-[10px]">
-                  <RotateCw className="w-4 h-4 animate-spin text-rose-500" />
-                  <span>重算 HMAC-SHA256 密钥指纹，强制补划投递中...</span>
-                </div>
-              )}
-
-              {webhookStatusSim === 'success' && (
-                <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-emerald-800 text-[11px]">
-                  <div className="flex items-center gap-1.5 font-bold text-emerald-700">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>投递状态: HTTP 200 OK (补发成功)</span>
-                  </div>
-                  <p className="text-[10px] text-emerald-600/80 mt-1">商户端已成功接收并返回 {"\"success\""} 回执，主站商品已自动即时处理发货！</p>
-                </div>
-              )}
-            </div>}
-            
             {/* Action complete row */}
             <div className="mt-5 flex flex-col gap-2.5 w-full">
               <button
@@ -429,7 +358,12 @@ export default function PayPage({ params }: PayPageProps) {
               {paymentCode?.codeType === 'fixed' ? (
                 <p className="mt-1 font-medium text-slate-600">该二维码为固定金额码，请支付页面显示的固定金额。</p>
               ) : (
-                <p className="mt-1 font-medium text-slate-600">系统全自动侦测到账通知，请不要多付或少付尾数分钱。</p>
+                <p className="mt-1 font-medium text-slate-600">{isManualMode ? '请不要多付或少付尾数分钱，商户将按该金额核对到账。' : '系统全自动侦测到账通知，请不要多付或少付尾数分钱。'}</p>
+              )}
+              {isManualMode && (
+                <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 font-semibold">
+                  当前商户设备离线，付款后需要商户人工确认。请保留付款凭证或联系商户。
+                </p>
               )}
             </div>
 

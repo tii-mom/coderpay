@@ -252,24 +252,24 @@ export default function ConsolePage() {
     return (
       <div className="min-h-screen bg-[#070A12] flex flex-col items-center justify-center text-slate-100 gap-4">
         <div className="w-12 h-12 rounded-full border-4 border-blue-500/20 border-t-blue-500 animate-spin" />
-        <span className="text-sm font-sans text-slate-400">正在安全调配 Coder Pay 开发者密钥云盘中...</span>
+        <span className="text-sm font-sans text-slate-400">正在加载 CoderPay 控制台...</span>
       </div>
     );
   }
 
   // Sidebar list configurations
   const menuItems = [
-    { id: 'overview', label: '工作台大盘', icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'apps', label: '应用通道管理', icon: <Code className="w-4 h-4" /> },
-    { id: 'codes', label: '个人收款二维码', icon: <QrCode className="w-4 h-4" /> },
-    { id: 'devices', label: '物理挂机探针', icon: <Smartphone className="w-4 h-4" /> },
-    { id: 'orders', label: '接口交易流水', icon: <FileText className="w-4 h-4" /> },
-    { id: 'events', label: '到账网络广播', icon: <ListTodo className="w-4 h-4" /> },
-    { id: 'exceptions', label: '异常对账监控', icon: <AlertOctagon className="w-4 h-4" />, badge: state.exceptions.filter(e => e.status === 'active').length },
-    { id: 'webhooks', label: 'Webhook 推流志', icon: <RotateCcw className="w-4 h-4" /> },
-    { id: 'docs', label: '接口联调指南', icon: <BookOpen className="w-4 h-4" /> },
+    { id: 'overview', label: '工作台', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'apps', label: '应用管理', icon: <Code className="w-4 h-4" /> },
+    { id: 'devices', label: '安卓监听设备', icon: <Smartphone className="w-4 h-4" /> },
+    { id: 'codes', label: '收款码', icon: <QrCode className="w-4 h-4" /> },
+    { id: 'orders', label: '订单管理', icon: <FileText className="w-4 h-4" /> },
     { id: 'billing', label: '订阅充值', icon: <Coins className="w-4 h-4" /> },
-    { id: 'account', label: '个人账户设置', icon: <User className="w-4 h-4" /> },
+    { id: 'exceptions', label: '异常处理', icon: <AlertOctagon className="w-4 h-4" />, badge: state.exceptions.filter(e => e.status === 'active').length },
+    { id: 'webhooks', label: '回调日志', icon: <RotateCcw className="w-4 h-4" /> },
+    { id: 'events', label: '到账记录', icon: <ListTodo className="w-4 h-4" /> },
+    { id: 'docs', label: '接口文档', icon: <BookOpen className="w-4 h-4" /> },
+    { id: 'account', label: '账户设置', icon: <User className="w-4 h-4" /> },
   ];
 
   // Selected App name for top drop-down preview
@@ -332,7 +332,7 @@ export default function ConsolePage() {
 
             {/* App boundary context switcher drop down */}
             <div className="flex flex-col gap-1 text-left">
-              <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider">当前工作空间环境</span>
+              <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider">当前应用</span>
               <div className="relative mt-1">
                 <select
                   value={state.currentAppId}
@@ -342,7 +342,7 @@ export default function ConsolePage() {
                   }}
                   className="w-full bg-[#111827] hover:bg-[#151B2E] border border-white/5 rounded-xl py-2 pl-3 pr-8 text-xs text-slate-200 focus:outline-none appearance-none cursor-pointer font-sans truncate font-semibold"
                 >
-                  <option value="all">所有创建的商户应用</option>
+                  <option value="all">所有应用</option>
                   {state.apps.map(a => (
                     <option key={a.id} value={a.appId}>{a.name}</option>
                   ))}
@@ -353,7 +353,7 @@ export default function ConsolePage() {
 
             {/* Main sidebar items switcher */}
             <nav className="flex flex-col gap-1 text-left">
-              <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-widest mb-2 mt-1">CP 操作面板</span>
+              <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-widest mb-2 mt-1">控制台</span>
               {menuItems.map(item => {
                 const isActive = activeTab === item.id;
                 return (
@@ -391,7 +391,7 @@ export default function ConsolePage() {
               </div>
               <div className="min-w-0">
                 <span className="text-xs font-bold text-white block truncate">{state.userEmail || '未登录'}</span>
-                <span className="text-[10px] text-[#64748B] mt-0.5 block font-sans">账户身份: 精英开发者</span>
+                <span className="text-[10px] text-[#64748B] mt-0.5 block font-sans">开发者账号</span>
               </div>
             </div>
 
@@ -400,7 +400,7 @@ export default function ConsolePage() {
               className="w-full py-2 bg-[#111827] border border-white/5 hover:border-white/10 hover:bg-white/5 rounded-xl text-xs font-bold text-rose-400 hover:text-rose-300 transition-all flex items-center justify-center gap-2"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>退出 Coder Pay</span>
+              <span>退出登录</span>
             </button>
           </div>
 
@@ -416,13 +416,13 @@ export default function ConsolePage() {
             <div className="flex items-center gap-6 text-xs text-slate-400">
               <span className="flex items-center gap-1.5">
                 <span className="inline-block w-2 h-2 rounded-full bg-[#22C55E]" />
-                CP系统正常运转中
+                系统正常
               </span>
 
               <span className="text-slate-500">|</span>
 
               <span className="font-sans text-[#94A3B8]">
-                绑定设备守护: <b className="text-[#22C55E] font-mono font-bold">{state.devices.filter(d => d.online).length}台在线</b>
+                监听设备: <b className="text-[#22C55E] font-mono font-bold">{state.devices.filter(d => d.online).length}台在线</b>
               </span>
             </div>
 
@@ -449,7 +449,7 @@ export default function ConsolePage() {
                   className="px-3.5 py-1.5 bg-[#3B82F6] hover:bg-[#2563EB] text-white font-bold rounded-lg transition-all text-xs flex items-center gap-1 leading-none shrink-0 shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:shadow-[0_0_20px_rgba(59,130,246,0.5)]"
                 >
                   <Coins className="w-3.5 h-3.5" />
-                  <span>充值余额</span>
+                  <span>充值</span>
                 </button>
               </div>
 
@@ -467,17 +467,17 @@ export default function ConsolePage() {
               <p className="text-xs text-slate-500 mt-1.5 font-sans leading-none">
                 {
                   {
-                    overview: '查看今日营业统计、近期成交流水和守护设备瞬时在线度',
-                    apps: '自主新增、删除或重置安全 App Secret、设定 notify_url 和过期时间',
-                    codes: '上传微信/支付宝不限额通用收款码和特定数额的静态定额码并绑定探针手机',
-                    devices: '管理及体检装有 CoderPay 探针的 Android 手机状态，检查物理权限',
-                    orders: '高级可搜索表格。支持手动补单、重试 Webhook 等关键异常操作',
-                    events: '查看由客户端上报的微信和支付宝到账通知原生到账时间序列',
-                    exceptions: '系统健康检查告警站。在此审查并一键重试故障或超时通知',
-                    webhooks: '深度查看每次异步通知的 Request Payload 和 Response RAW 报文详情',
-                    docs: '拥有快速测试沙箱。可以一键激发真实收银台联调，下载 Node.js/cURL 算签算法',
-                    billing: '查询历史扣费账单列表、订阅账户余额，并升级到更高成交额度套餐',
-                    account: '安全修改账户密码、退出当前登录或查看开发者基本账面信息'
+                    overview: '查看订单、余额、设备和异常概况，按步骤完成首次接入。',
+                    apps: '创建应用，配置回调地址，获取 App ID 和 App Secret。',
+                    devices: '绑定用于监听微信/支付宝到账通知的安卓手机。',
+                    codes: '上传微信或支付宝收款码，并绑定到安卓监听设备。',
+                    orders: '查看订单状态，处理人工确认和回调重试。',
+                    billing: '充值账户余额，查看订阅和扣费记录。',
+                    exceptions: '处理未匹配到账、设备离线、回调失败等异常。',
+                    webhooks: '查看商户回调请求、响应和重试结果。',
+                    events: '查看安卓设备上报的微信/支付宝到账记录。',
+                    docs: '查看创建订单、查询订单和 Webhook 回调接入说明。',
+                    account: '修改密码、查看当前账号和套餐信息。'
                   }[activeTab]
                 }
               </p>
@@ -491,7 +491,7 @@ export default function ConsolePage() {
           {/* Platform system footer metadata */}
           <footer className="py-6 border-t border-[rgba(255,255,255,0.04)] px-8 flex flex-col sm:flex-row justify-between items-center text-[10px] text-slate-600 font-mono gap-3 leading-none shrink-0">
             <span>© 2026 Coder Pay (CP) All rights reserved.</span>
-            <span>Coder direct direct settlement payment system v2.4.2</span>
+            <span>CoderPay developer console v2.4.2</span>
           </footer>
 
         </main>

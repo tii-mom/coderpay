@@ -99,8 +99,8 @@ if (!user) {
     process.exit(1)
   }
   const password = process.env.PLATFORM_RECHARGE_PASSWORD || ''
-  if (password.length < 8) {
-    console.error('✗ Set PLATFORM_RECHARGE_PASSWORD (>=8 chars) in the environment to create the platform user.')
+  if (!password.trim()) {
+    console.error('✗ Set PLATFORM_RECHARGE_PASSWORD in the environment to create the platform user.')
     console.error('  e.g. PLATFORM_RECHARGE_PASSWORD=... node scripts/setup-platform-recharge.mjs --remote')
     process.exit(1)
   }

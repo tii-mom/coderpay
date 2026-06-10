@@ -1,0 +1,44 @@
+# Daily production D1 cold backup.
+#
+# Required GitHub repository secret:
+# - CLOUDFLARE_API_TOKEN: token with D1 read/export permission for coderpay-db.
+#
+# The SQL dump is uploaded as a private GitHub Actions artifact. Download it and
+# copy important snapshots to R2/S3 or another cold-storage location.
+name: D1 Backup
+
+on:
+  schedule:
+    - cron: "20 19 * * *" # 03:20 Asia/Shanghai
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: Export coderpay-db
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Export remote D1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npm run db:backup
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coderpay-d1-backup-${{ github.run_id }}
+          path: backups/*.sql
+          if-no-files-found: error
+          retention-days: 30
