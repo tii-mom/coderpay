@@ -1,10 +1,10 @@
 export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { createSessionToken } from "@/lib/session";
 import { getSessionCookieOptions } from "@/lib/session-cookie";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { getAuthD1 } from "@/lib/auth-d1";
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,16 +26,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Password is required" }, { status: 400 });
     }
 
-    let user = await prisma.user.findUnique({ where: { email: loginId } });
+    const db = getAuthD1();
+    let user = await db.prepare(`SELECT * FROM User WHERE email = ? LIMIT 1`)
+      .bind(loginId)
+      .first<any>();
     if (!user) {
       return NextResponse.json({ error: "Account not found" }, { status: 401 });
     }
 
     if (user.passwordHash === "password_hash") {
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: { passwordHash: await hashPassword(password) }
-      });
+      const passwordHash = await hashPassword(password);
+      await db.prepare(`UPDATE User SET passwordHash = ?, updatedAt = ? WHERE id = ?`)
+        .bind(passwordHash, new Date().toISOString(), user.id)
+        .run();
+      user = { ...user, passwordHash };
     } else if (!(await verifyPassword(password, user.passwordHash))) {
       return NextResponse.json({ error: "Invalid password" }, { status: 401 });
     }

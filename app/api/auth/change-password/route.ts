@@ -1,8 +1,8 @@
 export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { verifyPassword, hashPassword } from "@/lib/password";
+import { getAuthD1 } from "@/lib/auth-d1";
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,10 +29,10 @@ export async function POST(req: NextRequest) {
 
     // Hash and update to database
     const newHash = await hashPassword(newPassword);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { passwordHash: newHash },
-    });
+    await getAuthD1()
+      .prepare(`UPDATE User SET passwordHash = ?, updatedAt = ? WHERE id = ?`)
+      .bind(newHash, new Date().toISOString(), user.id)
+      .run();
 
     return NextResponse.json({ status: "success" });
   } catch (err) {

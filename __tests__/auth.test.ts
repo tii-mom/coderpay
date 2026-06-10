@@ -10,12 +10,14 @@ const mockUser = {
 };
 
 const mockUpdate = vi.fn();
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
-    user: {
-      update: (...args: any[]) => mockUpdate(...args),
-    },
-  },
+vi.mock("@/lib/auth-d1", () => ({
+  getAuthD1: () => ({
+    prepare: () => ({
+      bind: (passwordHash: string, updatedAt: string, id: string) => ({
+        run: () => mockUpdate({ passwordHash, updatedAt, id }),
+      }),
+    }),
+  }),
 }));
 
 let mockSessionUser: any = null;
@@ -90,10 +92,11 @@ describe("Change Password API", () => {
     };
 
     let updatedHash = "";
-    mockUpdate.mockImplementation(({ where, data }) => {
-      expect(where.id).toBe(mockUser.id);
-      updatedHash = data.passwordHash;
-      return Promise.resolve({ ...mockSessionUser, passwordHash: updatedHash });
+    mockUpdate.mockImplementation(({ passwordHash, updatedAt, id }) => {
+      expect(id).toBe(mockUser.id);
+      expect(updatedAt).toEqual(expect.any(String));
+      updatedHash = passwordHash;
+      return Promise.resolve({ success: true });
     });
 
     const newPassword = "superSecretNewPassword123";

@@ -65,6 +65,11 @@ export function usePaymentState() {
   const readApiError = async (res: Response) => {
     const text = await res.text().catch(() => "");
     if (!text) return `请求失败 (${res.status})`;
+    const contentType = res.headers.get("content-type") || "";
+
+    if (!contentType.includes("application/json") && /^\s*</.test(text)) {
+      return `服务器返回异常页面 (${res.status})，请刷新后重试`;
+    }
 
     try {
       const data = JSON.parse(text);

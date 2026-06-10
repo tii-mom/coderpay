@@ -1,10 +1,10 @@
 export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { createSessionToken } from "@/lib/session";
 import { getSessionCookieOptions } from "@/lib/session-cookie";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { getAuthD1 } from "@/lib/auth-d1";
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -31,20 +31,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Password is required" }, { status: 400 });
     }
 
-    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    const db = getAuthD1();
+    const existing = await db.prepare(`SELECT id FROM User WHERE email = ? LIMIT 1`)
+      .bind(normalizedEmail)
+      .first();
     if (existing) {
       return NextResponse.json({ error: "Account already exists" }, { status: 409 });
     }
 
-    const user = await prisma.user.create({
-      data: {
-        email: normalizedEmail,
-        passwordHash: await hashPassword(rawPassword),
-        feeBalance: 0,
-        packageType: "free",
-        emailVerifiedAt: new Date(),
-      },
-    });
+    const user = {
+      id: crypto.randomUUID(),
+      email: normalizedEmail,
+      passwordHash: await hashPassword(rawPassword),
+      feeBalance: 0,
+    };
+    const now = new Date().toISOString();
+
+    await db.prepare(`
+      INSERT INTO User (
+        id, email, passwordHash, emailVerifiedAt, feeBalance, packageType,
+        freeOrderUsed, firstProDiscountUsed, firstMaxDiscountUsed, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, 0, 'free', 0, 0, 0, ?, ?)
+    `).bind(user.id, user.email, user.passwordHash, now, now, now).run();
 
     const response = NextResponse.json({
       status: "success",

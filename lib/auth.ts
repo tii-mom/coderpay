@@ -1,14 +1,15 @@
 import { NextRequest } from "next/server";
-import { prisma } from "./prisma";
+import { getAuthD1 } from "./auth-d1";
 import { readSessionEmail } from "./session";
 
 export async function getSessionUser(req: NextRequest) {
   const sessionEmail = await readSessionEmail(req.cookies.get("session_email")?.value);
   if (!sessionEmail) return null;
-  
-  const user = await prisma.user.findUnique({
-    where: { email: sessionEmail }
-  });
-  
+
+  const user = await getAuthD1()
+    .prepare(`SELECT * FROM User WHERE email = ? LIMIT 1`)
+    .bind(sessionEmail)
+    .first<any>();
+
   return user;
 }
