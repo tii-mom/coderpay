@@ -247,12 +247,22 @@ class MainActivity : ComponentActivity() {
                                             LogTracker.log("绑定成功！已拉起后台常驻保活，心跳正常建立。")
                                         } else {
                                             val errorText = response.errorBody()?.string() ?: "授权码无效或已过期"
+                                            val friendlyError = when {
+                                                errorText.contains("Authentication credentials", ignoreCase = true) ->
+                                                    "该设备码已经绑定过旧设备密钥。请在网页控制台的设备详情中点击“重置设备密钥”，复制新的 dev_ 绑定码后再连接。"
+                                                errorText.contains("expired", ignoreCase = true) ->
+                                                    "设备绑定码已过期。请在网页控制台重新添加安卓设备或重置设备密钥后再连接。"
+                                                errorText.contains("Device not registered", ignoreCase = true) ||
+                                                    errorText.contains("Invalid", ignoreCase = true) ->
+                                                    "设备绑定码不存在。请从网页控制台复制最新的 dev_ 绑定码。"
+                                                else -> errorText
+                                            }
                                             settings.clearBinding()
                                             withContext(Dispatchers.Main) {
                                                 isPairing = false
-                                                pairingMessage = "绑定失败：$errorText"
+                                                pairingMessage = "绑定失败：$friendlyError"
                                             }
-                                            LogTracker.log("绑定失败：云端响应拒绝 - $errorText")
+                                            LogTracker.log("绑定失败：云端响应拒绝 - $friendlyError")
                                         }
                                     } catch (e: Exception) {
                                         settings.clearBinding()

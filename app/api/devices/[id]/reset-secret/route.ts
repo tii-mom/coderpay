@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const updated = await prisma.device.update({
       where: { id },
       data: {
-        deviceCode: `dev_${randomHex(16)}`,
+        deviceCode: `dev_${randomHex(10)}`,
         deviceSecret: "",
         bindingExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         boundAt: null,
