@@ -16,6 +16,7 @@ const ExceptionsTab = React.lazy(() => import('@/components/console/ExceptionsTa
 const WebhooksTab = React.lazy(() => import('@/components/console/WebhooksTab').then(m => ({ default: m.WebhooksTab })));
 const DocsTab = React.lazy(() => import('@/components/console/DocsTab').then(m => ({ default: m.DocsTab })));
 const BillingTab = React.lazy(() => import('@/components/console/BillingTab').then(m => ({ default: m.BillingTab })));
+const AccountTab = React.lazy(() => import('@/components/console/AccountTab').then(m => ({ default: m.AccountTab })));
 
 import { 
   LayoutDashboard, 
@@ -57,7 +58,8 @@ const VALID_CONSOLE_TABS = new Set([
   'exceptions',
   'webhooks',
   'docs',
-  'billing'
+  'billing',
+  'account'
 ]);
 
 function getConsoleTabFromLocation() {
@@ -217,7 +219,7 @@ export default function ConsolePage() {
         const packageType = state.packageType === 'max' ? 'max' : state.packageType === 'pro' ? 'pro' : 'free';
         const computedPlan = {
           id: packageType,
-          name: packageType === 'max' ? '至尊免服务费版' : packageType === 'pro' ? '专业版' : '免费调试版',
+          name: packageType === 'max' ? '高级版' : packageType === 'pro' ? '专业版' : '免费调试版',
           price: packageType === 'max' ? 199 : packageType === 'pro' ? 69 : 0,
           duration: '月',
           techServiceRate: packageType === 'max' ? 0.002 : packageType === 'pro' ? 0.005 : 0,
@@ -231,6 +233,9 @@ export default function ConsolePage() {
         element = <BillingTab plan={computedPlan} billingRecords={state.billingRecords} onTriggerToast={triggerToast} db={db} />;
         break;
       }
+      case 'account':
+        element = <AccountTab state={state} onTriggerToast={triggerToast} db={db} />;
+        break;
       default:
         element = <OverviewTab state={state} onSwitchTab={handleSwitchTab} />;
         break;
@@ -263,7 +268,8 @@ export default function ConsolePage() {
     { id: 'exceptions', label: '异常对账监控', icon: <AlertOctagon className="w-4 h-4" />, badge: state.exceptions.filter(e => e.status === 'active').length },
     { id: 'webhooks', label: 'Webhook 推流志', icon: <RotateCcw className="w-4 h-4" /> },
     { id: 'docs', label: '接口联调指南', icon: <BookOpen className="w-4 h-4" /> },
-    { id: 'billing', label: '佣金账户充值', icon: <Coins className="w-4 h-4" /> },
+    { id: 'billing', label: '订阅充值', icon: <Coins className="w-4 h-4" /> },
+    { id: 'account', label: '个人账户设置', icon: <User className="w-4 h-4" /> },
   ];
 
   // Selected App name for top drop-down preview
@@ -426,7 +432,7 @@ export default function ConsolePage() {
               {/* Account Level */}
               <div className="flex items-center gap-1.5 bg-[#111827] border border-white/5 px-3 py-1 rounded-xl text-xs font-semibold text-slate-300">
                 <Award className="w-4 h-4 text-amber-500" />
-                {state.packageType === 'max' ? '至尊免服务费版' : state.packageType === 'pro' ? '专业版' : '免费调试版'}
+                {state.packageType === 'max' ? '高级版' : state.packageType === 'pro' ? '专业版' : '免费调试版'}
               </div>
 
               {/* Balance brief top container */}
@@ -470,7 +476,8 @@ export default function ConsolePage() {
                     exceptions: '系统健康检查告警站。在此审查并一键重试故障或超时通知',
                     webhooks: '深度查看每次异步通知的 Request Payload 和 Response RAW 报文详情',
                     docs: '拥有快速测试沙箱。可以一键激发真实收银台联调，下载 Node.js/cURL 算签算法',
-                    billing: '查询历史扣费账单列表、佣金存底数额，并升级到更高成交额度套餐'
+                    billing: '查询历史扣费账单列表、订阅账户余额，并升级到更高成交额度套餐',
+                    account: '安全修改账户密码、退出当前登录或查看开发者基本账面信息'
                   }[activeTab]
                 }
               </p>

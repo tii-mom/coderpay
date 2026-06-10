@@ -43,9 +43,9 @@ export default function HomePage() {
     router.push('/login');
   };
 
-  const handleNavigateDocs = () => {
+  const handleNavigateDocs = (hash = '') => {
     // Navigate to dedicated docs page
-    router.push('/docs');
+    router.push(`/docs${hash}`);
   };
 
   const androidApkUrl = '/downloads/coderpay-android.apk';
@@ -140,18 +140,19 @@ export default function HomePage() {
     {
       id: 'pro',
       name: '专业版',
-      price: '39',
+      price: '49',
       originalPrice: '69',
       period: ' / 首月',
       nextPeriodPrice: '次月起 ¥69/月',
       desc: '适合正规线上项目、独立产品中等交易体量。',
-      techFee: '首次订阅立减30元，交易手续费 0.5%',
+      techFee: '首次订阅立减20元，交易手续费 0.5%',
       features: [
+        '单笔收款上限最高 ¥10000.00',
         '独立接入应用上限 5 个',
         '支持挂载多台设备（负载均衡、切码）',
         '微信 + 支付宝多个固定金额付款码',
         '高级订单签名保障（HMAC-SHA256 协议）',
-        '高优先级 Webhook 队列重试（可达 10 次）',
+        'Webhook 失败记录与控制台手动重试',
         '订阅期内持续创建订单，余额大于0即可服务',
         '异常订单一键人工核对补单与一键回调重发'
       ],
@@ -160,7 +161,7 @@ export default function HomePage() {
     },
     {
       id: 'enterprise',
-      name: '至尊免服务费版',
+      name: '高级版',
       price: '149',
       originalPrice: '199',
       period: ' / 首月',
@@ -168,6 +169,7 @@ export default function HomePage() {
       desc: '适合交易频繁的高黏性项目，享受更低服务费率。',
       techFee: '首次订阅立减50元，交易手续费 0.2%',
       features: [
+        '单笔收款上限无限制',
         '无限独立接入应用注册',
         '支持无限挂载备用安卓设备，高并发承载',
         '独享独立的异常离线邮件/短信提示服务',
@@ -175,7 +177,7 @@ export default function HomePage() {
         '高级API调试、模拟到账测试沙箱服务',
         '7 × 24 小时一对一技术接入辅助'
       ],
-      cta: '升级至尊授权',
+      cta: '立即开通 高级版',
       primary: false
     }
   ];
@@ -204,7 +206,7 @@ export default function HomePage() {
             <a href="#product-flow" className="hover:text-blue-400 hover:translate-y-[-1px] transition-all">运作原理</a>
             <a href="#product-features" className="hover:text-blue-400 hover:translate-y-[-1px] transition-all">核心优势</a>
             <a href="#pricing-grid" className="hover:text-blue-400 hover:translate-y-[-1px] transition-all">套餐费用</a>
-            <span onClick={handleNavigateDocs} className="cursor-pointer hover:text-blue-400 hover:translate-y-[-1px] transition-all">接口文档</span>
+            <span onClick={() => handleNavigateDocs('#api-create')} className="cursor-pointer hover:text-blue-400 hover:translate-y-[-1px] transition-all">接口文档</span>
           </nav>
 
           <div className="flex items-center gap-3" id="header-ctas">
@@ -257,7 +259,7 @@ export default function HomePage() {
                   开始接入 <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={handleNavigateDocs}
+                  onClick={() => handleNavigateDocs()}
                   className="px-6 py-4 rounded-xl text-base bg-[#111827] border border-[rgba(255,255,255,0.08)] hover:bg-[#151B2E] text-slate-300 hover:text-white font-medium transition-all"
                 >
                   查看说明文档
@@ -614,6 +616,10 @@ export default function HomePage() {
           </h2>
           <p className="text-slate-400 text-sm sm:text-base mb-8 max-w-2xl mx-auto">
             立即注册开通 CP 账户。多平台探针守护到账，HMAC 安全加密回调，保障订单实时同步。
+            <br />
+            <span className="text-xs text-slate-500 mt-2 block">
+              售后商务：<a href="https://t.me/coderpay3" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Telegram @coderpay3</a>
+            </span>
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
@@ -623,7 +629,7 @@ export default function HomePage() {
               免费开通接入 <ChevronRight className="w-4 h-4" />
             </button>
             <button
-              onClick={handleNavigateDocs}
+              onClick={() => handleNavigateDocs('#api-create')}
               className="px-8 py-4 bg-[#111827] hover:bg-[#151B2E] border border-[rgba(255,255,255,0.08)] text-slate-300 font-medium rounded-xl transition-all w-full sm:w-auto text-center"
             >
               获取 API 文档
@@ -641,6 +647,7 @@ export default function HomePage() {
             <span>© 2026 Coder Pay. 所有资金进入个人安全账户。</span>
           </div>
           <div className="flex items-center gap-6">
+            <a href="https://t.me/coderpay3" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 text-blue-500 font-medium">售后商务 Telegram</a>
             <a href="#product-flow" className="hover:text-slate-400">服务条款</a>
             <a href="#product-features" className="hover:text-slate-400">隐私声明</a>
             <span className="text-blue-500 font-mono">CoderPay Android v1.0.3</span>

@@ -138,8 +138,6 @@ export function DocsTab({ apps, onTriggerToast, db }: DocsTabProps) {
     "title": "${sandboxTitle}",
     "amount": ${sandboxAmount},
     "pay_type": "${sandboxPayType}",
-    "notify_url": "${selectedApp?.notifyUrl || 'https://example.com/callback'}",
-    "return_url": "${selectedApp?.returnUrl || 'https://example.com/success'}",
     "sign": "c20df843c08969f6cd9ab6b998cfb5e2be10cbfb2752cf3a772da061e8cbf5e2"
   }'`;
 
@@ -152,9 +150,7 @@ const params = {
   out_order_no: "ORDER_920194839",
   title: "${sandboxTitle}",
   amount: "${sandboxAmount}",
-  pay_type: "${sandboxPayType}",
-  notify_url: "${selectedApp?.notifyUrl || 'https://your-domain.com/notify-api'}",
-  return_url: "${selectedApp?.returnUrl || 'https://your-domain.com/landing'}"
+  pay_type: "${sandboxPayType}"
 };
 
 // 2. 升序排列并生成待签名字符串
@@ -184,8 +180,6 @@ params = {
     "title": "${sandboxTitle}",
     "amount": "${sandboxAmount}",
     "pay_type": "${sandboxPayType}",
-    "notify_url": "${selectedApp?.notifyUrl || 'https://your-domain.com/notify-api'}",
-    "return_url": "${selectedApp?.returnUrl || 'https://your-domain.com/landing'}",
 }
 
 # 2. 升序排列并生成待签名字符串
@@ -229,8 +223,6 @@ func main() {
 		"title":        "${sandboxTitle}",
 		"amount":       "${sandboxAmount}",
 		"pay_type":      "${sandboxPayType}",
-		"notify_url":   "${selectedApp?.notifyUrl || "https://your-domain.com/notify-api"}",
-		"return_url":   "${selectedApp?.returnUrl || "https://your-domain.com/landing"}",
 	}
 
 	var keys []string
@@ -277,8 +269,6 @@ $params = [
     'title' => '${sandboxTitle}',
     'amount' => '${sandboxAmount}',
     'pay_type' => '${sandboxPayType}',
-    'notify_url' => '${selectedApp?.notifyUrl || "https://your-domain.com/notify-api"}',
-    'return_url' => '${selectedApp?.returnUrl || "https://your-domain.com/landing"}'
 ];
 
 ksort($params);
@@ -322,134 +312,151 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start text-left animate-fade-in" id="docs-tab-panel">
-      
-      {/* Left Column: API documentation specs */}
-      <div className="lg:col-span-7 flex flex-col gap-6">
-        
-        {/* API Sub Selector menu tabs */}
-        <div className="flex gap-1.5 bg-[#0B1020]/60 border border-[rgba(255,255,255,0.06)] p-1 rounded-xl">
-          <button
-            onClick={() => setActiveSubTab('create')}
-            className={`flex-1 text-center py-2 px-3 rounded-lg text-xs font-bold transition-all ${
-              activeSubTab === 'create' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            1. 创建支付订单 API
-          </button>
-          <button
-            onClick={() => setActiveSubTab('query')}
-            className={`flex-1 text-center py-2 px-3 rounded-lg text-xs font-bold transition-all ${
-              activeSubTab === 'query' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            2. 查询付款状态 ICP
-          </button>
-          <button
-            onClick={() => setActiveSubTab('callback')}
-            className={`flex-1 text-center py-2 px-3 rounded-lg text-xs font-bold transition-all ${
-              activeSubTab === 'callback' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            3. Webhook 到账回调
-          </button>
-          <button
-            onClick={() => setActiveSubTab('sign')}
-            className={`flex-1 text-center py-2 px-3 rounded-lg text-xs font-bold transition-all ${
-              activeSubTab === 'sign' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            签名鉴权算法
-          </button>
+    <div className="flex flex-col gap-6 w-full animate-fade-in" id="docs-tab-panel">
+      {/* Top Banner Notice */}
+      <div className="bg-[#0B1020] border border-[rgba(255,255,255,0.06)] p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs">
+        <div>
+          <span className="font-bold text-white block">这是“登录后联调工作台”</span>
+          <span className="text-slate-400 block mt-1">用于结合当前 App 做沙箱调试与接入体检。</span>
         </div>
+        <a 
+          href="/docs" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all shadow-[0_4px_12px_rgba(37,99,235,0.2)] flex items-center gap-1.5"
+        >
+          查看完整公开文档 <ArrowRight className="w-3.5 h-3.5" />
+        </a>
+      </div>
 
-        {/* Content segments */}
-        {activeSubTab === 'create' && (
-          <div className="bg-cp-card border border-cp rounded-2xl p-6 flex flex-col gap-4 text-xs font-sans leading-relaxed text-slate-300">
-            <h3 className="text-sm font-bold text-white flex items-center gap-1.5 pb-2.5 border-b border-[rgba(255,255,255,0.04)]">
-              <Database className="w-4.5 h-4.5 text-blue-400" />
-              创建免签收银订单 API 端点: <code>/api/order/create</code>
-            </h3>
-
-            <p>
-              在您的自建商城/打赏主站中，当买家确定下单并点击【聚合扫码支付】瞬间，您的 Web 服务器需向 CP 宿主系统发出此 POST 参数请求。CP 将实时微调分派订单价、挂机锁定个人收款通道，并返回一个收银付款台定向 URL（<code>payment_url</code>）。您应将买家重定向导流向该地址扫码。
-            </p>
-
-            <span className="font-bold text-slate-200 mt-2">HTTP POST 请求负载关键字段：</span>
-            <div className="grid grid-cols-3 gap-3 border border-[rgba(255,255,255,0.04)] bg-[#0B1020]/20 p-3 rounded-xl font-mono text-[11px]">
-              <div><strong className="text-slate-100">app_id</strong><span className="text-[10px] text-slate-500 block">Required string</span></div>
-              <div className="col-span-2 text-slate-300">您的 Coder Pay 接入端 APP 开发者商户凭据唯一序列号</div>
-
-              <div><strong className="text-slate-100">out_order_no</strong><span className="text-[10px] text-slate-500 block">Required string</span></div>
-              <div className="col-span-2 text-slate-300">您本地业务库中该订单主键 ID，须具有全局唯一性</div>
-
-              <div><strong className="text-slate-100">amount</strong><span className="text-[10px] text-slate-500 block">Required decimal</span></div>
-              <div className="col-span-2 text-slate-300">标定应付实物总额，精确至两位小数，例如：19.90</div>
-
-              <div><strong className="text-slate-100">pay_type</strong><span className="text-[10px] text-slate-500 block">Required enum</span></div>
-              <div className="col-span-2 text-slate-300">支付核对通道类型：<code>wechat</code> (微信扫码) 或 <code>alipay</code> (支付宝扫码)</div>
-            </div>
-
-            {/* SDK Language Tabs */}
-            <div className="flex gap-1 bg-[#0B1020] p-1 rounded-lg border border-[rgba(255,255,255,0.04)] mt-3">
-              {(['nodejs', 'python', 'go', 'php'] as const).map((lang) => (
-                <button
-                  key={lang}
-                  type="button"
-                  onClick={() => setSdkLanguage(lang)}
-                  className={`flex-1 py-1 rounded text-[10px] font-bold transition-all ${
-                    sdkLanguage === lang ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {lang === 'nodejs' ? 'Node.js' : lang === 'python' ? 'Python' : lang === 'go' ? 'Go' : 'PHP'}
-                </button>
-              ))}
-            </div>
-
-            {/* Code sample block wrapper */}
-            <div className="flex flex-col gap-1.5 mt-2">
-              <div className="flex items-center justify-between text-[11px] font-mono">
-                <span className="text-slate-400">{getLanguageLabel()}</span>
-                <button 
-                  onClick={() => handleCopyText(getActivePayloadString(), '发单集成代码段')}
-                  className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-bold"
-                >
-                  <Copy className="w-3.5 h-3.5" /> 复制模块
-                </button>
-              </div>
-              <pre className="bg-[#0B1020] border border-[rgba(255,255,255,0.08)] p-4 rounded-xl text-[10px] text-zinc-300 font-mono overflow-auto max-h-72 whitespace-pre leading-relaxed select-all">
-                {getActivePayloadString()}
-              </pre>
-            </div>
-
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start text-left">
+        
+        {/* Left Column: API documentation specs */}
+        <div className="lg:col-span-7 flex flex-col gap-6">
+          
+          {/* API Sub Selector menu tabs */}
+          <div className="flex gap-1.5 bg-[#0B1020]/60 border border-[rgba(255,255,255,0.06)] p-1 rounded-xl">
+            <button
+              onClick={() => setActiveSubTab('create')}
+              className={`flex-1 text-center py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+                activeSubTab === 'create' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              1. 创建支付订单 API
+            </button>
+            <button
+              onClick={() => setActiveSubTab('query')}
+              className={`flex-1 text-center py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+                activeSubTab === 'query' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              2. 查询订单状态 API
+            </button>
+            <button
+              onClick={() => setActiveSubTab('callback')}
+              className={`flex-1 text-center py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+                activeSubTab === 'callback' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              3. Webhook 到账回调
+            </button>
+            <button
+              onClick={() => setActiveSubTab('sign')}
+              className={`flex-1 text-center py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+                activeSubTab === 'sign' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              签名鉴权算法
+            </button>
           </div>
-        )}
 
-        {activeSubTab === 'query' && (
-          <div className="bg-cp-card border border-cp rounded-2xl p-6 flex flex-col gap-4 text-xs font-sans leading-relaxed text-slate-300">
-            <h3 className="text-sm font-bold text-white flex items-center gap-1.5 pb-2.5 border-b border-[rgba(255,255,255,0.04)]">
-              <Database className="w-4.5 h-4.5 text-blue-400" />
-              查询支付订单到账状态: <code>/api/order/query</code>
-            </h3>
+          {/* Content segments */}
+          {activeSubTab === 'create' && (
+            <div className="bg-cp-card border border-cp rounded-2xl p-6 flex flex-col gap-4 text-xs font-sans leading-relaxed text-slate-300">
+              <h3 className="text-sm font-bold text-white flex items-center gap-1.5 pb-2.5 border-b border-[rgba(255,255,255,0.04)]">
+                <Database className="w-4.5 h-4.5 text-blue-400" />
+                创建免签收银订单 API 端点: <code>/api/order/create</code>
+              </h3>
 
-            <p>
-              同步页面跳转可能由于意外的网络刷新而被阻断。我们强烈提倡在您收发货完成前，由您的服务器或者前端以 POST 形式，调拨此状态查询接口以确认交易核销情况。
-            </p>
+              <p>
+                在您的自建商城/打赏主站中，当买家确定下单并点击【聚合扫码支付】瞬间，您的 Web 服务器需向 CP 宿主系统发出此 POST 参数请求。CP 将实时微调分派订单价、挂机锁定个人收款通道，并返回一个收银付款台定向 URL（<code>payment_url</code>）。您应将买家重定向导流向该地址扫码。
+              </p>
 
-            <span className="font-bold text-slate-200 mt-2">HTTP POST 查询参数:</span>
-            <div className="grid grid-cols-4 gap-3 bg-[#0B1020]/20 p-3 rounded-xl font-mono text-[11px] border border-[rgba(255,255,255,0.04)]">
-              <div><strong className="text-slate-100">app_id</strong></div>
-              <div className="col-span-3 text-slate-400">开发者商户凭据唯一序列号</div>
+              <span className="font-bold text-slate-200 mt-2">HTTP POST 请求负载关键字段：</span>
+              <div className="grid grid-cols-3 gap-3 border border-[rgba(255,255,255,0.04)] bg-[#0B1020]/20 p-3 rounded-xl font-mono text-[11px]">
+                <div><strong className="text-slate-100">app_id</strong><span className="text-[10px] text-slate-500 block">Required string</span></div>
+                <div className="col-span-2 text-slate-300">您的 Coder Pay 接入端 APP 开发者商户凭据唯一序列号</div>
 
-              <div><strong className="text-slate-100">order_id</strong></div>
-              <div className="col-span-3 text-slate-400">CP 系统返回的收款交易流水单号（或传 <code>out_order_no</code> 兼容匹配）</div>
+                <div><strong className="text-slate-100">out_order_no</strong><span className="text-[10px] text-slate-500 block">Required string</span></div>
+                <div className="col-span-2 text-slate-300">您本地业务库中该订单主键 ID，须具有全局唯一性</div>
 
-              <div><strong className="text-slate-105">sign</strong></div>
-              <div className="col-span-3 text-slate-400">参数排序签名。防伪鉴权校验专用</div>
+                <div><strong className="text-slate-100">amount</strong><span className="text-[10px] text-slate-500 block">Required decimal</span></div>
+                <div className="col-span-2 text-slate-300">标定应付实物总额，精确至两位小数，例如：19.90</div>
+
+                <div><strong className="text-slate-100">pay_type</strong><span className="text-[10px] text-slate-500 block">Required enum</span></div>
+                <div className="col-span-2 text-slate-300">支付核对通道类型：<code>wechat</code> (微信扫码) 或 <code>alipay</code> (支付宝扫码)</div>
+              </div>
+
+              {/* SDK Language Tabs */}
+              <div className="flex gap-1 bg-[#0B1020] p-1 rounded-lg border border-[rgba(255,255,255,0.04)] mt-3">
+                {(['nodejs', 'python', 'go', 'php'] as const).map((lang) => (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => setSdkLanguage(lang)}
+                    className={`flex-1 py-1 rounded text-[10px] font-bold transition-all ${
+                      sdkLanguage === lang ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {lang === 'nodejs' ? 'Node.js' : lang === 'python' ? 'Python' : lang === 'go' ? 'Go' : 'PHP'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Code sample block wrapper */}
+              <div className="flex flex-col gap-1.5 mt-2">
+                <div className="flex items-center justify-between text-[11px] font-mono">
+                  <span className="text-slate-400">{getLanguageLabel()}</span>
+                  <button 
+                    onClick={() => handleCopyText(getActivePayloadString(), '发单集成代码段')}
+                    className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-bold"
+                  >
+                    <Copy className="w-3.5 h-3.5" /> 复制模块
+                  </button>
+                </div>
+                <pre className="bg-[#0B1020] border border-[rgba(255,255,255,0.08)] p-4 rounded-xl text-[10px] text-zinc-300 font-mono overflow-auto max-h-72 whitespace-pre leading-relaxed select-all">
+                  {getActivePayloadString()}
+                </pre>
+              </div>
+
             </div>
+          )}
 
-            <span className="font-bold text-slate-200 mt-2">状态 JSON 输出值响应：</span>
-            <pre className="bg-[#0B1020] border border-[rgba(255,255,255,0.08)] p-4 rounded-xl text-[10px] text-emerald-400 font-mono overflow-auto whitespace-pre leading-relaxed">
+          {activeSubTab === 'query' && (
+            <div className="bg-cp-card border border-cp rounded-2xl p-6 flex flex-col gap-4 text-xs font-sans leading-relaxed text-slate-300">
+              <h3 className="text-sm font-bold text-white flex items-center gap-1.5 pb-2.5 border-b border-[rgba(255,255,255,0.04)]">
+                <Database className="w-4.5 h-4.5 text-blue-400" />
+                查询支付订单到账状态: <code>/api/order/query</code>
+              </h3>
+
+              <p>
+                同步页面跳转可能由于意外的网络刷新而被阻断。我们强烈提倡在您收发货完成前，由您的服务器或者前端以 POST 形式，调拨此状态查询接口以确认交易核销情况。
+              </p>
+
+              <span className="font-bold text-slate-200 mt-2">HTTP POST 查询参数:</span>
+              <div className="grid grid-cols-4 gap-3 bg-[#0B1020]/20 p-3 rounded-xl font-mono text-[11px] border border-[rgba(255,255,255,0.04)]">
+                <div><strong className="text-slate-100">app_id</strong></div>
+                <div className="col-span-3 text-slate-400">开发者商户凭据唯一序列号</div>
+
+                <div><strong className="text-slate-100">order_id</strong></div>
+                <div className="col-span-3 text-slate-400">CP 系统返回的收款交易流水单号（或传 <code>out_order_no</code> 兼容匹配）</div>
+
+                <div><strong className="text-slate-105">sign</strong></div>
+                <div className="col-span-3 text-slate-400">参数排序签名。防伪鉴权校验专用</div>
+              </div>
+
+              <span className="font-bold text-slate-200 mt-2">状态 JSON 输出值响应：</span>
+              <pre className="bg-[#0B1020] border border-[rgba(255,255,255,0.08)] p-4 rounded-xl text-[10px] text-emerald-400 font-mono overflow-auto whitespace-pre leading-relaxed">
 {`{
   "code": 200,
   "msg": "success",
@@ -462,26 +469,26 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
     "pay_time": "2026-06-05 19:33:14"
   }
 }`}
-            </pre>
-          </div>
-        )}
-
-        {activeSubTab === 'callback' && (
-          <div className="bg-cp-card border border-cp rounded-2xl p-6 flex flex-col gap-4 text-xs font-sans leading-relaxed text-slate-300">
-            <h3 className="text-sm font-bold text-white flex items-center gap-1.5 pb-2.5 border-b border-[rgba(255,255,255,0.04)]">
-              <Database className="w-4.5 h-4.5 text-blue-400" />
-              Webhook 异步发货通知规范 (notify_url)
-            </h3>
-
-            <p>
-              一旦安装了 <b>CoderPay App</b> 的 Android 设备监听到微信/支付宝收款到达，CP 核心云将在 500ms 内触发对您预留 <code>notify_url</code> 的异步 POST 签名回调网络推送。
-            </p>
-
-            <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/20 text-xs text-amber-200">
-              <b>回调核销响应规范：</b>当您的业务系统验证签名无误，并充值或发货处理完毕后，请务必向该 HTTP Response 输出文本 <b>&quot;success&quot;</b> (全英文小写无空格)。一旦收到非 success 串（或超时），CP 会判定推送失败进而开启 5 轮逐步退避重试，以杜绝漏单情况。
+              </pre>
             </div>
+          )}
 
-            <span className="font-bold text-slate-200 mt-2">回调发载 Payload 参考（POST Application/JSON）：</span>
+          {activeSubTab === 'callback' && (
+            <div className="bg-cp-card border border-cp rounded-2xl p-6 flex flex-col gap-4 text-xs font-sans leading-relaxed text-slate-300">
+              <h3 className="text-sm font-bold text-white flex items-center gap-1.5 pb-2.5 border-b border-[rgba(255,255,255,0.04)]">
+                <Database className="w-4.5 h-4.5 text-blue-400" />
+                Webhook 异步发货通知规范 (notify_url)
+              </h3>
+
+              <p>
+                一旦安装了 <b>CoderPay App</b> 的 Android 设备监听到微信/支付宝收款到达，CP 核心云将在 500ms 内触发对您预留 <code>notify_url</code> 的异步 POST 签名回调网络推送。
+              </p>
+
+              <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/20 text-xs text-amber-200">
+                <b>回调核销响应规范：</b>当您的业务系统验证签名无误，并充值或发货处理完毕后，请务必向该 HTTP Response 输出文本 <b>&quot;success&quot;</b> (全英文小写无空格)。一旦收到非 success 串（或超时），CP 会判定推送失败。失败会记录异常，可在控制台手动重试；自动重试队列将在后续版本提供。
+              </div>
+
+              <span className="font-bold text-slate-200 mt-2">回调发载 Payload 参考（POST Application/JSON）：</span>
             <pre className="bg-[#0B1020] border border-[rgba(255,255,255,0.08)] p-4 rounded-xl text-[10px] text-blue-300 font-mono overflow-auto whitespace-pre leading-relaxed">
 {`{
   "app_id": "${curAppId}",
@@ -569,7 +576,7 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
                   type="number"
                   step="0.01"
                   min="0.10"
-                  max="5000"
+                  max="10000"
                   value={sandboxAmount}
                   onChange={(e) => setSandboxAmount(e.target.value)}
                   className="px-3.5 py-2 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-xs text-slate-200 font-mono"
@@ -722,6 +729,7 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
 
       </div>
 
+    </div>
     </div>
   );
 }

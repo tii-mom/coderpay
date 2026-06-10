@@ -2,6 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { getMobileDevice } from "@/lib/mobile-auth";
 import { createRechargeOrder } from "@/lib/recharge";
+import { getRechargePromotion } from "@/lib/recharge-promotions";
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,6 +20,7 @@ export async function POST(req: NextRequest) {
       amount: body.amount,
       payType
     });
+    const promotion = getRechargePromotion(rechargeOrder.amountCents);
 
     return NextResponse.json({
       status: "success",
@@ -28,7 +30,8 @@ export async function POST(req: NextRequest) {
         real_amount: rechargeOrder.realAmount.toFixed(2),
         pay_type: rechargeOrder.payType,
         expired_at: rechargeOrder.expiresAt.toISOString(),
-        payment_code: rechargeOrder.paymentCode
+        payment_code: rechargeOrder.paymentCode,
+        promotion
       }
     });
   } catch (err: any) {

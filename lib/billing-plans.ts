@@ -15,17 +15,19 @@ export const BILLING_PLANS: Record<PaidPackageType, {
   monthlyPriceCents: number;
   firstDiscountCents: number;
   feeRate: number;
+  maxOrderAmountCents?: number;
 }> = {
   pro: {
     id: "pro",
     name: "专业版",
     monthlyPriceCents: 6900,
-    firstDiscountCents: 3000,
+    firstDiscountCents: 2000,
     feeRate: 0.005,
+    maxOrderAmountCents: 1000000, // 10000 CNY in cents
   },
   max: {
     id: "max",
-    name: "至尊免服务费版",
+    name: "高级版",
     monthlyPriceCents: 19900,
     firstDiscountCents: 5000,
     feeRate: 0.002,
@@ -75,4 +77,14 @@ export function getNextSubscriptionExpiresAt(currentExpiresAt?: Date | string | 
   const next = new Date(base);
   next.setMonth(next.getMonth() + 1);
   return next;
+}
+
+export function assertOrderAmountWithinPlanLimit(amountCents: number, packageType: string) {
+  const normalized = normalizePackageType(packageType);
+  if (normalized !== "free") {
+    const plan = BILLING_PLANS[normalized];
+    if (plan && plan.maxOrderAmountCents && amountCents > plan.maxOrderAmountCents) {
+      throw new Error("订单金额超过当前套餐单笔上限");
+    }
+  }
 }

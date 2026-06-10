@@ -113,7 +113,7 @@ export interface Plan {
 
 export interface BillingRecord {
   id: string;
-  type: 'charge' | 'fee' | 'subscription' | 'refund';
+  type: 'charge' | 'fee' | 'subscription' | 'refund' | 'promotion';
   amount: number;
   balance: number;
   description: string;

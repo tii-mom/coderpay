@@ -19,6 +19,7 @@ import {
   ExternalLink,
   Download
 } from 'lucide-react';
+import { API_SPEC } from '@/lib/docs/api-spec';
 
 export default function DocsPage() {
   const router = useRouter();
@@ -55,60 +56,11 @@ export default function DocsPage() {
   ];
 
 
-  const codeCreateReq = `{
-  "app_id": "10042",
-  "out_order_no": "TEST_ORDER_100234",
-  "title": "高级开发者包月套餐",
-  "amount": 19.90,
-  "pay_type": "wechat",
-  "notify_url": "https://api.yoursite.com/pay/notify",
-  "return_url": "https://yoursite.com/pay/success",
-  "sign": "23c21c78..." 
-}`;
-
-  const codeCreateRes = `{
-  "code": 200,
-  "msg": "success",
-  "data": {
-    "order_id": "CP482910",
-    "out_order_no": "TEST_ORDER_100234",
-    "amount": "19.90",
-    "real_amount": "19.88",
-    "pay_type": "wechat",
-    "payment_url": "http://localhost:4000/pay/CP482910",
-    "expired_at": "2026-06-06T03:30:00.000Z"
-  }
-}`;
-
-  const codeQueryReq = `{
-  "app_id": "10042",
-  "out_order_no": "TEST_ORDER_100234",
-  "sign": "f3b392b95c9ec281..."
-}`;
-
-  const codeQueryRes = `{
-  "code": 200,
-  "msg": "success",
-  "data": {
-    "order_id": "CP482910",
-    "out_order_no": "TEST_ORDER_100234",
-    "status": "success",
-    "amount": "19.90",
-    "real_amount": "19.88",
-    "pay_time": "2026-06-06 03:22:14"
-  }
-}`;
-
-  const codeWebhook = `{
-  "app_id": "10042",
-  "order_id": "CP482910",
-  "out_order_no": "TEST_ORDER_100234",
-  "pay_type": "wechat",
-  "amount": "19.90",
-  "real_amount": "19.88",
-  "pay_time": "2026-06-06 03:22:14",
-  "sign": "f3b392b95c9ec28120b601f0faedee10bf23bf0450682"
-}`;
+  const codeCreateReq = JSON.stringify(API_SPEC.createOrder.requestExample, null, 2);
+  const codeCreateRes = JSON.stringify(API_SPEC.createOrder.responseExample, null, 2);
+  const codeQueryReq = JSON.stringify(API_SPEC.queryOrder.requestExample, null, 2);
+  const codeQueryRes = JSON.stringify(API_SPEC.queryOrder.responseExample, null, 2);
+  const codeWebhook = JSON.stringify(API_SPEC.webhook.payloadExample, null, 2);
 
   const codeSignNode = `import crypto from 'crypto';
 
@@ -186,6 +138,14 @@ const sign = crypto.createHmac('sha256', appSecret)
                 </button>
               );
             })}
+          </div>
+
+          <div className="mt-6 p-4 bg-[#0B1020] border border-white/5 rounded-xl text-left">
+            <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider block">售后商务支持</span>
+            <p className="text-[11px] text-slate-400 mt-2">遇到接入或使用问题？</p>
+            <a href="https://t.me/coderpay3" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:underline block mt-1.5 font-bold">
+              Telegram @coderpay3
+            </a>
           </div>
         </aside>
 
@@ -369,6 +329,9 @@ const sign = crypto.createHmac('sha256', appSecret)
             <p className="text-sm text-slate-400">
               当您的网站用户下单时，由您的服务器后台向 Coder Pay 发起此请求，生成待付单并获取收银台链接。
             </p>
+            <div className="p-4 bg-blue-950/20 border border-blue-500/20 rounded-2xl text-xs text-blue-300">
+              💡 <b>配置提示：</b> Webhook URL (notify_url) / Return URL (return_url) 在控制台 <b>“应用管理”</b> 中配置，不再通过创建订单接口中传递。
+            </div>
             <div className="flex flex-wrap items-center gap-2.5 text-xs font-mono font-bold">
               <span className="px-2.5 py-1 bg-blue-600/10 border border-blue-500/30 text-blue-400 rounded-lg">POST</span>
               <span className="text-slate-300">/api/order/create</span>
@@ -418,12 +381,6 @@ const sign = crypto.createHmac('sha256', appSecret)
                       <td className="p-3 text-slate-400">string</td>
                       <td className="p-3 text-blue-400">是</td>
                       <td className="p-3 text-slate-500">支付渠道，微信: wechat / 支付宝: alipay</td>
-                    </tr>
-                    <tr className="border-b border-white/5">
-                      <td className="p-3 font-mono text-slate-300">notify_url</td>
-                      <td className="p-3 text-slate-400">string</td>
-                      <td className="p-3 text-slate-600">否</td>
-                      <td className="p-3 text-slate-500">异步通知 URL，可覆盖默认应用配置</td>
                     </tr>
                     <tr className="border-b border-white/5">
                       <td className="p-3 font-mono text-slate-300">sign</td>
@@ -554,7 +511,7 @@ const sign = crypto.createHmac('sha256', appSecret)
                 商户系统在对接收到的回调数据计算并校验 `sign` 匹配后，若本地发货或核销成功，必须向本 HTTP 响应输出且仅输出纯文本 <b className="text-green-400 font-mono">`success`</b>（全部英文小写，无空格或 HTML 标签）。
               </p>
               <p className="text-xs text-slate-400 leading-relaxed">
-                若 Coder Pay 平台收到非 `success` 的应答（或发生超时），系统将判定推送失败，自动触发 **5轮退避重试** 机制（即时、1分、2分、4分、16分、64分、300分）以最大程度保护交易订单的核销安全。
+                若 Coder Pay 平台收到非 `success` 的应答（或发生超时），系统将判定推送失败。失败会记录异常，可在控制台手动重试；自动重试队列将在后续版本提供。
               </p>
             </div>
           </section>
@@ -603,6 +560,14 @@ const sign = crypto.createHmac('sha256', appSecret)
               </pre>
             </div>
           </section>
+
+          {/* Bottom Support Callout */}
+          <div className="border-t border-white/5 pt-6 mt-4 flex items-center justify-between text-xs text-slate-500">
+            <span>需进一步的商务合作或大额费率定制？</span>
+            <a href="https://t.me/coderpay3" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline font-bold">
+              售后商务：Telegram @coderpay3
+            </a>
+          </div>
 
         </main>
       </div>

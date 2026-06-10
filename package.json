@@ -10,12 +10,14 @@
     "lint": "eslint .",
     "verify": "npm test && npx tsc --noEmit && npm run lint && npm run build",
     "check:prod": "node scripts/validate-production-readiness.mjs",
-    "pages:build": "npx @cloudflare/next-on-pages",
+    "pages:build": "node scripts/clean-pages-output.mjs && npx @cloudflare/next-on-pages",
+    "pages:preview": "npm run pages:build && npm run d1:migrate:local && npx wrangler pages dev .vercel/output/static --port 3001",
     "pages:deploy": "node scripts/deploy-pages.mjs",
     "d1:migrate:local": "node scripts/apply-d1-prisma-migrations.mjs --local",
     "d1:migrate:remote": "node scripts/apply-d1-prisma-migrations.mjs --remote",
     "platform:check": "node scripts/setup-platform-recharge.mjs --check",
     "platform:setup": "node scripts/setup-platform-recharge.mjs",
+    "db:backup": "node scripts/backup-database.mjs",
     "clean": "next clean"
   },
   "dependencies": {

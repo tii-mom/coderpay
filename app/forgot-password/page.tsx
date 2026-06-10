@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const message = data.error === 'Email service is not configured'
-          ? '邮件服务尚未配置，暂时无法找回密码'
+          ? '当前未启用邮件找回，请联系平台管理员重置密码。'
           : data.error === 'Email is required'
             ? '请输入注册邮箱'
             : data.error === 'Email send failed'

@@ -2,6 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { createRechargeOrder } from "@/lib/recharge";
+import { getRechargePromotion } from "@/lib/recharge-promotions";
 
 import { resolveEnvVar } from "@/lib/d1-binding";
 
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
       payType,
     });
     const origin = getOrigin(req);
+    const promotion = getRechargePromotion(rechargeOrder.amountCents);
     return NextResponse.json({
       status: "success",
       data: {
@@ -41,6 +43,7 @@ export async function POST(req: NextRequest) {
         pay_type: rechargeOrder.payType,
         payment_url: `${origin}/pay/${rechargeOrder.id}`,
         expired_at: rechargeOrder.expiresAt.toISOString(),
+        promotion,
       },
     });
   } catch (err: any) {

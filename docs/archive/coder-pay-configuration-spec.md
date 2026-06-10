@@ -1,8 +1,13 @@
-# Coder Pay (CP) 接口配置与系统集成手册
+# 【已废弃】Coder Pay (CP) 接口配置与系统集成手册
 
-版本：v1.0  
-定位：面向个人开发者的商业化自动收款系统  
-适用对象：Web 开发者、系统集成人员、测试及验收工程师
+> [!CAUTION]
+> **本参考手册已废弃且停止维护。**
+> 最新的 API 规范与示例已统一由 `lib/docs/api-spec.ts` 维护。
+> 请阅读公开文档 [app/docs/page.tsx](/docs) 或控制台联调面板 [components/console/DocsTab.tsx](/console/docs) 获得最新说明。
+
+版本：v1.0 (DEPRECATED)
+定位：面向个人开发者的商业化自动收款系统
+适用对象：历史集成参考人员
 
 ---
 
@@ -54,8 +59,6 @@ Coder Pay 核心集成思路为：**个人收款码 + 安卓通知栏到账监�
 | `title` | string | 是 | 模拟或真实商品名称 |
 | `amount` | number | 是 | 支付总额，保留至两位小数（例如 `19.90`） |
 | `pay_type` | string | 是 | 支付渠道，可选：`wechat` (微信) / `alipay` (支付宝) |
-| `notify_url` | string | 否 | 异步回调 URL，可覆盖应用默认配置 |
-| `return_url` | string | 否 | 支付成功后前台跳转 URL |
 | `sign` | string | 是 | 鉴权验证签名串（小写） |
 
 #### 接口响应 (JSON)：
@@ -69,7 +72,7 @@ Coder Pay 核心集成思路为：**个人收款码 + 安卓通知栏到账监�
     "amount": "19.90",
     "real_amount": "19.88",
     "pay_type": "wechat",
-    "payment_url": "http://localhost:4000/pay/CP482910",
+    "payment_url": "https://www.3api.shop/pay/CP482910",
     "expired_at": "2026-06-06T03:30:00.000Z"
   }
 }
@@ -128,7 +131,7 @@ Coder Pay 核心集成思路为：**个人收款码 + 安卓通知栏到账监�
 ```
 #### 🚨 商家响应要求：
 商家验证 `sign` 合法后，若发货成功，必须向该 HTTP 响应输出且仅输出纯文本 **`success`** (全英文小写，无空格或 HTML 标签)。
-若 CP 收到非 `success` 响应（或网络超时），系统判定推送失败，将遵循退避策略发起 **5 轮自动重试**（立即、1分钟后、2分钟后、4分钟后、16分钟后、64分钟后、300分钟后）直至商家成功响应。
+若 CP 收到非 `success` 响应（或网络超时），系统判定推送失败。失败会记录异常，可在控制台手动重试；自动重试队列将在后续版本提供。
 
 ---
 

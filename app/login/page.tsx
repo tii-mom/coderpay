@@ -20,14 +20,6 @@ function getAuthErrorMessage(error?: string) {
       return '请输入有效的邮箱地址';
     case '请输入完整的注册邮箱':
       return '请使用完整注册邮箱登录，例如 name@example.com';
-    case 'Password must be at least 8 characters':
-      return '密码至少需要 8 个字符';
-    case 'Email not verified':
-      return '邮箱还未验证，我们已重新发送验证邮件，请先打开邮箱完成验证';
-    case 'Email service is not configured':
-      return '邮件服务尚未配置，暂时无法注册或找回密码';
-    case 'Email send failed':
-      return '邮件服务发送失败，请联系管理员或稍后重试';
     case 'Internal server error':
       return '服务器暂时无法完成请求，请稍后重试或联系管理员';
     default:

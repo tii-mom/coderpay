@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import { amountFromCents, centsFromAmount, formatAmount, getDirectD1, verifyDeviceSign, runAtomic } from "@/lib/d1-direct";
 import { calculateFeeCents } from "@/lib/billing-plans";
 import { triggerWebhook } from "@/lib/webhook";
+import { getRechargePromotion, getRechargePromotionDescription, getRechargePromotionUpdate } from "@/lib/recharge-promotions";
 
 export async function GET(req: NextRequest) {
   try {
@@ -156,13 +157,24 @@ export async function POST(req: NextRequest) {
         matchStatus = "matched";
         confidence = 100;
 
-        const user = await db.prepare(`SELECT feeBalance FROM User WHERE id = ? LIMIT 1`).bind(rechargeOrder.userId).first<any>();
+        const user = await db.prepare(`SELECT feeBalance, packageType, subscriptionExpiresAt FROM User WHERE id = ? LIMIT 1`).bind(rechargeOrder.userId).first<any>();
         if (user) {
           const chargeAmount = amountFromCents(Number(rechargeOrder.amountCents));
           const newBalance = Number((Number(user.feeBalance || 0) + chargeAmount).toFixed(2));
+          const promotion = getRechargePromotion(Number(rechargeOrder.amountCents));
+          const promotionUpdate = promotion ? getRechargePromotionUpdate(user, promotion, eventTime) : null;
+          if (promotionUpdate) {
+            financialWrites.push(
+              db.prepare(`UPDATE User SET feeBalance = ?, packageType = ?, subscriptionExpiresAt = ?, updatedAt = ? WHERE id = ?`)
+                .bind(newBalance, promotionUpdate.packageType, promotionUpdate.subscriptionExpiresAt.toISOString(), nowIso, rechargeOrder.userId)
+            );
+          } else {
+            financialWrites.push(
+              db.prepare(`UPDATE User SET feeBalance = ?, updatedAt = ? WHERE id = ?`)
+                .bind(newBalance, nowIso, rechargeOrder.userId)
+            );
+          }
           financialWrites.push(
-            db.prepare(`UPDATE User SET feeBalance = ?, updatedAt = ? WHERE id = ?`)
-              .bind(newBalance, nowIso, rechargeOrder.userId),
             db.prepare(`
               INSERT INTO BillingRecord (id, type, amount, balance, description, createdAt, userId)
               VALUES (?, 'charge', ?, ?, ?, ?, ?)
@@ -175,6 +187,20 @@ export async function POST(req: NextRequest) {
               rechargeOrder.userId
             )
           );
+          if (promotion && promotionUpdate) {
+            financialWrites.push(
+              db.prepare(`
+                INSERT INTO BillingRecord (id, type, amount, balance, description, createdAt, userId)
+                VALUES (?, 'promotion', 0, ?, ?, ?, ?)
+              `).bind(
+                crypto.randomUUID(),
+                newBalance,
+                `${getRechargePromotionDescription(promotion)}: 充值单 ${rechargeOrder.id}`,
+                nowIso,
+                rechargeOrder.userId
+              )
+            );
+          }
         }
       }
     } else if (rechargeCandidates.length > 1) {

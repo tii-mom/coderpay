@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashAuthToken } from "@/lib/auth-tokens";
 import { createSessionToken } from "@/lib/session";
+import { getSessionCookieOptions } from "@/lib/session-cookie";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
@@ -41,15 +42,7 @@ export async function POST(req: NextRequest) {
     });
 
     const response = NextResponse.json({ status: "success" });
-    const cookieDomain = req.nextUrl.hostname.endsWith("3api.shop") ? ".3api.shop" : undefined;
-    response.cookies.set("session_email", await createSessionToken(updated.email), {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      domain: cookieDomain,
-      maxAge: 60 * 60 * 24 * 30,
-    });
+    response.cookies.set("session_email", await createSessionToken(updated.email), getSessionCookieOptions(req));
     return response;
   } catch (err) {
     console.error("Email verification failed:", err);

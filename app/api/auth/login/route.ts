@@ -2,6 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken } from "@/lib/session";
+import { getSessionCookieOptions } from "@/lib/session-cookie";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
@@ -44,16 +45,7 @@ export async function POST(req: NextRequest) {
       user: { id: user.id, email: user.email, feeBalance: user.feeBalance }
     });
 
-    const cookieDomain = req.nextUrl.hostname.endsWith("3api.shop") ? ".3api.shop" : undefined;
-    
-    response.cookies.set("session_email", await createSessionToken(user.email), {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      domain: cookieDomain,
-      maxAge: 60 * 60 * 24 * 30 // 30 days
-    });
+    response.cookies.set("session_email", await createSessionToken(user.email), getSessionCookieOptions(req));
     
     return response;
   } catch (err) {
@@ -61,4 +53,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

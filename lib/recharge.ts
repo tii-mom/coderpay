@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { amountToCents, centsToAmount, formatCents, getOrderRealAmountCents } from "@/lib/money";
 import { randomNumericCode } from "@/lib/random";
 import { resolveEnvVar } from "./d1-binding";
+import { getRechargePromotion, getRechargePromotionDescription, getRechargePromotionUpdate } from "@/lib/recharge-promotions";
 
 const RECHARGE_EXPIRE_MINUTES = 10;
 
@@ -168,18 +169,39 @@ export async function matchRechargeOrder({
 
   const amount = Number(formatCents(rechargeOrder.amountCents));
   const newBalance = Number((user.feeBalance + amount).toFixed(2));
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { feeBalance: newBalance },
-  });
-  await prisma.billingRecord.create({
-    data: {
-      type: "charge",
-      amount,
-      balance: newBalance,
-      description: `真实充值入账: 充值单 ${rechargeOrder.id}, 实付 ${formatCents(rechargeOrder.realAmountCents)} 元`,
-      userId: user.id,
-    },
+  const promotion = getRechargePromotion(rechargeOrder.amountCents);
+  const promotionUpdate = promotion ? getRechargePromotionUpdate(user, promotion, eventTime) : null;
+  await prisma.$transaction(async tx => {
+    await tx.user.update({
+      where: { id: user.id },
+      data: {
+        feeBalance: newBalance,
+        ...(promotionUpdate ? {
+          packageType: promotionUpdate.packageType,
+          subscriptionExpiresAt: promotionUpdate.subscriptionExpiresAt,
+        } : {}),
+      },
+    });
+    await tx.billingRecord.create({
+      data: {
+        type: "charge",
+        amount,
+        balance: newBalance,
+        description: `真实充值入账: 充值单 ${rechargeOrder.id}, 实付 ${formatCents(rechargeOrder.realAmountCents)} 元`,
+        userId: user.id,
+      },
+    });
+    if (promotion && promotionUpdate) {
+      await tx.billingRecord.create({
+        data: {
+          type: "promotion",
+          amount: 0,
+          balance: newBalance,
+          description: `${getRechargePromotionDescription(promotion)}: 充值单 ${rechargeOrder.id}`,
+          userId: user.id,
+        },
+      });
+    }
   });
 
   return { matchStatus: "matched", rechargeOrderId: rechargeOrder.id };

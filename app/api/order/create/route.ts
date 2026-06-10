@@ -1,7 +1,7 @@
 export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { amountFromCents, centsFromAmount, formatAmount, getDirectD1, randomOrderId, verifyMerchantSign } from "@/lib/d1-direct";
-import { FREE_ORDER_LIMIT, LOW_BALANCE_WARNING_YUAN, getEffectivePackageType } from "@/lib/billing-plans";
+import { FREE_ORDER_LIMIT, LOW_BALANCE_WARNING_YUAN, getEffectivePackageType, BILLING_PLANS, assertOrderAmountWithinPlanLimit } from "@/lib/billing-plans";
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,6 +58,12 @@ export async function POST(req: NextRequest) {
     let amountCents: number;
     try {
       amountCents = centsFromAmount(amount);
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+
+    try {
+      assertOrderAmountWithinPlanLimit(amountCents, effectivePackageType);
     } catch (err: any) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
