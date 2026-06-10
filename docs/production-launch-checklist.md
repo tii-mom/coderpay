@@ -1,5 +1,62 @@
 # CoderPay Production Launch Checklist
 
+## Launch Decision
+
+Current code is suitable for controlled launch / small-scope real payment
+acceptance, not broad public rollout.
+
+Before opening traffic beyond trusted merchants, finish the P0 checklist below
+and keep the worktree clean at a reviewed commit.
+
+## P0 Controlled Launch Gate
+
+- Current changes are committed and `git status --short` is empty.
+- A fresh remote D1 export has been saved outside git.
+- Production D1 migrations have been applied with `npm run d1:migrate:remote`.
+- `npm run verify` passes.
+- `npm run check:prod` passes.
+- `npm run pages:deploy` completes and the production alias serves the new build.
+- Production smoke test passes:
+  - registration and login create a valid `session_email` session;
+  - console auth APIs load with that session;
+  - app creation works;
+  - order creation rejects missing fields and bad signatures;
+  - a signed order reaches the expected business gate.
+- Real-device payment acceptance passes:
+  - create order;
+  - WeChat / Alipay real payment arrives;
+  - Android Watcher uploads `/api/events`;
+  - order becomes `success`;
+  - merchant receives exactly one Webhook.
+- Developer recharge acceptance passes:
+  - platform recharge account exists;
+  - platform Watcher device is bound and online;
+  - platform recharge payment code exists;
+  - recharge order creation works;
+  - real recharge credits balance;
+  - recharge promotion grants subscription only after real arrival;
+  - merchant Webhook is not triggered for recharge orders.
+
+## P1 First-Week Operations
+
+- Configure Cloudflare WAF rate limiting for `/api/auth/*`,
+  `/api/order/create`, `/api/events`, and `/api/billing/recharge`.
+- Automate daily D1 cold backups to R2/S3 or equivalent storage with retention.
+- Add device-offline alerting for stale Watcher heartbeats.
+- Add automatic Webhook compensation by Cron or Queue while keeping manual retry.
+- Maintain an operator acceptance runbook for device permissions, payment tests,
+  merchant callbacks, recharge, withdrawal instructions, and exception handling.
+
+## P2 Stabilization Backlog
+
+- Add nonce-based Android event replay hardening.
+- Strengthen amount slot reservation for high-concurrency same-amount orders.
+- Add daily reconciliation reports for orders, fees, recharge, subscriptions,
+  manual adjustments, and balance movements.
+- Add Sentry or equivalent edge logging for production 500 / D1 / Webhook /
+  Android upload errors.
+- Improve the device keep-alive guide by Android manufacturer.
+
 ## Automated Gates
 
 Run these before every production release:
@@ -25,6 +82,25 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@17 PATH=/opt/homebrew/opt/openjdk@17/bin:$PA
 - Production D1 migrations have been applied.
 - Android `coderpay-android/keystore.properties` exists and points to a production keystore.
 - The release APK is signed, not `app-release-unsigned.apk`.
+
+## Platform Recharge Setup
+
+Developer balance recharge, and therefore normal order creation after the
+zero-balance gate, depends on a configured platform account.
+
+- The user from `PLATFORM_RECHARGE_USER_EMAIL` exists in production D1.
+- That user has at least one bound, online Watcher device.
+- That user has at least one active payment code for the intended recharge
+  method.
+- A small real recharge to that account credits the developer's balance.
+
+## Security Hardening
+
+- Cloudflare WAF rate-limiting rules are configured and verified for auth,
+  order creation, event upload, and recharge endpoints.
+- Auth endpoints return `429` under rapid repeated requests at the edge.
+- `NEXT_PUBLIC_ENABLE_SANDBOX` is `false` in production.
+- Password reset email delivery is verified end-to-end.
 
 ## Real Payment Acceptance
 
