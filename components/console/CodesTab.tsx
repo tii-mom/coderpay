@@ -270,9 +270,9 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
       <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/20 text-xs text-amber-200 flex items-start gap-3">
         <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
         <div>
-          <span className="font-bold block text-slate-100">安全合规及风控免责提示:</span>
+          <span className="font-bold block text-slate-100">收款账户与风控提示:</span>
           <p className="mt-1 leading-relaxed">
-            收款二维码必须属于开发者本人。资金直接通过扫一扫进入您的个人微信/支付宝账户中，CP 云端根本不扣押或代管任何资金。请确保监听设备 Watcher 以及绑定的微信/支付宝客户端处于唤醒状态，否则流水无法同步到账。
+            收款二维码必须属于开发者本人。普通订单资金通过扫一扫进入您的个人微信/支付宝账户，CP 云端不扣押或代管资金。请确保监听设备 Watcher 以及绑定的微信/支付宝客户端处于唤醒状态，否则流水无法自动同步到账。
           </p>
         </div>
       </div>
