@@ -5,19 +5,14 @@ import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
   BookOpen, 
-  Terminal, 
   Cpu, 
-  Key, 
-  RefreshCw, 
-  Code2, 
-  Check, 
-  Copy, 
   ChevronRight,
   Shield,
   Zap,
   Smartphone,
   ExternalLink,
-  Download
+  Download,
+  HelpCircle
 } from 'lucide-react';
 import { API_SPEC } from '@/lib/docs/api-spec';
 
@@ -25,7 +20,6 @@ export default function DocsPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [activeSection, setActiveSection] = useState('overview');
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -37,51 +31,14 @@ export default function DocsPage() {
     return <div className="min-h-screen bg-[#070A12]" />;
   }
 
-  const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
   const androidApkUrl = '/downloads/coderpay-android.apk';
 
   const sections = [
     { id: 'overview', title: '系统集成总览', icon: <Shield className="w-4 h-4" /> },
     { id: 'steps', title: '集成接入步骤', icon: <Cpu className="w-4 h-4" /> },
     { id: 'watcher-setup', title: 'Android 挂机端配置', icon: <Smartphone className="w-4 h-4" /> },
-    { id: 'api-create', title: '1. 创建支付订单 API', icon: <Code2 className="w-4 h-4" /> },
-    { id: 'api-query', title: '2. 查询订单状态 API', icon: <Terminal className="w-4 h-4" /> },
-    { id: 'api-webhook', title: '3. Webhook 回调规范', icon: <RefreshCw className="w-4 h-4" /> },
-    { id: 'signature', title: '签名算法与实现', icon: <Key className="w-4 h-4" /> },
+    { id: 'faq', title: '常见问题 FAQ', icon: <HelpCircle className="w-4 h-4" /> },
   ];
-
-
-  const codeCreateReq = JSON.stringify(API_SPEC.createOrder.requestExample, null, 2);
-  const codeCreateRes = JSON.stringify(API_SPEC.createOrder.responseExample, null, 2);
-  const codeQueryReq = JSON.stringify(API_SPEC.queryOrder.requestExample, null, 2);
-  const codeQueryRes = JSON.stringify(API_SPEC.queryOrder.responseExample, null, 2);
-  const codeWebhook = JSON.stringify(API_SPEC.webhook.payloadExample, null, 2);
-
-  const codeSignNode = `import crypto from 'crypto';
-
-const params = {
-  app_id: "10042",
-  out_order_no: "ORDER_998124",
-  amount: "19.90",
-  pay_type: "wechat"
-};
-
-// 1. 键名升序排列
-const sortedKeys = Object.keys(params).sort();
-
-// 2. 组装待签串
-let queryStr = sortedKeys.map(k => \`\${k}=\${params[k]}\`).join('&');
-
-// 3. 追加密钥并计算 HMAC-SHA256
-const stringToSign = queryStr + '&key=' + appSecret;
-const sign = crypto.createHmac('sha256', appSecret)
-                   .update(stringToSign)
-                   .digest('hex');`;
 
   return (
     <div className="min-h-screen bg-[#070A12] text-slate-100 flex flex-col font-sans" id="docs-page-root">
@@ -98,7 +55,7 @@ const sign = crypto.createHmac('sha256', appSecret)
             </button>
             <span className="text-slate-500">/</span>
             <span className="text-sm font-bold text-white flex items-center gap-1.5">
-              <BookOpen className="w-4 h-4 text-blue-400" /> Coder Pay 说明文档
+              <BookOpen className="w-4 h-4 text-blue-400" /> Coder Pay FAQ 与接入说明
             </span>
           </div>
 
@@ -117,7 +74,7 @@ const sign = crypto.createHmac('sha256', appSecret)
         {/* Left navigation sidebar */}
         <aside className="lg:w-64 shrink-0 flex flex-col gap-2">
           <div className="sticky top-24 flex flex-col gap-1.5 text-left">
-            <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider px-3 mb-2 block">文档导览目录</span>
+            <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider px-3 mb-2 block">FAQ 导览目录</span>
             {sections.map(sec => {
               const isActive = activeSection === sec.id;
               return (
@@ -162,11 +119,11 @@ const sign = crypto.createHmac('sha256', appSecret)
               Coder Pay 的核心集成设计思路为：<span className="text-white font-semibold">个人收款码 + 安卓通知栏到账监听 + 自动订单匹配 + 商户 Webhook 回调</span>。
             </p>
             <p className="text-sm text-slate-400 leading-relaxed">
-              相较于传统支付中介，整个付款链路中资金<span className="text-green-400 font-semibold">首尾直达您的个人微信/支付宝账户</span>，不经过 Coder Pay 代收及任何资金沉淀，具有绝对的资金安全保障。
+              相较于传统支付中介，普通开发者订单资金<span className="text-green-400 font-semibold">首尾直达您的个人微信/支付宝账户</span>，不经过 Coder Pay 代收或资金沉淀；平台负责订单托管、到账识别和回调通知。
             </p>
             <div className="p-4 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl text-xs text-emerald-400 flex items-center gap-2">
               <Zap className="w-4 h-4 shrink-0" />
-              <span>特点：0% 资金扣留、无需营业执照、免商户签约、秒级到账通知。</span>
+              <span>特点：资金直达、无需商户签约、支持自动监听与人工确认补单。</span>
             </div>
           </section>
 
@@ -197,7 +154,7 @@ const sign = crypto.createHmac('sha256', appSecret)
                 <span className="w-7 h-7 rounded-full bg-blue-600/10 border border-blue-500/30 text-blue-400 font-mono text-xs font-bold flex items-center justify-center">03</span>
                 <h4 className="text-xs font-bold text-white">第三步：绑定安卓监听设备</h4>
                 <p className="text-[11px] text-slate-500 leading-relaxed">
-                  在备用安卓机安装 CoderPay 安卓 App，授予通知读取权限。开启收款到账语音/系统通知提醒，实现秒级侦测。
+                  在备用安卓机安装 CoderPay 安卓 App，授予通知读取权限。开启收款到账语音/系统通知提醒，用于识别到账并回传事件。
                 </p>
               </div>
             </div>
@@ -320,244 +277,65 @@ const sign = crypto.createHmac('sha256', appSecret)
             </div>
           </section>
 
-          {/* Section: API Create */}
-          <section id="api-create" className="flex flex-col gap-5 border-b border-white/5 pb-10 scroll-mt-24">
+          <section className="flex flex-col gap-4 border-b border-white/5 pb-10 scroll-mt-24">
             <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
-              <Code2 className="w-6 h-6 text-blue-400" /> 1. 创建支付订单 API
+              <BookOpen className="w-6 h-6 text-blue-400" /> 接口接入说明
             </h2>
-
-            <p className="text-sm text-slate-400">
-              当您的网站用户下单时，由您的服务器后台向 Coder Pay 发起此请求，生成待付单并获取收银台链接。
-            </p>
-            <div className="p-4 bg-blue-950/20 border border-blue-500/20 rounded-2xl text-xs text-blue-300">
-              💡 <b>配置提示：</b> Webhook URL (notify_url) / Return URL (return_url) 在控制台 <b>“应用管理”</b> 中配置，不再通过创建订单接口中传递。
+            <div className="p-5 rounded-2xl border border-blue-500/20 bg-blue-950/20 text-sm text-slate-300 leading-relaxed">
+              完整 API 参数、签名示例、沙箱发单、Webhook Ping 和接入体检只在登录后的控制台提供。
+              公开页面仅保留产品原理、手机配置、常见问题和风险边界，避免把可复制的接口实现细节直接暴露在官网。
             </div>
-            <div className="flex flex-wrap items-center gap-2.5 text-xs font-mono font-bold">
-              <span className="px-2.5 py-1 bg-blue-600/10 border border-blue-500/30 text-blue-400 rounded-lg">POST</span>
-              <span className="text-slate-300">/api/order/create</span>
-              <span className="text-slate-500">|</span>
-              <span className="text-slate-400">Content-Type: application/json</span>
-            </div>
-
-            <div className="flex flex-col gap-2 mt-2">
-              <h4 className="text-xs font-bold text-white">请求参数 (JSON Payload)：</h4>
-              <div className="overflow-x-auto border border-white/5 rounded-2xl">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-900 text-slate-400 border-b border-white/5">
-                      <th className="p-3">参数名</th>
-                      <th className="p-3">类型</th>
-                      <th className="p-3">必填</th>
-                      <th className="p-3">说明</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-white/5">
-                      <td className="p-3 font-mono text-slate-300">app_id</td>
-                      <td className="p-3 text-slate-400">string</td>
-                      <td className="p-3 text-blue-400">是</td>
-                      <td className="p-3 text-slate-500">开发者应用 App ID</td>
-                    </tr>
-                    <tr className="border-b border-white/5">
-                      <td className="p-3 font-mono text-slate-300">out_order_no</td>
-                      <td className="p-3 text-slate-400">string</td>
-                      <td className="p-3 text-blue-400">是</td>
-                      <td className="p-3 text-slate-500">商户本地系统订单号（需保证唯一）</td>
-                    </tr>
-                    <tr className="border-b border-white/5">
-                      <td className="p-3 font-mono text-slate-300">title</td>
-                      <td className="p-3 text-slate-400">string</td>
-                      <td className="p-3 text-blue-400">是</td>
-                      <td className="p-3 text-slate-500">商品或订单名称</td>
-                    </tr>
-                    <tr className="border-b border-white/5">
-                      <td className="p-3 font-mono text-slate-300">amount</td>
-                      <td className="p-3 text-slate-400">number</td>
-                      <td className="p-3 text-blue-400">是</td>
-                      <td className="p-3 text-slate-500">支付总额，保留两位小数（例如 19.90）</td>
-                    </tr>
-                    <tr className="border-b border-white/5">
-                      <td className="p-3 font-mono text-slate-300">pay_type</td>
-                      <td className="p-3 text-slate-400">string</td>
-                      <td className="p-3 text-blue-400">是</td>
-                      <td className="p-3 text-slate-500">支付渠道，微信: wechat / 支付宝: alipay</td>
-                    </tr>
-                    <tr className="border-b border-white/5">
-                      <td className="p-3 font-mono text-slate-300">sign</td>
-                      <td className="p-3 text-slate-400">string</td>
-                      <td className="p-3 text-blue-400">是</td>
-                      <td className="p-3 text-slate-500">签名串（算签规则详见下方）</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-2">
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-400">请求 JSON 示例:</span>
-                  <button 
-                    onClick={() => handleCopy(codeCreateReq, 'createReq')}
-                    className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px]"
-                  >
-                    {copiedId === 'createReq' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                    {copiedId === 'createReq' ? '已复制' : '复制'}
-                  </button>
-                </div>
-                <pre className="p-4 bg-slate-950 text-slate-300 text-xs font-mono rounded-2xl border border-white/5 overflow-x-auto text-left leading-normal">
-                  {codeCreateReq}
-                </pre>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-400">成功响应 JSON:</span>
-                  <button 
-                    onClick={() => handleCopy(codeCreateRes, 'createRes')}
-                    className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px]"
-                  >
-                    {copiedId === 'createRes' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                    {copiedId === 'createRes' ? '已复制' : '复制'}
-                  </button>
-                </div>
-                <pre className="p-4 bg-slate-950 text-slate-300 text-xs font-mono rounded-2xl border border-white/5 overflow-x-auto text-left leading-normal">
-                  {codeCreateRes}
-                </pre>
-              </div>
-            </div>
+            <button
+              onClick={() => router.push('/console')}
+              className="w-fit px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2"
+            >
+              登录后查看接口文档 <ExternalLink className="w-3.5 h-3.5" />
+            </button>
           </section>
 
-          {/* Section: API Query */}
-          <section id="api-query" className="flex flex-col gap-5 border-b border-white/5 pb-10 scroll-mt-24">
+          {/* Section: FAQ */}
+          <section id="faq" className="flex flex-col gap-6 scroll-mt-24">
             <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
-              <Terminal className="w-6 h-6 text-blue-400" /> 2. 查询订单状态 API
+              <HelpCircle className="w-6 h-6 text-blue-400" /> 常见问题 FAQ
             </h2>
-            <p className="text-sm text-slate-400">
-              用于商户主动拉取并同步订单的实时支付状态。
-            </p>
-            <div className="flex flex-wrap items-center gap-2.5 text-xs font-mono font-bold">
-              <span className="px-2.5 py-1 bg-blue-600/10 border border-blue-500/30 text-blue-400 rounded-lg">POST</span>
-              <span className="text-slate-300">/api/order/query</span>
-              <span className="text-slate-500">|</span>
-              <span className="text-slate-400">Content-Type: application/json</span>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-2">
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-400">请求 JSON 示例:</span>
-                  <button 
-                    onClick={() => handleCopy(codeQueryReq, 'queryReq')}
-                    className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px]"
-                  >
-                    {copiedId === 'queryReq' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                    {copiedId === 'queryReq' ? '已复制' : '复制'}
-                  </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl">
+                <h4 className="text-xs font-bold text-white mb-3">订单状态</h4>
+                <div className="flex flex-col gap-2">
+                  {API_SPEC.statusValues.map((item) => (
+                    <div key={item.value} className="flex gap-2 text-xs">
+                      <span className="font-mono text-blue-300 min-w-24">{item.value}</span>
+                      <span className="text-slate-500">{item.desc}</span>
+                    </div>
+                  ))}
                 </div>
-                <pre className="p-4 bg-slate-950 text-slate-300 text-xs font-mono rounded-2xl border border-white/5 overflow-x-auto text-left leading-normal">
-                  {codeQueryReq}
-                </pre>
               </div>
-
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-400">成功响应 JSON:</span>
-                  <button 
-                    onClick={() => handleCopy(codeQueryRes, 'queryRes')}
-                    className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px]"
-                  >
-                    {copiedId === 'queryRes' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                    {copiedId === 'queryRes' ? '已复制' : '复制'}
-                  </button>
+              <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl">
+                <h4 className="text-xs font-bold text-white mb-3">常见错误</h4>
+                <div className="flex flex-col gap-2">
+                  {API_SPEC.errorCodes.map((item) => (
+                    <div key={item.code} className="flex gap-2 text-xs">
+                      <span className="font-mono text-amber-300 min-w-10">{item.code}</span>
+                      <span className="text-slate-500">{item.desc}</span>
+                    </div>
+                  ))}
                 </div>
-                <pre className="p-4 bg-slate-950 text-slate-300 text-xs font-mono rounded-2xl border border-white/5 overflow-x-auto text-left leading-normal">
-                  {codeQueryRes}
-                </pre>
-              </div>
-            </div>
-          </section>
-
-          {/* Section: API Webhook */}
-          <section id="api-webhook" className="flex flex-col gap-5 border-b border-white/5 pb-10 scroll-mt-24">
-            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
-              <RefreshCw className="w-6 h-6 text-blue-400" /> 3. 异步 Webhook 回调规范
-            </h2>
-            <p className="text-sm text-slate-400">
-              当安卓端 CoderPay 监听到账并匹配到商户订单后，Coder Pay 平台将主动向您的 `notify_url` 发起 **POST** 请求。
-            </p>
-
-            <div className="flex flex-col gap-2 mt-2">
-              <h4 className="text-xs font-bold text-white">回调 JSON 报文示例：</h4>
-              <div className="relative">
-                <button 
-                  onClick={() => handleCopy(codeWebhook, 'webhook')}
-                  className="absolute right-3 top-3 p-1 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px] z-10"
-                >
-                  {copiedId === 'webhook' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                  {copiedId === 'webhook' ? '已复制' : '复制'}
-                </button>
-                <pre className="p-4 bg-slate-950 text-slate-300 text-xs font-mono rounded-2xl border border-white/5 overflow-x-auto text-left leading-normal">
-                  {codeWebhook}
-                </pre>
               </div>
             </div>
 
-            <div className="p-5 bg-blue-950/20 border border-blue-500/20 rounded-2xl flex flex-col gap-3 mt-2">
-              <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" /> 🚨 商户系统接收回调响应准则：
-              </h4>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                商户系统在对接收到的回调数据计算并校验 `sign` 匹配后，若本地发货或核销成功，必须向本 HTTP 响应输出且仅输出纯文本 <b className="text-green-400 font-mono">`success`</b>（全部英文小写，无空格或 HTML 标签）。
-              </p>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                若 Coder Pay 平台收到非 `success` 的应答（或发生超时），系统将判定推送失败。失败会记录异常，可在控制台手动重试；自动重试队列将在后续版本提供。
-              </p>
-            </div>
-          </section>
-
-          {/* Section: Signature */}
-          <section id="signature" className="flex flex-col gap-5 scroll-mt-24">
-            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
-              <Key className="w-6 h-6 text-blue-400" /> 签名算法与实现
-            </h2>
-            <p className="text-sm text-slate-400">
-              为防止交易参数被篡改或虚假回调，所有接口调用与 Webhook 通知均强制执行签名鉴权。
-            </p>
-
-            <div className="flex flex-col gap-3 text-xs text-slate-400 leading-relaxed pl-5 list-decimal">
-              <div className="flex gap-2">
-                <span className="text-blue-400 font-bold">1.</span>
-                <span><b>参数字典排序</b>：剔除 `sign` 字段，将待签名数据的所有参数名（Keys）按照 ASCII 自然顺序（字母 A-Z）升序排序。</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="text-blue-400 font-bold">2.</span>
-                <span><b>组装待签字符串</b>：将排序后的参数以 `key1=value1&key2=value2` 格式拼接为 Query String。</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="text-blue-400 font-bold">3.</span>
-                <span><b>追加应用密钥</b>：在待签名字符串末尾直接拼接 `&key=YOUR_APP_SECRET` 后缀（商户 App Secret 仅保留于后台，严禁泄漏）。</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="text-blue-400 font-bold">4.</span>
-                <span><b>计算 HMAC-SHA256 哈希值</b>：以 App Secret 为秘钥计算 HMAC-SHA256 值（结果转小写，即为最终的 `sign` 值）。</span>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 mt-2">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-slate-400">Node.js 算签实现代码示例:</span>
-                <button 
-                  onClick={() => handleCopy(codeSignNode, 'signNode')}
-                  className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px]"
-                >
-                  {copiedId === 'signNode' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                  {copiedId === 'signNode' ? '已复制' : '复制'}
-                </button>
-              </div>
-              <pre className="p-4 bg-slate-950 text-slate-300 text-xs font-mono rounded-2xl border border-white/5 overflow-x-auto text-left leading-normal">
-                {codeSignNode}
-              </pre>
+            <div className="grid grid-cols-1 gap-3">
+              {API_SPEC.faq.map((item, index) => (
+                <details key={item.q} className="group rounded-2xl border border-white/5 bg-slate-900/35 p-4">
+                  <summary className="cursor-pointer list-none text-sm font-bold text-slate-100 flex items-center justify-between gap-4">
+                    <span>{index + 1}. {item.q}</span>
+                    <ChevronRight className="w-4 h-4 text-slate-500 transition-transform group-open:rotate-90" />
+                  </summary>
+                  <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                    {item.a}
+                  </p>
+                </details>
+              ))}
             </div>
           </section>
 

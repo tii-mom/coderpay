@@ -29,7 +29,7 @@ export default function HomePage() {
     {
       num: '02',
       title: '用户扫码',
-      desc: 'CP安全收银台展示对应个人收款码及动态微调金额（如：9.98元，防防撞额）',
+      desc: 'CP 收银台展示对应个人收款码及真实应付金额，降低同金额订单冲突',
       icon: <Cpu className="w-5 h-5 text-blue-400" />
     },
     {
@@ -41,7 +41,7 @@ export default function HomePage() {
     {
       num: '04',
       title: '自动回调',
-      desc: 'CP云端自动匹配通知金额与未付订单，瞬间激发安全签名Webhook，通知您的网站',
+      desc: 'CP 云端匹配到账通知与待付订单，并通过签名 Webhook 通知您的网站',
       icon: <RefreshCw className="w-5 h-5 text-blue-400" />
     }
   ];
@@ -49,18 +49,18 @@ export default function HomePage() {
   const valueProps = [
     {
       icon: <Shield className="w-6 h-6 text-green-400" />,
-      title: '【安全机制】100% 资金直达钱包 (非托管模式)',
-      desc: '资金通过微信和支付宝直接归入您的个人账户，不经过任何第三方通道，排除抽佣和提现周期，无拒付账单风险，极速周转，安全合规。'
+      title: '【安全机制】资金直达钱包 (非托管模式)',
+      desc: '普通开发者订单资金通过微信和支付宝直接进入您的个人账户，CP 不代收、不托管、不清算，减少账期和资金沉淀。'
     },
     {
       icon: <Lock className="w-6 h-6 text-blue-400" />,
       title: '【稳定机制】多终端 Watcher 智能负载均衡',
-      desc: '独自支持同时挂载多台闲置旧安卓、备用手机负载同一个付款渠道，收款码自动切片，提升轮询并发吞吐、规避风控，断线自动重连保障。'
+      desc: '支持挂载多台闲置安卓或备用手机，配合收款码调度、设备心跳和异常提示，提升自动确认链路的稳定性。'
     },
     {
       icon: <Zap className="w-6 h-6 text-amber-400" />,
       title: '【创新机制】动态防撞额与手动免手机补单',
-      desc: '多人在线时，自动给订单随机增减几分钱尾数通过到账通知实现多订单无缝精准识别；此外支持免手机挂机的控制台手动快速确认补单备用方案。'
+      desc: '多人在线时，通过订单金额尾差降低同金额冲突；设备离线或异常时，控制台支持人工确认补单。'
     }
   ];
 
@@ -68,22 +68,22 @@ export default function HomePage() {
     {
       aspect: '资金中介',
       traditional: '经过第三方，垫款结算，需抽走3%~15%高额手续费并有账期限制',
-      cp: '资金直达开发者微信/支付宝钱包，无任何资金代管收银，秒级到账，无法扣存资金。'
+      cp: '资金直达开发者微信/支付宝钱包，CP 不代收、不托管、不清算资金。'
     },
     {
       aspect: '签约门槛',
       traditional: '必须注册营业执照，提交对公银行户头，接受严苛合规审查并缴纳开户年费',
-      cp: '零门槛，只需安装安卓Watcher和配置收款码，1分钟免备案快速开通网站收款服务。'
+      cp: '无需商户签约，安装安卓 Watcher 并配置收款码后即可开始小额联调。'
     },
     {
       aspect: '风控限制',
-      traditional: '容易受政策、封账纠纷导致账户冻结，导致合法业务技术余额被扣',
-      cp: '原生二维码扫一扫，不存在企业账号被连带清退、注销，不暴露技术服务接口。'
+      traditional: '容易受政策、封账纠纷导致账户冻结，影响正常业务收款',
+      cp: '基于个人收款码和到账通知识别，需合理控制交易频率并遵守平台规则。'
     },
     {
       aspect: '二次技术发货',
       traditional: '传统微信商户API结构过重，需要大量的商户端校验和证书部署',
-      cp: '提供极其轻量、高对称加密的 HMAC-SHA256 架构签名。简单一条 GET/POST 搞妥。'
+      cp: '提供轻量的 HMAC-SHA256 签名接口，服务端发起订单并接收 Webhook 回调。'
     }
   ];
 
@@ -93,7 +93,7 @@ export default function HomePage() {
       name: '体验版',
       price: '0',
       period: '永久免费',
-      desc: '个人开发者测试收款解决方案的首选，极速部署。',
+      desc: '适合个人开发者测试收款流程和真实 API 联调。',
       techFee: '前10次创建订单免费，覆盖真实API与控制台沙箱',
       features: [
         '独立接入应用上限 1 个',
@@ -142,8 +142,8 @@ export default function HomePage() {
         '无限独立接入应用注册',
         '支持无限挂载备用安卓设备，高并发承载',
         '独享独立的异常离线邮件/短信提示服务',
-        '支持免备用手机、使用直链协议收款高级插件',
-        '高级API调试、模拟到账测试沙箱服务',
+        '支持支付宝 PID 直达和更多收银台能力',
+        '高级 API 调试、模拟到账测试沙箱服务',
         '7 × 24 小时一对一技术接入辅助'
       ],
       cta: '立即开通 高级版',
@@ -175,7 +175,7 @@ export default function HomePage() {
             <a href="#product-flow" className="hover:text-blue-400 hover:translate-y-[-1px] transition-all">运作原理</a>
             <a href="#product-features" className="hover:text-blue-400 hover:translate-y-[-1px] transition-all">核心优势</a>
             <a href="#pricing-grid" className="hover:text-blue-400 hover:translate-y-[-1px] transition-all">套餐费用</a>
-            <a href="/docs#api-create" className="cursor-pointer hover:text-blue-400 hover:translate-y-[-1px] transition-all">接口文档</a>
+            <a href="/docs#faq" className="cursor-pointer hover:text-blue-400 hover:translate-y-[-1px] transition-all">常见问题</a>
           </nav>
 
           <div className="flex items-center gap-3" id="header-ctas">
@@ -218,7 +218,7 @@ export default function HomePage() {
                 </span>
               </h1>
               <p className="text-base sm:text-lg text-[#94A3B8] leading-relaxed mb-8 max-w-xl">
-                上传你的微信/支付宝个人收款码，安装 CoderPay 安卓挂机端，用户付款后自动识别到账并回调你的网站。资金首尾直达你个人账户，CP 安全云端完全不接管资金。
+                上传你的微信/支付宝个人收款码，安装 CoderPay 安卓挂机端，用户付款后由手机监听到账通知并回调你的网站。普通开发者订单资金直达个人账户，CP 不代收、不托管。
               </p>
               <div className="flex flex-wrap items-center gap-4">
                 <a
@@ -231,7 +231,7 @@ export default function HomePage() {
                   href="/docs"
                   className="px-6 py-4 rounded-xl text-base bg-[#111827] border border-[rgba(255,255,255,0.08)] hover:bg-[#151B2E] text-slate-300 hover:text-white font-medium transition-all"
                 >
-                  查看说明文档
+                  查看常见问题
                 </a>
                 <a
                   href={androidApkUrl}
@@ -249,24 +249,24 @@ export default function HomePage() {
                   <span className="text-xs text-gray-500 block mt-1">资金中介扣留</span>
                 </div>
                 <div>
-                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">&lt; 1s</span>
-                  <span className="text-xs text-gray-500 block mt-1">云端匹配及回调</span>
+                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">2种</span>
+                  <span className="text-xs text-gray-500 block mt-1">自动/人工确认</span>
                 </div>
                 <div>
-                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">100%</span>
-                  <span className="text-xs text-gray-500 block mt-1">自有账户收款</span>
+                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">HMAC</span>
+                  <span className="text-xs text-gray-500 block mt-1">签名回调</span>
                 </div>
                 <div>
-                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">超1万</span>
-                  <span className="text-xs text-gray-500 block mt-1">开发者已加入</span>
+                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">微信</span>
+                  <span className="text-xs text-gray-500 block mt-1">通知监听</span>
                 </div>
                 <div>
-                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">超1亿</span>
-                  <span className="text-xs text-gray-500 block mt-1">安全资金保障</span>
+                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">支付宝</span>
+                  <span className="text-xs text-gray-500 block mt-1">PID 直达</span>
                 </div>
                 <div>
-                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">超1亿笔</span>
-                  <span className="text-xs text-gray-500 block mt-1">稳定到账订单</span>
+                  <span className="block text-2xl font-bold text-white tracking-tight font-mono">审计</span>
+                  <span className="text-xs text-gray-500 block mt-1">补单留痕</span>
                 </div>
               </div>
 
@@ -349,7 +349,7 @@ export default function HomePage() {
               扫码支付一触即发 · Android Watcher 智能监听
             </h2>
             <p className="text-slate-400 text-base">
-              您仅需准备一个退休的备用安卓手机，安装极简的 CoderPay 探针 App。它将全自动监听您的微信和支付宝到账通知，并向 CP 云推送，无需复杂的服务器挂钩。
+              准备一台稳定在线的安卓备用机，安装 CoderPay 探针 App。它会监听微信和支付宝到账通知，并把到账事件推送到 CP 云端进行订单匹配。
             </p>
           </div>
 
@@ -391,7 +391,7 @@ export default function HomePage() {
               <div className="relative">
                 <div className="flex justify-between text-xs text-slate-300 mb-2.5 font-medium">
                   <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />Coder Pay 模式 (直达钱包)</span>
-                  <span className="text-emerald-400 font-mono font-extrabold">秒级到账 · 0% 资金扣留</span>
+                  <span className="text-emerald-400 font-mono font-extrabold">资金直达 · 非托管</span>
                 </div>
                 <div className="h-20 rounded-xl bg-[#0F172A] border border-emerald-500/20 flex items-center justify-between px-4 sm:px-6 relative overflow-hidden shadow-[0_0_20px_rgba(16,185,129,0.05)]">
                   {/* Glowing background flow */}
@@ -456,7 +456,7 @@ export default function HomePage() {
               为什么选择专为开发者打造的 CP 自动到账？
             </h2>
             <p className="text-[#94A3B8] text-sm sm:text-base">
-              告别昂贵的代理费、合规抽查和高比例提现分成。CP 解决个人网站无自动收款到账系统的切肤之痛。
+              面向个人开发者的小额收款自动化场景，CP 把收款码、安卓监听、订单匹配和 Webhook 回调整理成一套可运营流程。
             </p>
           </div>
 
@@ -495,7 +495,7 @@ export default function HomePage() {
               透明计费套餐 · 低至单笔 1 分钱
             </h2>
             <p className="text-[#94A3B8] text-sm sm:text-base">
-              在免费或专业版的收费模式中，我们仅扣除不可置疑的廉价技术维护费。佣金在资金通过扫码后已经直接划入您的钱包。
+              普通开发者订单资金直接进入你的微信或支付宝账户；平台只从预充值技术服务余额中扣除套餐费和每笔交易手续费。
             </p>
           </div>
 
@@ -581,10 +581,10 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-t from-blue-950/20 via-transparent to-transparent pointer-events-none" />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
           <h2 className="text-3xl sm:text-4xl font-sans font-bold text-white tracking-tight mb-5">
-            零行伪码，1分钟免签约快速对接网站收款
+            免商户签约，快速接入网站收款
           </h2>
           <p className="text-slate-400 text-sm sm:text-base mb-8 max-w-2xl mx-auto">
-            立即注册开通 CP 账户。多平台探针守护到账，HMAC 安全加密回调，保障订单实时同步。
+            立即注册开通 CP 账户。Android 探针监听到账，HMAC 签名回调，支持自动确认与人工补单。
             <br />
             <span className="text-xs text-slate-500 mt-2 block">
               售后商务：<a href="https://t.me/coderpay3" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Telegram @coderpay3</a>
@@ -598,10 +598,10 @@ export default function HomePage() {
               免费开通接入 <ChevronRight className="w-4 h-4" />
             </a>
             <a
-              href="/docs#api-create"
+              href="/docs#faq"
               className="px-8 py-4 bg-[#111827] hover:bg-[#151B2E] border border-[rgba(255,255,255,0.08)] text-slate-300 font-medium rounded-xl transition-all w-full sm:w-auto text-center"
             >
-              获取 API 文档
+              查看 FAQ
             </a>
           </div>
         </div>
@@ -613,7 +613,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain rounded-full border border-white/5" />
-            <span>© 2026 Coder Pay. 所有资金进入个人安全账户。</span>
+            <span>© 2026 Coder Pay. 普通订单资金直达开发者账户。</span>
           </div>
           <div className="flex items-center gap-6">
             <a href="https://t.me/coderpay3" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 text-blue-500 font-medium">售后商务 Telegram</a>

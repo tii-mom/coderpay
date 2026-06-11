@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { App } from '@/types';
+import { API_SPEC } from '@/lib/docs/api-spec';
 import { 
   Code, 
   Terminal, 
@@ -379,22 +380,20 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
               </h3>
 
               <p>
-                在您的自建商城/打赏主站中，当买家确定下单并点击【聚合扫码支付】瞬间，您的 Web 服务器需向 CP 宿主系统发出此 POST 参数请求。CP 将实时微调分派订单价、挂机锁定个人收款通道，并返回一个收银付款台定向 URL（<code>payment_url</code>）。您应将买家重定向导流向该地址扫码。
+                {API_SPEC.createOrder.description}
               </p>
 
               <span className="font-bold text-slate-200 mt-2">HTTP POST 请求负载关键字段：</span>
               <div className="grid grid-cols-3 gap-3 border border-[rgba(255,255,255,0.04)] bg-[#0B1020]/20 p-3 rounded-xl font-mono text-[11px]">
-                <div><strong className="text-slate-100">app_id</strong><span className="text-[10px] text-slate-500 block">Required string</span></div>
-                <div className="col-span-2 text-slate-300">您的 Coder Pay 接入端 APP 开发者商户凭据唯一序列号</div>
-
-                <div><strong className="text-slate-100">out_order_no</strong><span className="text-[10px] text-slate-500 block">Required string</span></div>
-                <div className="col-span-2 text-slate-300">您本地业务库中该订单主键 ID，须具有全局唯一性</div>
-
-                <div><strong className="text-slate-100">amount</strong><span className="text-[10px] text-slate-500 block">Required decimal</span></div>
-                <div className="col-span-2 text-slate-300">标定应付实物总额，精确至两位小数，例如：19.90</div>
-
-                <div><strong className="text-slate-100">pay_type</strong><span className="text-[10px] text-slate-500 block">Required enum</span></div>
-                <div className="col-span-2 text-slate-300">支付核对通道类型：<code>wechat</code> (微信扫码) 或 <code>alipay</code> (支付宝扫码)</div>
+                {API_SPEC.createOrder.requestFields.map((field) => (
+                  <React.Fragment key={field.name}>
+                    <div>
+                      <strong className="text-slate-100">{field.name}</strong>
+                      <span className="text-[10px] text-slate-500 block">{field.required ? 'Required' : 'Optional'} {field.type}</span>
+                    </div>
+                    <div className="col-span-2 text-slate-300">{field.desc}</div>
+                  </React.Fragment>
+                ))}
               </div>
 
               {/* SDK Language Tabs */}
@@ -440,19 +439,17 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
               </h3>
 
               <p>
-                同步页面跳转可能由于意外的网络刷新而被阻断。我们强烈提倡在您收发货完成前，由您的服务器或者前端以 POST 形式，调拨此状态查询接口以确认交易核销情况。
+                {API_SPEC.queryOrder.description}
               </p>
 
               <span className="font-bold text-slate-200 mt-2">HTTP POST 查询参数:</span>
               <div className="grid grid-cols-4 gap-3 bg-[#0B1020]/20 p-3 rounded-xl font-mono text-[11px] border border-[rgba(255,255,255,0.04)]">
-                <div><strong className="text-slate-100">app_id</strong></div>
-                <div className="col-span-3 text-slate-400">开发者商户凭据唯一序列号</div>
-
-                <div><strong className="text-slate-100">order_id</strong></div>
-                <div className="col-span-3 text-slate-400">CP 系统返回的收款交易流水单号（或传 <code>out_order_no</code> 兼容匹配）</div>
-
-                <div><strong className="text-slate-105">sign</strong></div>
-                <div className="col-span-3 text-slate-400">参数排序签名。防伪鉴权校验专用</div>
+                {API_SPEC.queryOrder.requestFields.map((field) => (
+                  <React.Fragment key={field.name}>
+                    <div><strong className="text-slate-100">{field.name}</strong></div>
+                    <div className="col-span-3 text-slate-400">{field.desc}</div>
+                  </React.Fragment>
+                ))}
               </div>
 
               <span className="font-bold text-slate-200 mt-2">状态 JSON 输出值响应：</span>
@@ -481,7 +478,7 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
               </h3>
 
               <p>
-                一旦安装了 <b>CoderPay App</b> 的 Android 设备监听到微信/支付宝收款到达，CP 核心云将在 500ms 内触发对您预留 <code>notify_url</code> 的异步 POST 签名回调网络推送。
+                {API_SPEC.webhook.description}
               </p>
 
               <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/20 text-xs text-amber-200">
@@ -512,19 +509,15 @@ echo "支付收银台定向地址: " . $data['data']['payment_url'];
             </h3>
 
             <p>
-              为防篡改、伪造，进出 CP 的所有参数流都应进行对位哈希签名。规则极其简单，遵循经典的微信支付与支付宝签名范式：
+              为防篡改、伪造，进出 CP 的所有参数流都应进行对位哈希签名。当前规则如下：
             </p>
 
             <ol className="list-decimal pl-4.5 flex flex-col gap-2 mt-1">
-              <li>
-                <b>待签参数升序排列:</b> 剔除 <code>sign</code> 参数本身，将剩余其余 POST 请求参数的 Key 按照 ASCII 字典进行升序自然排列。
-              </li>
-              <li>
-                <b>组装 Query 串:</b> 将升序排好的参数键值按 <code>key1=val1&key2=val2...</code> 的形式用 <code>&</code> 相链条。
-              </li>
-              <li>
-                <b>追加密钥并计算哈希:</b> 在最后的连缀串后强行连加您的专属安全密钥：<code>&key=您的App_Secret</code>。计算一串 HMAC-SHA256 或大写/小写 MD5 值。注入 sign 参数包中。
-              </li>
+              {API_SPEC.signatureRules.steps.map((step) => (
+                <li key={step.num}>
+                  <b>{step.title}:</b> {step.desc}
+                </li>
+              ))}
             </ol>
 
             <span className="font-bold text-slate-200 mt-2">开发者接口安全盾牌承诺：</span>
