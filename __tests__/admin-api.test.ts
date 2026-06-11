@@ -9,6 +9,7 @@ let targetUserBalance = 100;
 let targetUserPackage = "free";
 let targetUserSubscriptionExpiresAt: string | null = null;
 let targetUserAdminNote: string | null = "test note";
+let rechargeStatus = "pending";
 
 // ----- Mocks -----
 
@@ -78,6 +79,17 @@ const mockFirst = vi.fn().mockImplementation(async function(this: any) {
     if (mockSessionEmail === "admin@example.com") {
       result = { id: "admin-1", email: "admin@example.com" };
     }
+  }
+  // RechargeOrder lookup for manual-confirm
+  else if (sql.includes("FROM RechargeOrder WHERE id =")) {
+    result = {
+      id: "RC96251105",
+      userId: "target-1",
+      amountCents: 10000,
+      realAmountCents: 10000,
+      payType: "wechat",
+      status: rechargeStatus,
+    };
   }
   // 2. Count users
   else if (sql.includes("SELECT COUNT(*)")) {
@@ -535,5 +547,91 @@ describe("Admin API — platform-recharge-status", () => {
     expect(data).toHaveProperty("hasWechat");
     expect(data).toHaveProperty("hasAlipay");
     expect(data).toHaveProperty("gaps");
+  });
+});
+
+describe("Admin API — recharge manual-confirm", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSessionEmail = "admin@example.com";
+    mockAdminEmails = "admin@example.com";
+    targetUserBalance = 100;
+    targetUserPackage = "free";
+    targetUserSubscriptionExpiresAt = null;
+    rechargeStatus = "pending";
+  });
+
+  it("returns 403 for non-admin", async () => {
+    mockSessionEmail = "user@example.com";
+    const { POST } = await import(
+      "@/app/api/admin/recharge-orders/[id]/manual-confirm/route"
+    );
+    const res = await POST(
+      makeRequest(
+        "http://localhost/api/admin/recharge-orders/RC96251105/manual-confirm",
+        "POST",
+        { confirmEmail: "target@example.com" }
+      ),
+      { params: Promise.resolve({ id: "RC96251105" }) }
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 400 when confirmEmail does not match target user", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/recharge-orders/[id]/manual-confirm/route"
+    );
+    const res = await POST(
+      makeRequest(
+        "http://localhost/api/admin/recharge-orders/RC96251105/manual-confirm",
+        "POST",
+        { confirmEmail: "wrong@example.com" }
+      ),
+      { params: Promise.resolve({ id: "RC96251105" }) }
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 409 when recharge already succeeded (no double credit)", async () => {
+    rechargeStatus = "success";
+    const { POST } = await import(
+      "@/app/api/admin/recharge-orders/[id]/manual-confirm/route"
+    );
+    const res = await POST(
+      makeRequest(
+        "http://localhost/api/admin/recharge-orders/RC96251105/manual-confirm",
+        "POST",
+        { confirmEmail: "target@example.com" }
+      ),
+      { params: Promise.resolve({ id: "RC96251105" }) }
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("credits balance and writes audit log when confirmEmail matches", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/recharge-orders/[id]/manual-confirm/route"
+    );
+    const res = await POST(
+      makeRequest(
+        "http://localhost/api/admin/recharge-orders/RC96251105/manual-confirm",
+        "POST",
+        { confirmEmail: "target@example.com", reason: "补入账" }
+      ),
+      { params: Promise.resolve({ id: "RC96251105" }) }
+    );
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.status).toBe("success");
+    // 100 + 100.00 (10000 cents) = 200
+    expect(data.feeBalance).toBe(200);
+    const auditWrite = mockPrepare.mock.calls.some(
+      (c: any[]) => typeof c[0] === "string" && c[0].includes("AdminAuditLog")
+    );
+    expect(auditWrite).toBe(true);
+    const claimWrite = mockPrepare.mock.calls.some(
+      (c: any[]) => typeof c[0] === "string" && c[0].includes("UPDATE RechargeOrder SET status = 'success'")
+    );
+    expect(claimWrite).toBe(true);
   });
 });

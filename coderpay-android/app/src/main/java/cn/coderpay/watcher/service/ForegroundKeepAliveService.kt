@@ -18,6 +18,7 @@ import cn.coderpay.watcher.MainActivity
 import cn.coderpay.watcher.api.HeartbeatRequest
 import cn.coderpay.watcher.api.RetrofitClient
 import cn.coderpay.watcher.utils.LogTracker
+import cn.coderpay.watcher.service.NotificationService
 import cn.coderpay.watcher.utils.SettingsManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -115,16 +116,21 @@ class ForegroundKeepAliveService : Service() {
                     if (it.isNotEmpty()) settings.alipayRegex = it
                 }
                 val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+                val isListenerBound = NotificationService.isListenerConnected
                 val risk = mutableListOf<String>()
                 if (!isNotificationGranted) risk.add("通知未授权")
+                if (!isListenerBound) risk.add("监听未绑定")
                 if (!isIgnoringBattery) risk.add("电池未豁免")
                 val content = if (risk.isEmpty()) {
-                    "监听运行中｜通知已授权｜电池已豁免｜$time"
+                    "监听运行中｜通知已授权｜监听已绑定｜电池已豁免｜$time"
                 } else {
                     "监听风险：${risk.joinToString(" / ")}｜$time"
                 }
                 updateNotification(content)
-                LogTracker.log("探针心跳上报成功。状态: 在线，电池忽略: $isIgnoringBattery, 通知授权: $isNotificationGranted")
+                LogTracker.log("探针心跳上报成功。状态: 在线，电池忽略: $isIgnoringBattery, 通知授权: $isNotificationGranted, 监听绑定: $isListenerBound")
+                if (isNotificationGranted && !isListenerBound) {
+                    LogTracker.log("⚠️ 通知权限已开启但监听服务未被系统绑定！请在系统设置中关闭再重新开启 CoderPay 通知使用权。")
+                }
             } else {
                 LogTracker.log("心跳错误：云端通信返回码 - ${response.code()}")
             }

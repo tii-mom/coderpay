@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { amountToCents, centsToAmount } from "@/lib/money";
 import { getDirectD1 } from "@/lib/d1-direct";
 import { readSessionEmail } from "@/lib/session";
+import { normalizeDirectPayFields } from "@/lib/direct-pay";
 
 async function getDirectSessionUser(req: NextRequest) {
   const email = await readSessionEmail(req.cookies.get("session_email")?.value);
@@ -33,7 +34,8 @@ export async function POST(req: NextRequest) {
     const user = await getDirectSessionUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     
-    const { type, codeType, amount, imageUrl, deviceId } = await req.json();
+    const body = await req.json();
+    const { type, codeType, amount, imageUrl, deviceId } = body;
     if (!type || !codeType || !imageUrl) {
       return NextResponse.json({ error: "Type, codeType, and imageUrl are required" }, { status: 400 });
     }
@@ -63,15 +65,27 @@ export async function POST(req: NextRequest) {
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
+    const alipayUserId = type === "alipay" ? String(body.alipayUserId || body.alipay_user_id || "").trim() || null : null;
+    const directPay = normalizeDirectPayFields({
+      type,
+      amount: codeType === "fixed" ? normalizedAmount : amount || 0,
+      alipayUserId,
+      qrPayload: body.qrPayload || body.qr_payload,
+      directPayUrl: body.directPayUrl || body.direct_pay_url,
+    });
     await db.prepare(`
-      INSERT INTO PaymentCode (id, type, codeType, amount, imageUrl, status, createdAt, updatedAt, userId, deviceId)
-      VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
+      INSERT INTO PaymentCode (id, type, codeType, amount, imageUrl, alipayUserId, qrPayload, directPayUrl, directPayMode, status, createdAt, updatedAt, userId, deviceId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
     `).bind(
       id,
       type,
       codeType,
       codeType === "any" ? 0 : normalizedAmount,
       imageUrl,
+      alipayUserId,
+      directPay.qrPayload,
+      directPay.directPayUrl,
+      directPay.directPayMode,
       now,
       now,
       user.id,

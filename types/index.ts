@@ -23,6 +23,9 @@ export interface PaymentCode {
   lastUsedAt: string | null;
   createdAt: string;
   alipayUserId?: string | null;
+  qrPayload?: string | null;
+  directPayUrl?: string | null;
+  directPayMode?: 'alipay_to_account' | 'alipay_qr' | 'wechat_qr' | 'image_fallback' | null;
 }
 
 export interface Device {
@@ -124,6 +127,17 @@ export interface BillingRecord {
   createdAt: string;
 }
 
+export interface RechargeOrder {
+  id: string;
+  amount: number;
+  realAmount: number;
+  payType: 'wechat' | 'alipay';
+  status: 'pending' | 'success' | 'expired' | 'failed';
+  createdAt: string;
+  expiresAt: string;
+  payTime: string | null;
+}
+
 export interface CoderPayState {
   apps: App[];
   paymentCodes: PaymentCode[];
@@ -133,6 +147,7 @@ export interface CoderPayState {
   webhookLogs: WebhookLog[];
   exceptions: ExceptionItem[];
   billingRecords: BillingRecord[];
+  rechargeOrders: RechargeOrder[];
   feeBalance: number;
   currentAppId: string;
   currentPlanId: string;

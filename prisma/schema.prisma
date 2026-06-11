@@ -60,6 +60,9 @@ model PaymentCode {
   amount       Float // 0.0 for any
   imageUrl     String
   alipayUserId String? // Optional for direct Alipay transfer mode
+  qrPayload    String? // Decoded QR content / payment payload for direct app handoff
+  directPayUrl String? // Optional explicit URL scheme or deep link
+  directPayMode String? // alipay_to_account / alipay_qr / wechat_qr / image_fallback
   status       String // active / inactive
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

@@ -27,7 +27,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             codeType: true,
             amount: true,
             imageUrl: true,
-            alipayUserId: true
+            alipayUserId: true,
+            qrPayload: true,
+            directPayUrl: true,
+            directPayMode: true,
           }
         }
       }
@@ -43,7 +46,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
               codeType: true,
               amount: true,
               imageUrl: true,
-              alipayUserId: true
+              alipayUserId: true,
+              qrPayload: true,
+              directPayUrl: true,
+              directPayMode: true,
             }
           }
         }

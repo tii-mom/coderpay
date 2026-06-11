@@ -329,6 +329,24 @@ export async function POST(req: NextRequest) {
         LIMIT 1
       `).bind(device.userId, device.id, payType, amountCents, eventTime.toISOString()).first<any>();
 
+      // Same reconciliation for platform recharges: a real payment that landed
+      // after the recharge window expired should surface as an exception with
+      // the recharge id, so an operator can manually confirm it via the admin
+      // panel rather than the money silently going unrecorded.
+      const expiredRecharge = expiredOrder ? null : await db.prepare(`
+        SELECT RechargeOrder.id
+        FROM RechargeOrder
+        JOIN PaymentCode ON PaymentCode.id = RechargeOrder.paymentCodeId
+        WHERE PaymentCode.userId = ?
+          AND PaymentCode.deviceId = ?
+          AND RechargeOrder.payType = ?
+          AND RechargeOrder.realAmountCents = ?
+          AND RechargeOrder.status = 'pending'
+          AND RechargeOrder.expiresAt <= ?
+        ORDER BY RechargeOrder.createdAt DESC
+        LIMIT 1
+      `).bind(device.userId, device.id, payType, amountCents, eventTime.toISOString()).first<any>();
+
       if (expiredOrder) {
         await db.prepare(`
           INSERT INTO ExceptionItem (id, type, title, description, createdAt, refId, status, userId)
@@ -339,6 +357,18 @@ export async function POST(req: NextRequest) {
           `设备收到到账通知 ${formatAmount(amountCents)} 元，疑似对应已过期订单 ${expiredOrder.id}，未自动回调商户。`,
           new Date().toISOString(),
           expiredOrder.id,
+          device.userId
+        ).run();
+      } else if (expiredRecharge) {
+        await db.prepare(`
+          INSERT INTO ExceptionItem (id, type, title, description, createdAt, refId, status, userId)
+          VALUES (?, 'expired_recharge', ?, ?, ?, ?, 'active', ?)
+        `).bind(
+          crypto.randomUUID(),
+          `${payType === "wechat" ? "微信" : "支付宝"}收到 ${formatAmount(amountCents)} 元，但充值单已过期`,
+          `设备收到到账通知 ${formatAmount(amountCents)} 元，疑似对应已过期充值单 ${expiredRecharge.id}，未自动入账。可在管理后台人工确认充值到账。`,
+          new Date().toISOString(),
+          expiredRecharge.id,
           device.userId
         ).run();
       } else {

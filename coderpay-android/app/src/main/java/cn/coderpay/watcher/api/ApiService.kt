@@ -127,6 +127,7 @@ data class EventResponse(
 data class MobileConsoleResponse(
     val user: MobileUser,
     val orders: List<MobileOrder>,
+    val rechargeOrders: List<MobileRechargeOrder> = emptyList(),
     val paymentCodes: List<MobilePaymentCode>,
     val devices: List<MobileDevice>,
     val billingRecords: List<MobileBillingRecord>,
@@ -162,6 +163,20 @@ data class MobileRechargeStatusResponse(
     val paymentCode: MobilePaymentCode?
 )
 
+data class MobileRechargeOrder(
+    val id: String,
+    val amount: Double,
+    val realAmount: Double,
+    val amountCents: Int? = null,
+    val realAmountCents: Int? = null,
+    val payType: String,
+    val status: String,
+    val createdAt: String,
+    val expiresAt: String,
+    val payTime: String?,
+    val paymentCodeId: String? = null
+)
+
 data class MobileSubscribeRequest(
     val planId: String
 )
@@ -190,7 +205,9 @@ data class MobilePaymentCodeCreateRequest(
     val amount: Double,
     val imageUrl: String,
     val deviceId: String?,
-    val alipayUserId: String? = null
+    val alipayUserId: String? = null,
+    val qrPayload: String? = null,
+    val directPayUrl: String? = null
 )
 
 data class MobilePaymentCodeUpdateRequest(
@@ -246,7 +263,11 @@ data class MobilePaymentCode(
     val imageUrl: String,
     val status: String,
     val deviceId: String?,
-    val createdAt: String
+    val createdAt: String,
+    val alipayUserId: String? = null,
+    val qrPayload: String? = null,
+    val directPayUrl: String? = null,
+    val directPayMode: String? = null
 )
 
 data class MobileDevice(

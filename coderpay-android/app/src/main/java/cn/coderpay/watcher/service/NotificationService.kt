@@ -20,6 +20,13 @@ import java.util.regex.Pattern
 
 class NotificationService : NotificationListenerService() {
 
+    companion object {
+        /** True when the system has actually bound and connected this listener. */
+        @Volatile
+        var isListenerConnected: Boolean = false
+            private set
+    }
+
     private lateinit var settings: SettingsManager
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
@@ -35,7 +42,21 @@ class NotificationService : NotificationListenerService() {
     override fun onCreate() {
         super.onCreate()
         settings = SettingsManager(applicationContext)
-        LogTracker.log("监听服务已实例化，开始监测系统通知...")
+        LogTracker.log("监听服务已实例化，等待系统绑定通知监听...")
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        isListenerConnected = true
+        LogTracker.log("✅ 通知监听服务已被系统成功绑定，可以正常接收通知。")
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        isListenerConnected = false
+        LogTracker.log("⚠️ 通知监听服务已被系统断开！请检查通知使用权设置，尝试关闭后重新打开。")
+        // Request rebind from the system
+        requestRebind(android.content.ComponentName(applicationContext, NotificationService::class.java))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

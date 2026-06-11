@@ -12,6 +12,11 @@ export async function GET(req: NextRequest) {
       where: { userId: user.id },
       orderBy: { createdAt: "desc" }
     });
+
+    const rechargeOrders = await prisma.rechargeOrder.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" }
+    });
     
     return NextResponse.json({
       feeBalance: user.feeBalance,
@@ -20,7 +25,8 @@ export async function GET(req: NextRequest) {
       subscriptionExpiresAt: user.subscriptionExpiresAt,
       firstProDiscountUsed: user.firstProDiscountUsed,
       firstMaxDiscountUsed: user.firstMaxDiscountUsed,
-      records
+      records,
+      rechargeOrders
     });
   } catch (err) {
     console.error("API request failed:", err);

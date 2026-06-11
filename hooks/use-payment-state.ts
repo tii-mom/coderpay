@@ -13,6 +13,7 @@ export function usePaymentState() {
     webhookLogs: [],
     exceptions: [],
     billingRecords: [],
+    rechargeOrders: [],
     feeBalance: 0,
     currentAppId: 'all',
     currentPlanId: 'plan-basic',
@@ -100,6 +101,7 @@ export function usePaymentState() {
           webhookLogs: [],
           exceptions: [],
           billingRecords: [],
+          rechargeOrders: [],
           feeBalance: 0,
           packageType: 'free',
           freeOrderUsed: 0,
@@ -122,7 +124,7 @@ export function usePaymentState() {
         fetchJsonSafely("/api/events", []),
         fetchJsonSafely("/api/exceptions", []),
         fetchJsonSafely("/api/webhook/logs", []),
-        fetchJsonSafely("/api/billing", { records: [], feeBalance: 0, packageType: 'free' })
+        fetchJsonSafely("/api/billing", { records: [], rechargeOrders: [], feeBalance: 0, packageType: 'free' })
       ]);
 
       setState(prev => ({
@@ -134,6 +136,7 @@ export function usePaymentState() {
         webhookLogs,
         exceptions,
         billingRecords: billingData.records || [],
+        rechargeOrders: billingData.rechargeOrders || [],
         feeBalance: billingData.feeBalance || 0,
         packageType: billingData.packageType || me.packageType || 'free',
         freeOrderUsed: billingData.freeOrderUsed || 0,

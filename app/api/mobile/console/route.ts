@@ -12,10 +12,16 @@ export async function GET(req: NextRequest) {
     if (auth.error) return auth.error;
     const device = auth.device;
 
-    const [orders, paymentCodes, devices, billingRecords, exceptions] = await Promise.all([
+    const [orders, rechargeOrders, paymentCodes, devices, billingRecords, exceptions] = await Promise.all([
       prisma.order.findMany({
         where: { app: { userId: device.userId } },
         include: { app: true },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      }),
+      prisma.rechargeOrder.findMany({
+        where: { userId: device.userId },
+        include: { paymentCode: true },
         orderBy: { createdAt: "desc" },
         take: 30,
       }),
@@ -64,6 +70,19 @@ export async function GET(req: NextRequest) {
         webhookStatus: order.webhookStatus,
         paymentCodeId: order.paymentCodeId,
         appId: order.app.appId,
+      })),
+      rechargeOrders: rechargeOrders.map((order) => ({
+        id: order.id,
+        amount: centsToAmount(order.amountCents),
+        realAmount: centsToAmount(order.realAmountCents),
+        amountCents: order.amountCents,
+        realAmountCents: order.realAmountCents,
+        payType: order.payType,
+        status: order.status === "pending" && order.expiresAt.getTime() <= Date.now() ? "expired" : order.status,
+        createdAt: order.createdAt,
+        expiresAt: order.expiresAt,
+        payTime: order.payTime,
+        paymentCodeId: order.paymentCodeId,
       })),
       paymentCodes,
       devices: devices.map(omitDeviceSecret),

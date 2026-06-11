@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getMobileDevice } from "@/lib/mobile-auth";
 import { amountToCents, centsToAmount } from "@/lib/money";
 import { getDirectD1 } from "@/lib/d1-direct";
+import { normalizeDirectPayFields } from "@/lib/direct-pay";
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,16 +40,27 @@ export async function POST(req: NextRequest) {
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
+    const alipayUserId = type === "alipay" ? (body.alipayUserId || body.alipay_user_id || null) : null;
+    const directPay = normalizeDirectPayFields({
+      type,
+      amount: normalizedAmount || body.amount || 0,
+      alipayUserId,
+      qrPayload: body.qrPayload || body.qr_payload,
+      directPayUrl: body.directPayUrl || body.direct_pay_url,
+    });
     await db.prepare(`
-      INSERT INTO PaymentCode (id, type, codeType, amount, imageUrl, alipayUserId, status, createdAt, updatedAt, userId, deviceId)
-      VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
+      INSERT INTO PaymentCode (id, type, codeType, amount, imageUrl, alipayUserId, qrPayload, directPayUrl, directPayMode, status, createdAt, updatedAt, userId, deviceId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
     `).bind(
       id,
       type,
       codeType,
       normalizedAmount,
       imageUrl,
-      type === "alipay" ? (body.alipayUserId || body.alipay_user_id || null) : null,
+      alipayUserId,
+      directPay.qrPayload,
+      directPay.directPayUrl,
+      directPay.directPayMode,
       now,
       now,
       auth.device.userId,

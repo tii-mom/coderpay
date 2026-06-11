@@ -11,7 +11,8 @@ import {
   CheckCircle2, 
   AlertCircle, 
   RotateCw, 
-  ExternalLink
+  ExternalLink,
+  QrCode
 } from 'lucide-react';
 
 export default function PayCheckout({ orderId: providedOrderId }: { orderId?: string }) {
@@ -28,6 +29,8 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
   const activeChannel = userSelectedChannel || (order ? order.payType : 'wechat');
 
   const [secondsLeft, setSecondsLeft] = useState(300);
+  const [hasAutoRedirected, setHasAutoRedirected] = useState(false);
+  const [queryCount, setQueryCount] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -95,9 +98,7 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
       active = false;
       clearInterval(interval);
     };
-  }, [orderId]);
-
-  const [queryCount, setQueryCount] = useState(0);
+  }, [orderId, queryCount]);
 
   // Countdown clock loop
   useEffect(() => {
@@ -126,6 +127,35 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
 
     return () => window.clearTimeout(timer);
   }, [order]);
+
+  // Switch WeChat/Alipay Payment Code matches
+  const paymentCode = realOrder?.paymentCode;
+  const directPayUrl = paymentCode?.directPayUrl
+    || (activeChannel === 'alipay' && paymentCode?.alipayUserId
+      ? `alipays://platformapi/startapp?appId=09999988&actionType=toAccount&goBack=NO&userId=${encodeURIComponent(paymentCode.alipayUserId)}&amount=${encodeURIComponent(order?.realAmount?.toFixed(2) || '0.00')}`
+      : paymentCode?.qrPayload || '');
+
+  // Mobile auto-redirect handler
+  useEffect(() => {
+    if (!order || order.status !== 'pending' || !directPayUrl || hasAutoRedirected) return;
+
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (!isMobile) return;
+
+    setHasAutoRedirected(true);
+
+    let targetUrl = directPayUrl;
+    // For Alipay qr links, wrapping in alipays scheme ensures it directly opens Alipay scan view
+    if (activeChannel === 'alipay' && targetUrl.startsWith('https://qr.alipay.com/')) {
+      targetUrl = `alipays://platformapi/startapp?saId=10000007&clientVersion=3.7.0.0718&qrcode=${encodeURIComponent(targetUrl)}`;
+    }
+
+    const timer = setTimeout(() => {
+      window.location.href = targetUrl;
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [order, directPayUrl, activeChannel, hasAutoRedirected]);
 
   if (!mounted) {
     return <div className="min-h-screen bg-[#F1F5F9]" />;
@@ -161,10 +191,10 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
   };
 
   // Switch WeChat/Alipay Payment Code matches
-  const paymentCode = realOrder?.paymentCode;
   const qrUrl = paymentCode?.imageUrl || '';
   const isRechargeOrder = order?.orderType === 'recharge';
   const isManualMode = !isRechargeOrder && order?.confirmMode === 'manual';
+  const directPayLabel = activeChannel === 'alipay' ? '打开支付宝付款' : '尝试打开微信付款';
 
   // User click "Paid / Refresh Link"
   const handleManualRefresh = () => {
@@ -294,6 +324,16 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
               </button>
             </div>
 
+            {directPayUrl && (
+              <a
+                href={directPayUrl}
+                className={`mb-5 w-full max-w-[280px] px-5 py-3.5 ${activeChannel === 'alipay' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-emerald-600 hover:bg-emerald-500'} text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer`}
+              >
+                <Smartphone className="w-4 h-4" />
+                {directPayLabel}
+              </a>
+            )}
+
             {/* QR Scanner Frame with simulated loading or overlays */}
             <div className="relative w-48 h-48 sm:w-56 sm:h-56 border border-slate-200 rounded-2xl p-2.5 bg-slate-50 flex items-center justify-center shadow-inner group">
               {/* Corner scan crosshairs */}
@@ -341,20 +381,12 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
               </div>
             </div>
 
-            {/* Alipay Direct Scheme Wakeup Button */}
-            {activeChannel === 'alipay' && paymentCode?.alipayUserId && (
-              <a
-                href={`alipays://platformapi/startapp?appId=09999988&actionType=toAccount&goBack=NO&userId=${paymentCode.alipayUserId}&amount=${order.realAmount.toFixed(2)}`}
-                className="mt-4 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
-              >
-                <Smartphone className="w-4 h-4" />
-                点此直接打开支付宝极速付款
-              </a>
-            )}
-
             {/* Instructional banner */}
             <div className="mt-5 text-center text-[11px] text-slate-400 bg-slate-50 p-3.5 rounded-2xl border border-slate-100 max-w-sm w-full leading-relaxed">
-              <p>请下载个人二维码或在微信/支付宝中选择<strong>“扫一扫”</strong>付款。</p>
+              <p className="flex items-center justify-center gap-1">
+                <QrCode className="w-3.5 h-3.5" />
+                优先点击上方按钮打开支付 App；如果无法唤起，请保存二维码后在微信/支付宝中识别付款。
+              </p>
               {paymentCode?.codeType === 'fixed' ? (
                 <p className="mt-1 font-medium text-slate-600">该二维码为固定金额码，请支付页面显示的固定金额。</p>
               ) : (

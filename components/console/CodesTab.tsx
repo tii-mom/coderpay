@@ -18,12 +18,45 @@ import {
   UploadCloud
 } from 'lucide-react';
 
+import jsQR from 'jsqr';
+
 interface CodesTabProps {
   paymentCodes: PaymentCode[];
   devices: Device[];
   onTriggerToast: (text: string, type: 'success' | 'warning' | 'error') => void;
   db: any;
 }
+
+const decodeQrCodeFromFile = (file: File): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(null);
+            return;
+          }
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, img.width, img.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          resolve(code ? code.data : null);
+        } catch (err) {
+          console.error("QR decoding failed:", err);
+          resolve(null);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+};
 
 export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTabProps) {
   const [activeTab, setActiveTab] = useState<'list' | 'create'>('list');
@@ -36,6 +69,8 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
   const [deviceId, setDeviceId] = useState(devices[0]?.id || '');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
   const [alipayUserId, setAlipayUserId] = useState('');
+  const [qrPayload, setQrPayload] = useState('');
+  const [directPayUrl, setDirectPayUrl] = useState('');
 
   // Loader state
   const [isLoadingCodeOperation, setIsLoadingCodeOperation] = useState(false);
@@ -58,6 +93,25 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
 
     setIsUploadingImage(true);
     try {
+      // Decode QR Code locally first
+      const decodedPayload = await decodeQrCodeFromFile(file);
+      if (decodedPayload) {
+        setQrPayload(decodedPayload);
+        // Automatically prefill directPayUrl
+        setDirectPayUrl(decodedPayload);
+        
+        // If it's an Alipay URL and we can extract alipayUserId (often 2088xxxx)
+        if (type === 'alipay') {
+          const userIdMatch = decodedPayload.match(/userId=(\d{16})/);
+          if (userIdMatch && userIdMatch[1]) {
+            setAlipayUserId(userIdMatch[1]);
+          }
+        }
+        onTriggerToast('成功解析收款码内容，已自动填入付款链接中！', 'success');
+      } else {
+        onTriggerToast('未能从图片中解析出二维码内容，您可以稍后手动填写。', 'warning');
+      }
+
       const formData = new FormData();
       formData.append('file', file);
 
@@ -96,7 +150,9 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
         imageUrl,
         deviceId,
         status,
-        alipayUserId: type === 'alipay' ? alipayUserId : null
+        alipayUserId: type === 'alipay' ? alipayUserId : null,
+        qrPayload,
+        directPayUrl
       });
 
       if (!result.ok) {
@@ -114,6 +170,8 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
       setDeviceId(devices[0]?.id || '');
       setStatus('active');
       setAlipayUserId('');
+      setQrPayload('');
+      setDirectPayUrl('');
       setActiveTab('list');
     } finally {
       setIsLoadingCodeOperation(false);
@@ -335,6 +393,27 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
                 </p>
               </div>
             )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-slate-300">二维码内容 / 收款链接 (选填)</label>
+                <textarea
+                  placeholder="从二维码解析出的内容，或微信/支付宝收款链接。用于移动端优先唤起支付 App。"
+                  value={qrPayload}
+                  onChange={(e) => setQrPayload(e.target.value)}
+                  className="min-h-24 px-4 py-2.5 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none font-mono"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-slate-300">直达支付 URL Scheme (选填)</label>
+                <textarea
+                  placeholder="如 alipays://... 或 weixin://...；留空时系统会根据 PID/二维码内容自动生成兜底。"
+                  value={directPayUrl}
+                  onChange={(e) => setDirectPayUrl(e.target.value)}
+                  className="min-h-24 px-4 py-2.5 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none font-mono"
+                />
+              </div>
+            </div>
 
             <div className="flex gap-3 justify-end border-t border-[rgba(255,255,255,0.06)] pt-5 mt-3">
               <button

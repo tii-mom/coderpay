@@ -230,7 +230,7 @@ export default function ConsolePage() {
           firstProDiscountUsed: state.firstProDiscountUsed,
           firstMaxDiscountUsed: state.firstMaxDiscountUsed
         };
-        element = <BillingTab plan={computedPlan} billingRecords={state.billingRecords} onTriggerToast={triggerToast} db={db} />;
+        element = <BillingTab plan={computedPlan} billingRecords={state.billingRecords} rechargeOrders={state.rechargeOrders || []} onTriggerToast={triggerToast} db={db} />;
         break;
       }
       case 'account':

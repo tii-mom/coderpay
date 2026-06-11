@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { amountToCents, centsToAmount } from "@/lib/money";
+import { normalizeDirectPayFields } from "@/lib/direct-pay";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -33,13 +34,31 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
+    const nextType = code.type as "wechat" | "alipay";
+    const nextAlipayUserId = nextType === "alipay"
+      ? (body.alipayUserId === null || body.alipay_user_id === null
+          ? null
+          : String(body.alipayUserId || body.alipay_user_id || code.alipayUserId || "").trim() || null)
+      : null;
+    const directPay = normalizeDirectPayFields({
+      type: nextType,
+      amount: normalizedAmount !== undefined ? normalizedAmount : code.amount,
+      alipayUserId: nextAlipayUserId,
+      qrPayload: body.qrPayload ?? body.qr_payload ?? code.qrPayload,
+      directPayUrl: body.directPayUrl ?? body.direct_pay_url ?? code.directPayUrl,
+    });
+
     const updated = await prisma.paymentCode.update({
       where: { id },
       data: {
         status,
         deviceId: deviceId === null ? null : deviceId,
         amount: normalizedAmount !== undefined ? normalizedAmount : undefined,
-        imageUrl
+        imageUrl,
+        alipayUserId: nextAlipayUserId,
+        qrPayload: directPay.qrPayload,
+        directPayUrl: directPay.directPayUrl,
+        directPayMode: directPay.directPayMode,
       }
     });
     

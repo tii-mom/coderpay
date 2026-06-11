@@ -119,6 +119,7 @@ class MainActivity : ComponentActivity() {
         var sandboxMessage by remember { mutableStateOf<String?>(null) }
         
         var isNotificationPermissionGranted by remember { mutableStateOf(isNotificationServiceEnabled()) }
+        var isListenerBound by remember { mutableStateOf(NotificationService.isListenerConnected) }
         var isBatteryOptimizedIgnored by remember { mutableStateOf(isBatteryOptimizationIgnored()) }
 
         val scope = rememberCoroutineScope()
@@ -154,6 +155,7 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(Unit) {
             while (true) {
                 isNotificationPermissionGranted = isNotificationServiceEnabled()
+                isListenerBound = NotificationService.isListenerConnected
                 isBatteryOptimizedIgnored = isBatteryOptimizationIgnored()
                 kotlinx.coroutines.delay(2000)
             }
@@ -170,6 +172,7 @@ class MainActivity : ComponentActivity() {
             OperationsHero(
                 isBound = isBound,
                 notificationEnabled = isNotificationPermissionGranted,
+                listenerBound = isListenerBound,
                 batteryIgnored = isBatteryOptimizedIgnored,
                 deviceCode = deviceCode
             )
@@ -808,6 +811,8 @@ class MainActivity : ComponentActivity() {
         var codeAmount by remember { mutableStateOf("9.90") }
         var uploadedCodeUrl by remember { mutableStateOf("") }
         var alipayUserId by remember { mutableStateOf("") }
+        var qrPayload by remember { mutableStateOf("") }
+        var directPayUrl by remember { mutableStateOf("") }
         var codeToDelete by remember { mutableStateOf<cn.coderpay.watcher.api.MobilePaymentCode?>(null) }
 
         fun signedParts(): Triple<String, String, String> {
@@ -1140,6 +1145,10 @@ class MainActivity : ComponentActivity() {
                                 items(data!!.orders) { order ->
                                     OrderCard(order)
                                 }
+                                item { MetricRow("充值订单", "${data!!.rechargeOrders.size}", "最近 30 笔充值") }
+                                items(data!!.rechargeOrders) { order ->
+                                    RechargeOrderCard(order)
+                                }
                                 if (data!!.orders.isEmpty()) item { EmptyCard("暂无订单", "开发者服务端创建订单后，最近订单会同步到这里。") }
                             }
                             "codes" -> {
@@ -1192,6 +1201,20 @@ class MainActivity : ComponentActivity() {
                                                     singleLine = true
                                                 )
                                             }
+                                            OutlinedTextField(
+                                                value = qrPayload,
+                                                onValueChange = { qrPayload = it },
+                                                label = { Text("二维码内容 / 收款链接（选填）") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                minLines = 2
+                                            )
+                                            OutlinedTextField(
+                                                value = directPayUrl,
+                                                onValueChange = { directPayUrl = it },
+                                                label = { Text("直达支付 URL Scheme（选填）") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                minLines = 2
+                                            )
                                             Text(
                                                 text = if (uploadedCodeUrl.isBlank()) "尚未选择二维码图片" else "二维码图片已上传",
                                                 fontSize = 11.sp,
@@ -1223,12 +1246,16 @@ class MainActivity : ComponentActivity() {
                                                                     amount,
                                                                     uploadedCodeUrl,
                                                                     settings.deviceCode.let { data!!.devices.find { d -> d.deviceCode == it }?.id },
-                                                                    alipayUserId.ifBlank { null }
+                                                                    alipayUserId.ifBlank { null },
+                                                                    qrPayload.ifBlank { null },
+                                                                    directPayUrl.ifBlank { null }
                                                                 )
                                                             )
                                                             withContext(Dispatchers.Main) {
                                                                 if (response.isSuccessful) {
                                                                     uploadedCodeUrl = ""
+                                                                    qrPayload = ""
+                                                                    directPayUrl = ""
                                                                     refreshAfterAction("收款码创建成功。")
                                                                 } else {
                                                                     actionMessage = "收款码创建失败：${response.code()}"
@@ -1573,6 +1600,57 @@ class MainActivity : ComponentActivity() {
                         color = Color(0xFFC084FC),
                         lineHeight = 16.sp
                     )
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun RechargeOrderCard(order: cn.coderpay.watcher.api.MobileRechargeOrder) {
+        val color = statusColor(order.status)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CpPanel),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("账户余额充值", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CpText, maxLines = 1)
+                        Text("${payTypeLabel(order.payType)} · ${statusLabel(order.status)}", fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold)
+                        Text(order.id, fontSize = 10.sp, color = CpSubtle, maxLines = 1)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("¥${formatAmount(order.realAmount)}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = color)
+                        if (order.realAmount != order.amount) {
+                            Text("原价 ¥${formatAmount(order.amount)}", fontSize = 10.sp, color = CpAmber)
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CpPanelSoft, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("过期时间", fontSize = 10.sp, color = CpSubtle, fontWeight = FontWeight.Bold)
+                        Text(formatOptionalDate(order.expiresAt), fontSize = 11.sp, color = CpMuted, fontFamily = FontFamily.Monospace)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("到账时间", fontSize = 10.sp, color = CpSubtle, fontWeight = FontWeight.Bold)
+                        Text(formatOptionalDate(order.payTime), fontSize = 11.sp, color = CpMuted, fontFamily = FontFamily.Monospace)
+                    }
                 }
             }
         }

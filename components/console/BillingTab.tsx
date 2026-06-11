@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plan, BillingRecord } from '@/types';
+import { Plan, BillingRecord, RechargeOrder } from '@/types';
 import { 
   Plus, 
   Coins, 
@@ -15,34 +15,36 @@ import {
   TrendingUp,
   Award,
   Wallet,
-  Check
+  Check,
+  ExternalLink
 } from 'lucide-react';
 
 interface BillingTabProps {
   plan: Plan & { balance: number };
   billingRecords: BillingRecord[];
+  rechargeOrders: RechargeOrder[];
   onTriggerToast: (text: string, type: 'success' | 'warning' | 'error') => void;
   db: any;
 }
 
-export function BillingTab({ plan, billingRecords, onTriggerToast, db }: BillingTabProps) {
+export function BillingTab({ plan, billingRecords, rechargeOrders, onTriggerToast, db }: BillingTabProps) {
   const [activeTab, setActiveTab] = useState<'balance' | 'pricing'>('balance');
   const [rechargeLoading, setRechargeLoading] = useState(false);
   const [planLoading, setPlanLoading] = useState(false);
-  const [customFee, setCustomFee] = useState<number>(100);
+  const [customFeeStr, setCustomFeeStr] = useState<string>('100');
   const [rechargePayType, setRechargePayType] = useState<'alipay' | 'wechat'>('alipay');
   const rechargeAmounts = [10, 50, 100, 500, 5000, 10000];
 
-  const handleRechargeTechnicalFee = async (amount: number) => {
-    if (!Number.isFinite(amount) || amount <= 0) {
+  const handleRechargeTechnicalFee = async (amountVal: number) => {
+    if (!Number.isFinite(amountVal) || amountVal <= 0) {
       onTriggerToast('请输入有效的充值金额。', 'error');
       return;
     }
     setRechargeLoading(true);
     const payTypeLabel = rechargePayType === 'alipay' ? '支付宝' : '微信';
-    onTriggerToast(`正在创建${payTypeLabel}平台真实充值单 ¥${amount.toFixed(2)}，请稍候...`, 'warning');
+    onTriggerToast(`正在创建${payTypeLabel}平台真实充值单 ¥${amountVal.toFixed(2)}，请稍候...`, 'warning');
     try {
-      const result = await db.rechargeFees(amount, rechargePayType);
+      const result = await db.rechargeFees(amountVal, rechargePayType);
       if (!result.ok) {
         onTriggerToast(result.error || '充值单创建失败，请检查平台收款码和监听设备配置。', 'error');
         return;
@@ -176,15 +178,24 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
                 <div className="flex items-center bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl px-2.5 py-1 text-xs max-w-[120px]">
                   <span className="text-slate-500 font-sans mr-1">¥</span>
                   <input
-                    type="number"
-                    value={customFee}
-                    onChange={(e) => setCustomFee(Number(e.target.value))}
+                    type="text"
+                    value={customFeeStr}
+                    placeholder="输入金额"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (/^\d*\.?\d*$/.test(val)) {
+                        setCustomFeeStr(val);
+                      }
+                    }}
                     className="w-full bg-transparent border-none text-slate-200 focus:outline-none font-mono text-xs text-center"
                   />
                 </div>
                 <button
                   disabled={rechargeLoading}
-                  onClick={() => handleRechargeTechnicalFee(customFee)}
+                  onClick={() => {
+                    const parsedVal = parseFloat(customFeeStr);
+                    handleRechargeTechnicalFee(parsedVal);
+                  }}
                   className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold transition-all"
                 >
                   立即充入
@@ -294,6 +305,90 @@ export function BillingTab({ plan, billingRecords, onTriggerToast, db }: Billing
               </table>
             </div>
 
+          </div>
+
+          {/* Table platform recharge orders history list */}
+          <div className="flex flex-col gap-3 mt-8">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block text-left">平台充值订单历史追踪 ({rechargeOrders.length})</span>
+            
+            <div className="bg-cp-card border border-cp rounded-2xl overflow-hidden">
+              <table className="w-full text-left text-xs border-collapse min-w-[650px]">
+                <thead>
+                  <tr className="bg-[#0B1020] text-slate-400 font-semibold border-b border-[rgba(255,255,255,0.06)] uppercase">
+                    <th className="py-3 px-5">充值单号 ID</th>
+                    <th className="py-3 px-4">支付方式</th>
+                    <th className="py-3 px-4 font-mono">充值金额</th>
+                    <th className="py-3 px-4 font-mono">实付/应付</th>
+                    <th className="py-3 px-4">充值状态</th>
+                    <th className="py-3 px-4">创建时间</th>
+                    <th className="py-3 px-5 text-right">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[rgba(255,255,255,0.04)] text-slate-300">
+                  {rechargeOrders.map((order) => (
+                    <tr key={order.id} className="hover:bg-cp-hover/20">
+                      <td className="py-3.5 px-5 font-mono text-slate-500 text-[11px] select-all">
+                        {order.id}
+                      </td>
+                      <td className="py-3.5 px-4 font-sans">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                          order.payType === 'wechat' 
+                            ? 'bg-emerald-950/40 border-emerald-500/20 text-emerald-400' 
+                            : 'bg-blue-950/40 border-blue-500/20 text-blue-400'
+                        }`}>
+                          {order.payType === 'wechat' ? '微信支付' : '支付宝'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-200 text-[13px]">
+                        ¥{order.amount.toFixed(2)}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-amber-300 text-[13px]">
+                        ¥{order.realAmount.toFixed(2)}
+                      </td>
+                      <td className="py-3.5 px-4 font-sans">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                          order.status === 'success'
+                            ? 'bg-emerald-950/40 border-emerald-500/20 text-emerald-400'
+                            : order.status === 'expired'
+                              ? 'bg-slate-800 border-slate-700 text-slate-400'
+                              : 'bg-amber-950/40 border-amber-500/20 text-amber-300 animate-pulse'
+                        }`}>
+                          {order.status === 'success' ? '充值成功' : order.status === 'expired' ? '已过期' : '等待支付'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-slate-500 text-[10px]">
+                        {new Date(order.createdAt).toLocaleString()}
+                      </td>
+                      <td className="py-3.5 px-5 text-right">
+                        {order.status === 'pending' && (
+                          <a
+                            href={`/pay/checkout?id=${encodeURIComponent(order.id)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 py-1 px-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold transition-all shadow-xs"
+                          >
+                            继续支付 <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                        {order.status === 'success' && (
+                          <span className="text-[10px] text-slate-500 font-mono">已入账</span>
+                        )}
+                        {order.status === 'expired' && (
+                          <span className="text-[10px] text-slate-500 font-mono">过期废弃</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {rechargeOrders.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-500 font-sans">
+                        暂无平台充值订单记录
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
         </div>

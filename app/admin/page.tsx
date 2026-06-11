@@ -220,6 +220,7 @@ export default function AdminPage() {
   const [noteText, setNoteText] = useState('');
   const [noteReason, setNoteReason] = useState('');
   const [formLoading, setFormLoading] = useState(false);
+  const [rechargeConfirmingId, setRechargeConfirmingId] = useState('');
 
   // Reset password form
   const [pwNew, setPwNew] = useState('');
@@ -407,6 +408,35 @@ export default function AdminPage() {
       showToast('网络请求失败', 'error');
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  // Manually confirm a recharge that the auto-matcher missed (e.g. RC96251105)
+  const handleManualConfirmRecharge = async (rechargeId: string, status: string) => {
+    if (!detail) return;
+    if (status === 'success') { showToast('该充值单已入账', 'error'); return; }
+    const email = window.prompt(`人工确认充值到账将给用户余额入账并写审计日志。\n请输入目标用户邮箱确认：${detail.user.email}`);
+    if (email === null) return;
+    if (email.trim().toLowerCase() !== detail.user.email.toLowerCase()) {
+      showToast('邮箱不匹配，已取消人工确认', 'error'); return;
+    }
+    setRechargeConfirmingId(rechargeId);
+    try {
+      const res = await fetch(`/api/admin/recharge-orders/${rechargeId}/manual-confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmEmail: email.trim(), reason: '管理后台人工核对补入账' }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || '人工确认失败', 'error'); return; }
+      showToast(`充值已入账，当前余额: ¥${Number(data.feeBalance).toFixed(2)}${data.promotion ? `（${data.promotion}）` : ''}`, 'success');
+      fetchDetail(detail.user.id);
+      fetchAuditLogs(1);
+      fetchOverview();
+    } catch {
+      showToast('网络请求失败', 'error');
+    } finally {
+      setRechargeConfirmingId('');
     }
   };
 
@@ -1130,6 +1160,19 @@ export default function AdminPage() {
                         { key: 'status', label: '状态' },
                         { key: 'createdAt', label: '创建时间', render: (v) => fmt(String(v)) },
                         { key: 'payTime', label: '支付时间', render: (v) => fmt(v as string) },
+                        { key: '__action', label: '操作', render: (_v, row) => (
+                          String(row.status) === 'success' ? (
+                            <span className="text-[10px] text-emerald-400 font-bold">已入账</span>
+                          ) : (
+                            <button
+                              onClick={() => handleManualConfirmRecharge(String(row.id), String(row.status))}
+                              disabled={rechargeConfirmingId === String(row.id)}
+                              className="px-2.5 py-1 rounded-lg bg-blue-950/40 border border-blue-500/30 text-blue-300 hover:bg-blue-900/50 text-[10px] font-bold disabled:opacity-50"
+                            >
+                              {rechargeConfirmingId === String(row.id) ? '处理中…' : '人工确认到账'}
+                            </button>
+                          )
+                        )},
                       ]}
                       rows={detail.rechargeOrders}
                     />
