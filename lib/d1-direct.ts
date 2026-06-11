@@ -44,10 +44,10 @@ export function getDirectD1(): D1DatabaseLike {
 }
 
 export function randomOrderId() {
-  const bytes = new Uint8Array(4);
+  const bytes = new Uint8Array(12);
   crypto.getRandomValues(bytes);
-  const num = Array.from(bytes).reduce((acc, byte) => (acc * 256 + byte) % 1000000, 0);
-  return `CP${String(num).padStart(6, "0")}`;
+  const suffix = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+  return `CP${suffix}`;
 }
 
 export function centsFromAmount(value: string | number) {
@@ -95,10 +95,23 @@ export async function verifyMerchantSign(params: Record<string, unknown>, appSec
   return expected.toLowerCase() === providedSign.toLowerCase();
 }
 
-export async function verifyDeviceSign(deviceCode: string, timestamp: string, deviceSecret: string, providedSign: string) {
+export function deviceSignaturePayload(parts: Array<string | number | boolean | null | undefined>) {
+  return parts.map(part => {
+    if (part === true) return "1";
+    if (part === false) return "0";
+    return String(part ?? "");
+  }).join(":");
+}
+
+export async function verifyDeviceSign(deviceCode: string, timestamp: string, deviceSecret: string, providedSign: string, payload?: string) {
   const ts = Number(timestamp);
   // 2-minute window to limit replay; offline events are re-signed at send time.
   if (!Number.isFinite(ts) || Math.abs(Date.now() - ts) > 2 * 60 * 1000) return false;
-  const expected = await hmacSha256Hex(`${deviceCode}:${timestamp}`, deviceSecret);
-  return expected.toLowerCase() === providedSign.toLowerCase();
+  const legacyMessage = `${deviceCode}:${timestamp}`;
+  const signedMessages = payload ? [`${legacyMessage}:${payload}`, legacyMessage] : [legacyMessage];
+  for (const message of signedMessages) {
+    const expected = await hmacSha256Hex(message, deviceSecret);
+    if (expected.toLowerCase() === providedSign.toLowerCase()) return true;
+  }
+  return false;
 }

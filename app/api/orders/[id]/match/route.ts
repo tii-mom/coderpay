@@ -69,7 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
     });
     
-    triggerWebhook(order.id).catch(err => console.error("Error triggering webhook in background:", err));
+    await triggerWebhook(order.id);
     
     return NextResponse.json({ status: "success", message: "Order and payment event manually matched successfully" });
   } catch (err) {

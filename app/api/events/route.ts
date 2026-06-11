@@ -2,7 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
-import { amountFromCents, centsFromAmount, formatAmount, getDirectD1, verifyDeviceSign, runAtomic } from "@/lib/d1-direct";
+import { amountFromCents, centsFromAmount, deviceSignaturePayload, formatAmount, getDirectD1, verifyDeviceSign, runAtomic } from "@/lib/d1-direct";
 import { calculateFeeCents } from "@/lib/billing-plans";
 import { triggerWebhook } from "@/lib/webhook";
 import { getRechargePromotion, getRechargePromotionDescription, getRechargePromotionUpdate } from "@/lib/recharge-promotions";
@@ -66,16 +66,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Device not registered" }, { status: 404 });
     }
 
-    if (device.deviceSecret) {
-      if (!timestamp || !sign) {
-        return NextResponse.json({ error: "Authentication credentials (timestamp and sign) required" }, { status: 401 });
-      }
-      const isSignValid = await verifyDeviceSign(deviceCode, String(timestamp), device.deviceSecret, sign);
-      if (!isSignValid) {
-        return NextResponse.json({ error: "Device signature verification failed" }, { status: 401 });
-      }
-    }
-
     if (payType !== "wechat" && payType !== "alipay") {
       return NextResponse.json({ error: "Invalid payType" }, { status: 400 });
     }
@@ -85,6 +75,24 @@ export async function POST(req: NextRequest) {
       amountCents = centsFromAmount(amount);
     } catch (err: any) {
       return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+
+    if (device.deviceSecret) {
+      if (!timestamp || !sign) {
+        return NextResponse.json({ error: "Authentication credentials (timestamp and sign) required" }, { status: 401 });
+      }
+      const signaturePayload = deviceSignaturePayload([
+        "event",
+        deviceCode,
+        payType,
+        amountCents,
+        receivedAt || "",
+        notificationHash
+      ]);
+      const isSignValid = await verifyDeviceSign(deviceCode, String(timestamp), device.deviceSecret, sign, signaturePayload);
+      if (!isSignValid) {
+        return NextResponse.json({ error: "Device signature verification failed" }, { status: 401 });
+      }
     }
 
     const eventTime = receivedAt ? new Date(receivedAt) : new Date();
@@ -390,10 +398,11 @@ export async function POST(req: NextRequest) {
       .bind(new Date().toISOString(), new Date().toISOString(), device.id)
       .run();
 
-    // Fire the merchant webhook for a freshly matched real order. Recharge matches
+    // Dispatch the merchant webhook before returning so the edge invocation does
+    // not drop the callback work after the response is sent. Recharge matches
     // (shouldTriggerWebhook stays false) credit balance internally and have no callback.
     if (matchedOrderId && shouldTriggerWebhook) {
-      triggerWebhook(matchedOrderId).catch(err => console.error("Error triggering webhook in background:", err));
+      await triggerWebhook(matchedOrderId);
     }
 
     return NextResponse.json({

@@ -23,27 +23,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
     
-    // Trigger the webhook dispatcher
-    await triggerWebhook(order.id);
+    const dispatch = await triggerWebhook(order.id);
     
     const latestLog = await prisma.webhookLog.findFirst({
       where: { orderId: order.id },
       orderBy: { requestTime: "desc" }
     });
     
-    // Resolve the webhook_failed exception if it exists
-    await prisma.exceptionItem.updateMany({
-      where: {
-        refId: order.id,
-        type: "webhook_failed",
-        status: "active"
-      },
-      data: { status: "resolved" }
-    });
+    if (dispatch.result === "success") {
+      await prisma.exceptionItem.updateMany({
+        where: {
+          refId: order.id,
+          type: "webhook_failed",
+          status: "active"
+        },
+        data: { status: "resolved" }
+      });
+    }
     
     return NextResponse.json({
       status: "success",
       message: "Webhook retry processed",
+      dispatch,
       log: latestLog
     });
   } catch (err) {

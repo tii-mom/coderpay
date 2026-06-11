@@ -1,10 +1,10 @@
 export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { hashPassword } from "@/lib/password";
-import { createSessionToken } from "@/lib/session";
-import { getSessionCookieOptions } from "@/lib/session-cookie";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { getAuthD1 } from "@/lib/auth-d1";
+import { addMinutes, createRawToken, hashAuthToken } from "@/lib/auth-tokens";
+import { assertEmailConfigured, buildVerificationEmail, sendEmail } from "@/lib/email";
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
     if (!rawPassword) {
       return NextResponse.json({ error: "Password is required" }, { status: 400 });
     }
+    assertEmailConfigured();
 
     const db = getAuthD1();
     const existing = await db.prepare(`SELECT id FROM User WHERE email = ? LIMIT 1`)
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Account already exists" }, { status: 409 });
     }
 
+    const token = createRawToken();
     const user = {
       id: crypto.randomUUID(),
       email: normalizedEmail,
@@ -49,23 +51,30 @@ export async function POST(req: NextRequest) {
 
     await db.prepare(`
       INSERT INTO User (
-        id, email, passwordHash, emailVerifiedAt, feeBalance, packageType,
+        id, email, passwordHash, emailVerifyTokenHash, emailVerifyExpiresAt, feeBalance, packageType,
         freeOrderUsed, firstProDiscountUsed, firstMaxDiscountUsed, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, 0, 'free', 0, 0, 0, ?, ?)
-    `).bind(user.id, user.email, user.passwordHash, now, now, now).run();
+      ) VALUES (?, ?, ?, ?, ?, 0, 'free', 0, 0, 0, ?, ?)
+    `).bind(
+      user.id,
+      user.email,
+      user.passwordHash,
+      await hashAuthToken(token),
+      addMinutes(new Date(), 24 * 60).toISOString(),
+      now,
+      now
+    ).run();
 
-    const response = NextResponse.json({
+    await sendEmail({ to: user.email, ...buildVerificationEmail(user.email, token) });
+
+    return NextResponse.json({
       status: "success",
+      requiresVerification: true,
       user: {
         id: user.id,
         email: user.email,
         feeBalance: user.feeBalance,
       },
     });
-
-    response.cookies.set("session_email", await createSessionToken(user.email), getSessionCookieOptions(req));
-
-    return response;
   } catch (err) {
     console.error("Registration failed:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

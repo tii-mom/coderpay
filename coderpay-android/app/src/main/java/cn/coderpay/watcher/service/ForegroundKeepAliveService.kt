@@ -95,16 +95,26 @@ class ForegroundKeepAliveService : Service() {
 
             val timestamp = System.currentTimeMillis()
             val secret = settings.deviceSecret
+            val wechatListener = if (isListenerReady) "running" else "stopped"
+            val alipayListener = if (isListenerReady) "running" else "stopped"
+            val batteryOptimization = if (isIgnoringBattery) "ignored" else "optimized"
             val sign = if (secret.isNotEmpty()) {
-                cn.coderpay.watcher.utils.SignatureHelper.calculateSignature(settings.deviceCode, timestamp, secret)
+                val payload = cn.coderpay.watcher.utils.SignatureHelper.heartbeatPayload(
+                    settings.deviceCode,
+                    wechatListener,
+                    alipayListener,
+                    isNotificationGranted,
+                    batteryOptimization
+                )
+                cn.coderpay.watcher.utils.SignatureHelper.calculateSignature(settings.deviceCode, timestamp, secret, payload)
             } else null
 
             val request = HeartbeatRequest(
                 deviceCode = settings.deviceCode,
-                wechatListener = if (isListenerReady) "running" else "stopped",
-                alipayListener = if (isListenerReady) "running" else "stopped",
+                wechatListener = wechatListener,
+                alipayListener = alipayListener,
                 notificationPermission = isNotificationGranted,
-                batteryOptimization = if (isIgnoringBattery) "ignored" else "optimized",
+                batteryOptimization = batteryOptimization,
                 timestamp = timestamp,
                 sign = sign
             )

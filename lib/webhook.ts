@@ -14,7 +14,13 @@ export function signPayload(params: Record<string, any>, appSecret: string, sign
   }
 }
 
-export async function triggerWebhook(orderId: string) {
+export type WebhookDispatchResult = {
+  sent: boolean;
+  result: "success" | "failed" | "skipped";
+  reason?: string;
+};
+
+export async function triggerWebhook(orderId: string): Promise<WebhookDispatchResult> {
   try {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -23,7 +29,23 @@ export async function triggerWebhook(orderId: string) {
     
     if (!order) {
       console.error(`Order ${orderId} not found for Webhook callback.`);
-      return;
+      return { sent: false, result: "skipped", reason: "order_not_found" };
+    }
+
+    if (!["unsent", "failed"].includes(order.webhookStatus)) {
+      return { sent: false, result: "skipped", reason: `webhook_status_${order.webhookStatus}` };
+    }
+
+    const claim = await prisma.order.updateMany({
+      where: {
+        id: order.id,
+        webhookStatus: order.webhookStatus
+      },
+      data: { webhookStatus: "sending" }
+    });
+
+    if (claim.count !== 1) {
+      return { sent: false, result: "skipped", reason: "webhook_already_claimed" };
     }
     
     const app = order.app;
@@ -116,8 +138,19 @@ export async function triggerWebhook(orderId: string) {
         });
       }
     }
+
+    return { sent: true, result: result as "success" | "failed" };
     
   } catch (err) {
     console.error("Critical error in triggerWebhook:", err);
+    try {
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { webhookStatus: "failed" }
+      });
+    } catch (updateErr) {
+      console.error("Failed to mark webhook dispatch as failed:", updateErr);
+    }
+    return { sent: false, result: "failed", reason: "dispatcher_error" };
   }
 }

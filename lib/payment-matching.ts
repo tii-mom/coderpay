@@ -291,7 +291,7 @@ export async function recordPaymentEvent(body: {
   });
 
   if (matchedOrderId && shouldTriggerWebhook) {
-    triggerWebhook(matchedOrderId).catch(err => console.error("Error triggering webhook in background:", err));
+    await triggerWebhook(matchedOrderId);
   }
 
   return { duplicate: false, result, matchStatus, matchedOrderId, shouldTriggerWebhook };

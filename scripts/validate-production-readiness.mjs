@@ -183,7 +183,7 @@ function findDbFiles(dir) {
 function checkBuildArtifactClean() {
   const staticDir = path.join(root, '.vercel', 'output', 'static')
   if (!fs.existsSync(staticDir)) {
-    warnings.push('.vercel/output/static not built yet; run `npm run pages:build` before deploy to scan for leaked DB files')
+    issues.push('.vercel/output/static not built yet; run `npm run pages:build` before production readiness check')
     return
   }
   const dbFiles = findDbFiles(staticDir)

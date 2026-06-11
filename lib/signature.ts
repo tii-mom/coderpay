@@ -18,7 +18,15 @@ export function verifySignature(params: Record<string, any>, appSecret: string, 
   return calculatedSign.toLowerCase() === providedSign.toLowerCase();
 }
 
-export function verifyDeviceSignature(deviceCode: string, timestamp: string, deviceSecret: string, providedSign: string): boolean {
+export function deviceSignaturePayload(parts: Array<string | number | boolean | null | undefined>) {
+  return parts.map(part => {
+    if (part === true) return "1";
+    if (part === false) return "0";
+    return String(part ?? "");
+  }).join(":");
+}
+
+export function verifyDeviceSignature(deviceCode: string, timestamp: string, deviceSecret: string, providedSign: string, payload?: string): boolean {
   const ts = Number(timestamp);
   // 2-minute window: tolerates clock drift while limiting signature replay.
   // Offline events are re-signed with the send-time timestamp, so this is safe
@@ -27,8 +35,9 @@ export function verifyDeviceSignature(deviceCode: string, timestamp: string, dev
     return false;
   }
 
-  const stringToSign = `${deviceCode}:${timestamp}`;
-  const calculatedSign = CryptoJS.HmacSHA256(stringToSign, deviceSecret).toString();
-  return calculatedSign.toLowerCase() === providedSign.toLowerCase();
+  const legacyMessage = `${deviceCode}:${timestamp}`;
+  const signedMessages = payload ? [`${legacyMessage}:${payload}`, legacyMessage] : [legacyMessage];
+  return signedMessages.some(message =>
+    CryptoJS.HmacSHA256(message, deviceSecret).toString().toLowerCase() === providedSign.toLowerCase()
+  );
 }
-

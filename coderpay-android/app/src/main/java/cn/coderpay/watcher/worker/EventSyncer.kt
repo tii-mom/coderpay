@@ -41,8 +41,16 @@ object EventSyncer {
 
                 val timestamp = System.currentTimeMillis()
                 val secret = settings.deviceSecret
+                val amountCents = Math.round(event.amount * 100)
                 val sign = if (secret.isNotEmpty()) {
-                    cn.coderpay.watcher.utils.SignatureHelper.calculateSignature(settings.deviceCode, timestamp, secret)
+                    val payload = cn.coderpay.watcher.utils.SignatureHelper.eventPayload(
+                        settings.deviceCode,
+                        event.payType,
+                        amountCents,
+                        isoDate,
+                        event.notificationHash
+                    )
+                    cn.coderpay.watcher.utils.SignatureHelper.calculateSignature(settings.deviceCode, timestamp, secret, payload)
                 } else null
 
                 val request = EventRequest(

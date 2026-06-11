@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoderPayState } from '@/types';
 
 export function usePaymentState() {
@@ -31,7 +31,7 @@ export function usePaymentState() {
   // next tick fires, skip it rather than stacking requests.
   const isFetchingRef = useRef(false);
 
-  const fetchWithTimeout = async (url: string, timeoutMs = 8000) => {
+  const fetchWithTimeout = useCallback(async (url: string, timeoutMs = 8000) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -42,9 +42,9 @@ export function usePaymentState() {
       clearTimeout(id);
       throw err;
     }
-  };
+  }, []);
 
-  const fetchJsonSafely = async (url: string, defaultValue: any) => {
+  const fetchJsonSafely = useCallback(async (url: string, defaultValue: any) => {
     try {
       const res = await fetchWithTimeout(url, 8000);
       if (!res.ok) {
@@ -61,7 +61,7 @@ export function usePaymentState() {
       console.error(`Fetch to ${url} failed:`, err);
       return defaultValue;
     }
-  };
+  }, [fetchWithTimeout]);
 
   const readApiError = async (res: Response) => {
     const text = await res.text().catch(() => "");
@@ -80,7 +80,7 @@ export function usePaymentState() {
     }
   };
 
-  const fetchState = async () => {
+  const fetchState = useCallback(async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     try {
@@ -155,7 +155,7 @@ export function usePaymentState() {
     } finally {
       isFetchingRef.current = false;
     }
-  };
+  }, [fetchJsonSafely, fetchWithTimeout]);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -191,7 +191,7 @@ export function usePaymentState() {
       stop();
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, []);
+  }, [fetchState]);
 
   // Shared mutation helper: always resolves (never throws) to { ok, error, data }
   // so callers can surface failures instead of failing silently or hanging.

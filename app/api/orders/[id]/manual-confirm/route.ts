@@ -74,7 +74,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return tx.order.findUnique({ where: { id } });
     });
 
-    triggerWebhook(id).catch(err => console.error("Error triggering webhook in background:", err));
+    await triggerWebhook(id);
 
     return NextResponse.json({
       status: "success",

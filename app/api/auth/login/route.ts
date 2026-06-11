@@ -44,6 +44,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid password" }, { status: 401 });
     }
 
+    if (!user.emailVerifiedAt) {
+      return NextResponse.json({ error: "Email not verified" }, { status: 403 });
+    }
+
     const response = NextResponse.json({
       status: "success",
       user: { id: user.id, email: user.email, feeBalance: user.feeBalance }

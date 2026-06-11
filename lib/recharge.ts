@@ -130,7 +130,7 @@ export async function createRechargeOrder({
   const amountCents = amountToCents(amount);
   const channel = await selectRechargePaymentChannel({ payType, amountCents });
   const expiresAt = new Date(Date.now() + RECHARGE_EXPIRE_MINUTES * 60 * 1000);
-  const id = `RC${randomNumericCode(8)}`;
+  const id = `RC${randomNumericCode(12)}`;
 
   return prisma.rechargeOrder.create({
     data: {

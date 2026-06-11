@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "feedbackUrl must be a valid https URL" }, { status: 400 });
     }
     
-    const appId = randomNumericCode(5);
+    const appId = randomNumericCode(10);
     const appSecret = randomHex(16);
     
     const app = await prisma.app.create({

@@ -2,7 +2,7 @@ export const runtime = "edge";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyDeviceSignature } from "@/lib/signature";
+import { deviceSignaturePayload, verifyDeviceSignature } from "@/lib/signature";
 import { randomHex } from "@/lib/random";
 
 function generateDeviceSecret() {
@@ -41,7 +41,15 @@ export async function POST(req: NextRequest) {
       if (!timestamp || !sign) {
         return NextResponse.json({ error: "Authentication credentials (timestamp and sign) required" }, { status: 401 });
       }
-      const isSignValid = verifyDeviceSignature(deviceCode, String(timestamp), device.deviceSecret, sign);
+      const signaturePayload = deviceSignaturePayload([
+        "heartbeat",
+        deviceCode,
+        wechatListener,
+        alipayListener,
+        notificationPermission,
+        batteryOptimization
+      ]);
+      const isSignValid = verifyDeviceSignature(deviceCode, String(timestamp), device.deviceSecret, sign, signaturePayload);
       if (!isSignValid) {
         return NextResponse.json({ error: "Device signature verification failed" }, { status: 401 });
       }

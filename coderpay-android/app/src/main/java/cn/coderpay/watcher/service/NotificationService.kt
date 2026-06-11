@@ -16,7 +16,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.security.MessageDigest
-import java.util.regex.Pattern
 
 class NotificationService : NotificationListenerService() {
 
@@ -30,15 +29,6 @@ class NotificationService : NotificationListenerService() {
     private lateinit var settings: SettingsManager
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
-    // Regex pattern matching money values like 10, 10.0, 10.00, ¥10.00, ￥10.00
-    private val amountPattern = Pattern.compile("[¥￥]?\\s*(\\d+(?:\\.\\d{1,2})?)\\s*(?:元)?")
-    private val semanticAmountPatterns = listOf(
-        Pattern.compile("(?:收款|到账|转入|付款)[^\\d¥￥]{0,12}[¥￥]?\\s*(\\d+(?:\\.\\d{1,2})?)\\s*(?:元)?"),
-        Pattern.compile("[¥￥]?\\s*(\\d+(?:\\.\\d{1,2})?)\\s*(?:元)?[^，。；\\s]{0,12}(?:收款|到账|转入|付款)"),
-        Pattern.compile("(?:收款|到账|转入|付款)[^\\d]{0,12}(\\d+(?:\\.\\d{1,2})?)\\s*元"),
-        Pattern.compile("(\\d+(?:\\.\\d{1,2})?)\\s*元[^，。；\\s]{0,12}(?:收款|到账|转入|付款)")
-    )
-
     override fun onCreate() {
         super.onCreate()
         settings = SettingsManager(applicationContext)
@@ -79,7 +69,7 @@ class NotificationService : NotificationListenerService() {
         
         // Parse payment confirmation keywords
         if (isWeChatConfirm(title, text, isWeChat) || isAlipayConfirm(title, text, isAlipay)) {
-            val amount = extractAmount("$title $text")
+            val amount = NotificationParser.extractAmount("$title $text")
             if (amount != null && amount > 0) {
                 processPaymentArrival(payType, amount, text, sbn.postTime)
             } else {
@@ -92,49 +82,12 @@ class NotificationService : NotificationListenerService() {
 
     private fun isWeChatConfirm(title: String, text: String, isWeChat: Boolean): Boolean {
         if (!isWeChat) return false
-        val content = "$title $text"
-        val regexStr = settings.wechatRegex
-        return try {
-            val pattern = Pattern.compile(regexStr)
-            pattern.matcher(content).find()
-        } catch (e: Exception) {
-            content.contains("微信支付收款") || 
-            content.contains("微信收款") || 
-            content.contains("收到付款") || 
-            (content.contains("微信支付") && (content.contains("元") || content.contains("¥") || content.contains("￥")))
-        }
+        return NotificationParser.isWeChatConfirm(title, text, settings.wechatRegex)
     }
 
     private fun isAlipayConfirm(title: String, text: String, isAlipay: Boolean): Boolean {
         if (!isAlipay) return false
-        val content = "$title $text"
-        val regexStr = settings.alipayRegex
-        return try {
-            val pattern = Pattern.compile(regexStr)
-            pattern.matcher(content).find()
-        } catch (e: Exception) {
-            content.contains("支付宝成功收款") || 
-            content.contains("收钱码收款") || 
-            content.contains("成功往账户转入") || 
-            content.contains("你已成功收款") ||
-            (content.contains("支付宝") && content.contains("元") && (content.contains("收款") || content.contains("到账")))
-        }
-    }
-
-    private fun extractAmount(text: String): Double? {
-        for (pattern in semanticAmountPatterns) {
-            val semanticMatcher = pattern.matcher(text)
-            if (semanticMatcher.find()) {
-                return semanticMatcher.group(1)?.toDoubleOrNull()
-            }
-        }
-
-        val matcher = amountPattern.matcher(text)
-        var lastMatch: String? = null
-        while (matcher.find()) {
-            lastMatch = matcher.group(1)
-        }
-        return lastMatch?.toDoubleOrNull()
+        return NotificationParser.isAlipayConfirm(title, text, settings.alipayRegex)
     }
 
     private fun processPaymentArrival(payType: String, amount: Double, text: String, postTime: Long) {

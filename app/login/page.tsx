@@ -24,6 +24,10 @@ function getAuthErrorMessage(error?: string) {
       return '请求过于频繁，请稍后再试';
     case '请输入完整的注册邮箱':
       return '请使用完整注册邮箱登录，例如 name@example.com';
+    case 'Email not verified':
+      return '邮箱尚未验证，请先打开验证邮件完成验证';
+    case 'Email service is not configured':
+      return '邮件服务尚未配置，暂时无法注册新账号';
     case 'Internal server error':
       return '服务器暂时无法完成请求，请稍后重试或联系管理员';
     default:
@@ -94,10 +98,7 @@ export default function LoginPage() {
           return;
         }
         localStorage.setItem('coderpay:last-login', identifier);
-        setSuccessText('注册成功，正在进入控制台...');
-        setTimeout(() => {
-          router.push(redirectTarget);
-        }, 500);
+        setSuccessText('注册成功，请打开验证邮件完成邮箱验证后再登录。');
       }
     } catch {
       setErrorText('网络请求失败，请检查连接后重试');
