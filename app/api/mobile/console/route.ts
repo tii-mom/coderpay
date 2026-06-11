@@ -13,13 +13,38 @@ export async function GET(req: NextRequest) {
     if (auth.error) return auth.error;
     const device = auth.device;
 
-    const [orders, rechargeOrders, incomingRechargeOrders, paymentCodes, devices, billingRecords, exceptions] = await Promise.all([
+    const now = new Date();
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const [
+      recentOrders,
+      totalOrders,
+      successCount,
+      failedCount,
+      manualReviewCount,
+      pendingCount,
+      expiredCount,
+      rechargeOrders,
+      incomingRechargeOrders,
+      paymentCodes,
+      devices,
+      billingRecords,
+      exceptions,
+      todayEvents,
+    ] = await Promise.all([
       prisma.order.findMany({
         where: { app: { userId: device.userId } },
         include: { app: true },
         orderBy: { createdAt: "desc" },
-        take: 30,
+        take: 5,
       }),
+      prisma.order.count({ where: { app: { userId: device.userId } } }),
+      prisma.order.count({ where: { app: { userId: device.userId }, status: "success" } }),
+      prisma.order.count({ where: { app: { userId: device.userId }, status: "failed" } }),
+      prisma.order.count({ where: { app: { userId: device.userId }, status: "manual_review" } }),
+      prisma.order.count({ where: { app: { userId: device.userId }, status: "pending", expiresAt: { gt: now } } }),
+      prisma.order.count({ where: { app: { userId: device.userId }, status: "pending", expiresAt: { lte: now } } }),
       prisma.rechargeOrder.findMany({
         where: { userId: device.userId },
         include: { paymentCode: true },
@@ -37,6 +62,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.paymentCode.findMany({
         where: { userId: device.userId },
+        include: { device: true },
         orderBy: { createdAt: "desc" },
         take: 30,
       }),
@@ -54,7 +80,22 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         take: 30,
       }),
+      prisma.paymentEvent.findMany({
+        where: {
+          device: { userId: device.userId },
+          createdAt: { gte: startOfToday },
+        },
+      }),
     ]);
+
+    const orderSummary = {
+      total: totalOrders,
+      pending: pendingCount,
+      success: successCount,
+      expired: expiredCount,
+      failed: failedCount,
+      manualReview: manualReviewCount,
+    };
 
     return NextResponse.json({
       user: {
@@ -64,23 +105,31 @@ export async function GET(req: NextRequest) {
         freeOrderUsed: device.user.freeOrderUsed,
         subscriptionExpiresAt: device.user.subscriptionExpiresAt,
       },
-      orders: orders.map((order) => ({
-        id: order.id,
-        outOrderNo: order.outOrderNo,
-        title: order.title,
-        payType: order.payType,
-        amount: centsToAmount(getOrderAmountCents(order)),
-        realAmount: centsToAmount(getOrderRealAmountCents(order)),
-        amountCents: getOrderAmountCents(order),
-        realAmountCents: getOrderRealAmountCents(order),
-        status: order.status === "pending" && getOrderExpiresAt(order).getTime() <= Date.now() ? "expired" : order.status,
-        createdAt: order.createdAt,
-        expiresAt: getOrderExpiresAt(order),
-        payTime: order.payTime,
-        webhookStatus: order.webhookStatus,
-        paymentCodeId: order.paymentCodeId,
-        appId: order.app.appId,
-      })),
+      orderSummary,
+      orders: recentOrders.map((order) => {
+        const expiresAt = getOrderExpiresAt(order);
+        const isExpired = order.status === "pending" && expiresAt.getTime() <= now.getTime();
+        return {
+          id: order.id,
+          outOrderNo: order.outOrderNo,
+          title: order.title,
+          payType: order.payType,
+          amount: centsToAmount(getOrderAmountCents(order)),
+          realAmount: centsToAmount(getOrderRealAmountCents(order)),
+          amountCents: getOrderAmountCents(order),
+          realAmountCents: getOrderRealAmountCents(order),
+          status: isExpired ? "expired" : order.status,
+          confirmMode: order.confirmMode,
+          manualConfirmedAt: order.manualConfirmedAt,
+          manualConfirmNote: order.manualConfirmNote,
+          createdAt: order.createdAt,
+          expiresAt: expiresAt,
+          payTime: order.payTime,
+          webhookStatus: order.webhookStatus,
+          paymentCodeId: order.paymentCodeId,
+          appId: order.app.appId,
+        };
+      }),
       rechargeOrders: rechargeOrders.map((order) => ({
         id: order.id,
         amount: centsToAmount(order.amountCents),
@@ -94,6 +143,7 @@ export async function GET(req: NextRequest) {
         expiresAt: order.expiresAt,
         payTime: order.payTime,
         paymentCodeId: order.paymentCodeId,
+        requiresManualConfirm: order.confirmMode === "manual",
       })),
       incomingRechargeOrders: incomingRechargeOrders.map((order) => ({
         id: order.id,
@@ -109,9 +159,36 @@ export async function GET(req: NextRequest) {
         expiresAt: order.expiresAt,
         payTime: order.payTime,
         paymentCodeId: order.paymentCodeId,
+        requiresManualConfirm: order.confirmMode === "manual",
       })),
-      paymentCodes,
-      devices: devices.map(omitDeviceSecret),
+      paymentCodes: paymentCodes.map((code) => ({
+        id: code.id,
+        type: code.type,
+        codeType: code.codeType,
+        amount: code.amount,
+        imageUrl: code.imageUrl,
+        alipayUserId: code.alipayUserId,
+        qrPayload: code.qrPayload,
+        directPayUrl: code.directPayUrl,
+        directPayMode: code.directPayMode,
+        status: code.status,
+        createdAt: code.createdAt,
+        updatedAt: code.updatedAt,
+        userId: code.userId,
+        deviceId: code.deviceId,
+        deviceName: code.device?.name || null,
+      })),
+      devices: devices.map((d) => {
+        const omitted = omitDeviceSecret(d);
+        const deviceEvents = todayEvents.filter((e) => e.deviceId === d.id);
+        const todayEventCount = deviceEvents.length;
+        const todayMatchCount = deviceEvents.filter((e) => e.matchStatus === "matched").length;
+        return {
+          ...omitted,
+          todayEventCount,
+          todayMatchCount,
+        };
+      }),
       billingRecords,
       exceptions,
     });

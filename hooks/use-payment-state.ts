@@ -22,6 +22,7 @@ export function usePaymentState() {
     subscriptionExpiresAt: null,
     firstProDiscountUsed: false,
     firstMaxDiscountUsed: false,
+    referralSummary: null,
     isLoggedIn: false,
     isAuthChecked: false,
     userEmail: '',
@@ -108,6 +109,7 @@ export function usePaymentState() {
           subscriptionExpiresAt: null,
           firstProDiscountUsed: false,
           firstMaxDiscountUsed: false,
+          referralSummary: null,
           isLoggedIn: false,
           isAuthChecked: true,
           userEmail: ''
@@ -116,7 +118,7 @@ export function usePaymentState() {
       }
       const me = await meRes.json();
 
-      const [apps, codes, devices, orders, events, exceptions, webhookLogs, billingData] = await Promise.all([
+      const [apps, codes, devices, orders, events, exceptions, webhookLogs, billingData, referralSummary] = await Promise.all([
         fetchJsonSafely("/api/apps", []),
         fetchJsonSafely("/api/codes", []),
         fetchJsonSafely("/api/devices", []),
@@ -124,7 +126,8 @@ export function usePaymentState() {
         fetchJsonSafely("/api/events", []),
         fetchJsonSafely("/api/exceptions", []),
         fetchJsonSafely("/api/webhook/logs", []),
-        fetchJsonSafely("/api/billing", { records: [], rechargeOrders: [], feeBalance: 0, packageType: 'free' })
+        fetchJsonSafely("/api/billing", { records: [], rechargeOrders: [], feeBalance: 0, packageType: 'free' }),
+        fetchJsonSafely("/api/referrals", null)
       ]);
 
       setState(prev => ({
@@ -143,6 +146,7 @@ export function usePaymentState() {
         subscriptionExpiresAt: billingData.subscriptionExpiresAt || null,
         firstProDiscountUsed: Boolean(billingData.firstProDiscountUsed),
         firstMaxDiscountUsed: Boolean(billingData.firstMaxDiscountUsed),
+        referralSummary,
         currentAppId: prev.currentAppId,
         currentPlanId: billingData.packageType || me.packageType || 'free',
         isLoggedIn: me.isLoggedIn,
@@ -235,11 +239,11 @@ export function usePaymentState() {
       return { ok: false, error: await readApiError(res) };
     },
 
-    register: async (email: string, password: string) => {
+    register: async (email: string, password: string, inviteCode?: string) => {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, inviteCode }),
         credentials: 'same-origin',
       });
       if (res.ok) {

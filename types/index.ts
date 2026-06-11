@@ -120,11 +120,35 @@ export interface Plan {
 
 export interface BillingRecord {
   id: string;
-  type: 'charge' | 'fee' | 'subscription' | 'refund' | 'promotion' | 'admin_adjust' | 'admin_subscription';
+  type: 'charge' | 'fee' | 'subscription' | 'refund' | 'promotion' | 'referral_reward' | 'admin_adjust' | 'admin_subscription';
   amount: number;
   balance: number;
   description: string;
   createdAt: string;
+}
+
+export interface ReferralSummary {
+  inviteCode: string;
+  referralLink: string;
+  activeDirectCount: number;
+  tier: 'level1' | 'level2' | 'level3' | 'level4';
+  directRateBps: number;
+  indirectRateBps: number;
+  totalRewardCents: number;
+  rewardCount: number;
+  recentRewards: Array<{
+    id: string;
+    rechargeOrderId: string;
+    invitedUserId: string;
+    depth: number;
+    tier: string;
+    rateBps: number;
+    baseAmountCents: number;
+    rewardCents: number;
+    status: string;
+    createdAt: string;
+    creditedAt: string | null;
+  }>;
 }
 
 export interface RechargeOrder {
@@ -158,6 +182,7 @@ export interface CoderPayState {
   subscriptionExpiresAt: string | null;
   firstProDiscountUsed: boolean;
   firstMaxDiscountUsed: boolean;
+  referralSummary: ReferralSummary | null;
   isLoggedIn: boolean;
   isAuthChecked: boolean;
   userEmail: string;

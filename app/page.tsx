@@ -90,9 +90,9 @@ export default function HomePage() {
   const plans = [
     {
       id: 'free',
-      name: '体验版',
+      name: '免费调试版',
       price: '0',
-      period: '永久免费',
+      period: ' / 调试',
       desc: '适合个人开发者测试收款流程和真实 API 联调。',
       techFee: '前10次创建订单免费，覆盖真实API与控制台沙箱',
       features: [
@@ -101,9 +101,27 @@ export default function HomePage() {
         '微信/支付宝任一款个人收款码配置',
         '标准动态随机微调尾数匹配',
         '支持真实 API 创建订单联调',
-        '超出10次后需开通订阅'
+        '超出10次后需切换体验版或开通订阅'
       ],
       cta: '开始接入',
+      primary: false
+    },
+    {
+      id: 'trial',
+      name: '体验版',
+      price: '0',
+      period: ' / 月',
+      desc: '免订阅费，适合低门槛真实运营，按成功订单扣费。',
+      techFee: '交易手续费 1.98%，每笔最低 ¥0.10',
+      features: [
+        '不受免费调试 10 笔额度限制',
+        '余额大于0即可持续创建订单',
+        '支持真实用户付款与 Webhook 回调',
+        '微信/支付宝个人收款码自动匹配',
+        '无需月费，无套餐到期时间',
+        '后续可升级专业版享受更低费率'
+      ],
+      cta: '免费切换 体验版',
       primary: false
     },
     {
@@ -383,7 +401,7 @@ export default function HomePage() {
                     <Shield className="w-3 h-3 text-red-400 shrink-0 animate-pulse" /> 三方平台代收扣率
                   </span>
                   
-                  <span className="text-xs font-bold text-slate-400 z-10 shrink-0 bg-[#070A12] px-2.5 py-1.5 rounded-lg border border-white/5">2. 提现结算</span>
+                  <span className="text-xs font-bold text-slate-400 z-10 shrink-0 bg-[#070A12] px-2.5 py-1.5 rounded-lg border border-white/5">2. 延迟结算</span>
                 </div>
               </div>
  
@@ -499,7 +517,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch" id="pricing-plans-cards">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 items-stretch" id="pricing-plans-cards">
             {plans.map((p) => (
               <div
                 key={p.id}

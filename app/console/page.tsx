@@ -216,13 +216,13 @@ export default function ConsolePage() {
         element = <DocsTab apps={state.apps} onTriggerToast={triggerToast} db={db} />;
         break;
       case 'billing': {
-        const packageType = state.packageType === 'max' ? 'max' : state.packageType === 'pro' ? 'pro' : 'free';
+        const packageType = state.packageType === 'max' ? 'max' : state.packageType === 'pro' ? 'pro' : state.packageType === 'trial' ? 'trial' : 'free';
         const computedPlan = {
           id: packageType,
-          name: packageType === 'max' ? '高级版' : packageType === 'pro' ? '专业版' : '免费调试版',
+          name: packageType === 'max' ? '高级版' : packageType === 'pro' ? '专业版' : packageType === 'trial' ? '体验版' : '免费调试版',
           price: packageType === 'max' ? 199 : packageType === 'pro' ? 69 : 0,
           duration: '月',
-          techServiceRate: packageType === 'max' ? 0.002 : packageType === 'pro' ? 0.005 : 0,
+          techServiceRate: packageType === 'max' ? 0.002 : packageType === 'pro' ? 0.005 : packageType === 'trial' ? 0.0198 : 0,
           features: [],
           balance: state.feeBalance,
           subscriptionExpiresAt: state.subscriptionExpiresAt,
@@ -230,7 +230,7 @@ export default function ConsolePage() {
           firstProDiscountUsed: state.firstProDiscountUsed,
           firstMaxDiscountUsed: state.firstMaxDiscountUsed
         };
-        element = <BillingTab plan={computedPlan} billingRecords={state.billingRecords} rechargeOrders={state.rechargeOrders || []} onTriggerToast={triggerToast} db={db} />;
+        element = <BillingTab plan={computedPlan} billingRecords={state.billingRecords} rechargeOrders={state.rechargeOrders || []} referralSummary={state.referralSummary} onTriggerToast={triggerToast} db={db} />;
         break;
       }
       case 'account':
@@ -432,7 +432,7 @@ export default function ConsolePage() {
               {/* Account Level */}
               <div className="flex items-center gap-1.5 bg-[#111827] border border-white/5 px-3 py-1 rounded-xl text-xs font-semibold text-slate-300">
                 <Award className="w-4 h-4 text-amber-500" />
-                {state.packageType === 'max' ? '高级版' : state.packageType === 'pro' ? '专业版' : '免费调试版'}
+                {state.packageType === 'max' ? '高级版' : state.packageType === 'pro' ? '专业版' : state.packageType === 'trial' ? '体验版' : '免费调试版'}
               </div>
 
               {/* Balance brief top container */}

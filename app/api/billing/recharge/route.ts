@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
         pay_type: rechargeOrder.payType,
         payment_url: `${origin}/pay/checkout?id=${encodeURIComponent(rechargeOrder.id)}`,
         expired_at: rechargeOrder.expiresAt.toISOString(),
+        requires_manual_confirm: Boolean((rechargeOrder as any).requiresManualConfirm),
         promotion,
       },
     });

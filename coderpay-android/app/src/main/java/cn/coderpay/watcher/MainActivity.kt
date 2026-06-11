@@ -50,23 +50,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-private val CpBackground = Color(0xFF070A12)
-private val CpPanel = Color(0xFF111827)
-private val CpPanelSoft = Color(0xFF1E293B)
-private val CpBorder = Color(0xFF334155)
-private val CpBlue = Color(0xFF3B82F6)
-private val CpBlueDark = Color(0xFF2563EB)
-private val CpGreen = Color(0xFF10B981)
-private val CpGreenDark = Color(0xFF064E3B)
-private val CpAmber = Color(0xFFF59E0B)
-private val CpAmberDark = Color(0xFF92400E)
-private val CpRed = Color(0xFFEF4444)
-private val CpRedDark = Color(0xFF7F1D1D)
-private val CpText = Color(0xFFF8FAFC)
-private val CpMuted = Color(0xFF94A3B8)
-private val CpSubtle = Color(0xFF64748B)
-private val CpTerminal = Color(0xFF020617)
+import cn.coderpay.watcher.screens.*
+import cn.coderpay.watcher.screens.components.*
 
 class MainActivity : ComponentActivity() {
 
@@ -665,38 +650,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @Composable
-    private fun PanelCard(content: @Composable () -> Unit) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CpPanel),
-            shape = RoundedCornerShape(20.dp)
-        ) {
-            content()
-        }
-    }
 
-    @Composable
-    private fun SectionTitle(title: String, caption: String) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = CpText
-            )
-            Text(
-                text = caption,
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                color = CpSubtle
-            )
-        }
-    }
 
     @Composable
     private fun PermissionRow(
@@ -803,62 +757,13 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun NativeConsoleScreen(initialTab: String, onClose: () -> Unit) {
         var activeTab by remember { mutableStateOf(initialTab) }
+        var clickedOrderId by remember { mutableStateOf<String?>(null) }
+        var clickedBillingHistory by remember { mutableStateOf(false) }
         var loading by remember { mutableStateOf(true) }
         var error by remember { mutableStateOf<String?>(null) }
         var data by remember { mutableStateOf<MobileConsoleResponse?>(null) }
         val scope = rememberCoroutineScope()
         var actionMessage by remember { mutableStateOf<String?>(null) }
-        var rechargeAmount by remember { mutableStateOf("50") }
-        var rechargePayType by remember { mutableStateOf("alipay") }
-        var activeRecharge by remember { mutableStateOf<MobileRechargeData?>(null) }
-        var codePayType by remember { mutableStateOf("wechat") }
-        var codeMode by remember { mutableStateOf("any") }
-        var codeAmount by remember { mutableStateOf("9.90") }
-        var uploadedCodeUrl by remember { mutableStateOf("") }
-        var alipayUserId by remember { mutableStateOf("") }
-        var qrPayload by remember { mutableStateOf("") }
-        var directPayUrl by remember { mutableStateOf("") }
-        var codeToDelete by remember { mutableStateOf<cn.coderpay.watcher.api.MobilePaymentCode?>(null) }
-
-        fun signedParts(): Triple<String, String, String> {
-            val timestamp = System.currentTimeMillis().toString()
-            val sign = cn.coderpay.watcher.utils.SignatureHelper.calculateSignature(
-                settings.deviceCode,
-                timestamp.toLong(),
-                settings.deviceSecret
-            )
-            return Triple(settings.deviceCode, timestamp, sign)
-        }
-
-        val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-            if (uri == null) return@rememberLauncherForActivityResult
-            scope.launch(Dispatchers.IO) {
-                try {
-                    val type = contentResolver.getType(uri) ?: "image/png"
-                    val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
-                    val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-                    val (deviceCode, timestamp, sign) = signedParts()
-                    val response = RetrofitClient.getService(this@MainActivity).uploadMobilePaymentCode(
-                        deviceCode,
-                        timestamp,
-                        sign,
-                        MobilePaymentCodeUploadRequest(type, base64)
-                    )
-                    withContext(Dispatchers.Main) {
-                        if (response.isSuccessful && response.body() != null) {
-                            uploadedCodeUrl = response.body()!!.url
-                            actionMessage = "收款码图片已上传，可继续创建通道。"
-                        } else {
-                            actionMessage = "图片上传失败：${response.code()}"
-                        }
-                    }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        actionMessage = "图片读取或上传失败：${e.message ?: "未知错误"}"
-                    }
-                }
-            }
-        }
 
         fun refresh() {
             if (!settings.isBound || settings.deviceCode.isBlank() || settings.deviceSecret.isBlank()) {
@@ -885,7 +790,7 @@ class MainActivity : ComponentActivity() {
                         if (response.isSuccessful && response.body() != null) {
                             data = response.body()
                         } else {
-                            error = "移动控制台加载失败：${response.code()}"
+                            error = cn.coderpay.watcher.utils.ApiErrorHelper.formatApiError(response, "移动控制台加载失败")
                         }
                         loading = false
                     }
@@ -898,13 +803,45 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        fun refreshAfterAction(message: String) {
-            actionMessage = message
-            refresh()
+        LaunchedEffect(Unit) { refresh() }
+        BackHandler(onBack = {
+            when {
+                clickedBillingHistory -> clickedBillingHistory = false
+                clickedOrderId != null -> clickedOrderId = null
+                activeTab == "orders" -> activeTab = "overview"
+                activeTab == "exceptions" -> activeTab = "overview"
+                else -> onClose()
+            }
+        })
+
+        if (clickedBillingHistory) {
+            BillingScreen(
+                data = data!!,
+                onRefresh = { refresh() },
+                onBack = { clickedBillingHistory = false }
+            )
+            return
         }
 
-        LaunchedEffect(Unit) { refresh() }
-        BackHandler(onBack = onClose)
+        if (clickedOrderId != null) {
+            OrderDetailScreen(orderId = clickedOrderId!!, onBack = { clickedOrderId = null })
+            return
+        }
+
+        if (activeTab == "orders") {
+            OrdersScreen(
+                onOrderClick = { clickedOrderId = it },
+                onBack = { activeTab = "overview" }
+            )
+            return
+        }
+
+        if (activeTab == "exceptions") {
+            ExceptionsScreen(
+                onBack = { activeTab = "overview" }
+            )
+            return
+        }
 
         Column(
             modifier = Modifier
@@ -981,29 +918,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 data != null -> {
-                    if (codeToDelete != null) {
-                        AlertDialog(
-                            onDismissRequest = { codeToDelete = null },
-                            title = { Text("删除收款码") },
-                            text = { Text("删除后该二维码不会再参与订单调度。此操作不可撤销。") },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    val target = codeToDelete!!
-                                    codeToDelete = null
-                                    scope.launch(Dispatchers.IO) {
-                                        val (deviceCode, timestamp, sign) = signedParts()
-                                        val response = RetrofitClient.getService(this@MainActivity).deleteMobilePaymentCode(deviceCode, timestamp, sign, target.id)
-                                        withContext(Dispatchers.Main) {
-                                            refreshAfterAction(if (response.isSuccessful) "收款码已删除。" else "删除失败：${response.code()}")
-                                        }
-                                    }
-                                }) { Text("确认删除") }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { codeToDelete = null }) { Text("取消") }
-                            }
-                        )
-                    }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1023,338 +937,37 @@ class MainActivity : ComponentActivity() {
                         when (activeTab) {
                             "billing" -> {
                                 item {
-                                    BillingSummary(data!!)
-                                }
-                                item {
-                                    PanelCard {
-                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                            SectionTitle("创建充值单", "Recharge")
-                                            OutlinedTextField(
-                                                value = rechargeAmount,
-                                                onValueChange = { rechargeAmount = it },
-                                                label = { Text("充值金额") },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                singleLine = true
-                                            )
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                listOf("alipay" to "支付宝", "wechat" to "微信").forEach { (key, label) ->
-                                                    Button(
-                                                        onClick = { rechargePayType = key },
-                                                        modifier = Modifier.weight(1f),
-                                                        colors = ButtonDefaults.buttonColors(
-                                                            containerColor = if (rechargePayType == key) CpBlueDark else CpPanelSoft,
-                                                            contentColor = Color.White
-                                                        ),
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    ) { Text(label, fontSize = 11.sp) }
-                                                }
-                                            }
-                                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                items(listOf("10", "50", "100", "500", "5000", "10000")) { amount ->
-                                                    Button(
-                                                        onClick = { rechargeAmount = amount },
-                                                        modifier = Modifier.widthIn(min = 76.dp),
-                                                        colors = ButtonDefaults.buttonColors(
-                                                            containerColor = if (rechargeAmount == amount) CpBlueDark else CpPanelSoft,
-                                                            contentColor = Color.White
-                                                        ),
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    ) { Text("¥$amount", fontSize = 11.sp) }
-                                                }
-                                            }
-                                            Button(
-                                                onClick = {
-                                                    val amount = rechargeAmount.toDoubleOrNull()
-                                                    if (amount == null || amount <= 0) {
-                                                        actionMessage = "请输入有效充值金额。"
-                                                        return@Button
-                                                    }
-                                                    scope.launch(Dispatchers.IO) {
-                                                        val (deviceCode, timestamp, sign) = signedParts()
-                                                        val response = RetrofitClient.getService(this@MainActivity).createMobileRecharge(
-                                                            deviceCode,
-                                                            timestamp,
-                                                            sign,
-                                                            MobileRechargeRequest(amount, rechargePayType)
-                                                        )
-                                                        withContext(Dispatchers.Main) {
-                                                            if (response.isSuccessful && response.body()?.data != null) {
-                                                                activeRecharge = response.body()!!.data
-                                                                actionMessage = "充值单已创建，请按二维码支付 ¥${activeRecharge!!.real_amount}。"
-                                                            } else {
-                                                                actionMessage = "充值单创建失败：${response.code()}"
-                                                            }
-                                                        }
-                                                    }
-                                                },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = ButtonDefaults.buttonColors(containerColor = CpGreen, contentColor = Color.White),
-                                                shape = RoundedCornerShape(14.dp)
-                                            ) { Text("创建充值单") }
-                                        }
-                                    }
-                                }
-                                if (activeRecharge != null) {
-                                    item {
-                                        RechargeCard(activeRecharge!!, onRefresh = {
-                                            scope.launch(Dispatchers.IO) {
-                                                val (deviceCode, timestamp, sign) = signedParts()
-                                                val response = RetrofitClient.getService(this@MainActivity).getMobileRecharge(deviceCode, timestamp, sign, activeRecharge!!.recharge_id)
-                                                withContext(Dispatchers.Main) {
-                                                    actionMessage = if (response.isSuccessful) "充值单状态：${response.body()?.status}" else "充值状态查询失败：${response.code()}"
-                                                    if (response.body()?.status == "success") refresh()
-                                                }
-                                            }
-                                        })
-                                    }
-                                }
-                                item {
-                                    PanelCard {
-                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                            SectionTitle("订阅套餐", "Plans")
-                                            Text("专业版适合稳定运营，高级版适合高流水和更低费率。充值满 ¥500 送 1 个月专业版，满 ¥2000 送 1 个月高级版，满 ¥5000 送 3 个月高级版。售后 Telegram：@coderpay3。", fontSize = 11.sp, color = CpMuted, lineHeight = 16.sp)
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                listOf("pro" to "开通专业版", "max" to "开通高级版").forEach { (planId, label) ->
-                                                    Button(
-                                                        onClick = {
-                                                            scope.launch(Dispatchers.IO) {
-                                                                val (deviceCode, timestamp, sign) = signedParts()
-                                                                val response = RetrofitClient.getService(this@MainActivity).subscribeMobilePlan(deviceCode, timestamp, sign, MobileSubscribeRequest(planId))
-                                                                withContext(Dispatchers.Main) {
-                                                                    refreshAfterAction(if (response.isSuccessful) "$label 成功。" else "$label 失败：${response.code()}")
-                                                                }
-                                                            }
-                                                        },
-                                                        modifier = Modifier.weight(1f),
-                                                        colors = ButtonDefaults.buttonColors(containerColor = CpBlueDark, contentColor = Color.White),
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    ) { Text(label, fontSize = 11.sp) }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                items(data!!.billingRecords) { record ->
-                                    NativeListCard(
-                                        title = if (record.type == "charge") "技术费充入" else "交易佣金扣除",
-                                        primary = "${if (record.type == "charge") "+" else "-"}¥${formatAmount(record.amount)}",
-                                        secondary = record.description,
-                                        meta = "余额 ¥${formatAmount(record.balance)} · ${formatDate(record.createdAt)}",
-                                        color = if (record.type == "charge") CpGreen else CpRed
+                                    RechargeScreen(
+                                        data = data!!,
+                                        onRefresh = { refresh() },
+                                        scope = scope,
+                                        onActionMessage = { actionMessage = it },
+                                        onViewBillingHistory = { clickedBillingHistory = true }
                                     )
                                 }
-                                if (data!!.billingRecords.isEmpty()) item { EmptyCard("暂无账单流水", "发生充值、订阅或订单服务费扣减后会显示在这里。") }
-                            }
-                            "orders" -> {
-                                item { MetricRow("订单流水", "${data!!.orders.size}", "最近 30 笔订单") }
-                                items(data!!.orders) { order ->
-                                    OrderCard(order)
-                                }
-                                item { MetricRow("我的充值", "${data!!.rechargeOrders.size}", "当前开发者账户发起") }
-                                items(data!!.rechargeOrders) { order ->
-                                    RechargeOrderCard(order)
-                                }
-                                item { MetricRow("平台代收充值", "${data!!.incomingRechargeOrders.size}", "使用本机收款码入账") }
-                                items(data!!.incomingRechargeOrders) { order ->
-                                    RechargeOrderCard(order)
-                                }
-                                if (data!!.orders.isEmpty()) item { EmptyCard("暂无订单", "开发者服务端创建订单后，最近订单会同步到这里。") }
                             }
                             "codes" -> {
-                                item { MetricRow("收款码", "${data!!.paymentCodes.size}", "微信 / 支付宝收款码") }
                                 item {
-                                    PanelCard {
-                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                            SectionTitle("上传并创建收款码", "Create")
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                listOf("wechat" to "微信", "alipay" to "支付宝").forEach { (key, label) ->
-                                                    Button(
-                                                        onClick = { codePayType = key },
-                                                        modifier = Modifier.weight(1f),
-                                                        colors = ButtonDefaults.buttonColors(
-                                                            containerColor = if (codePayType == key) CpBlueDark else CpPanelSoft,
-                                                            contentColor = Color.White
-                                                        ),
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    ) { Text(label, fontSize = 11.sp) }
-                                                }
-                                            }
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                listOf("any" to "通用码", "fixed" to "固定金额").forEach { (key, label) ->
-                                                    Button(
-                                                        onClick = { codeMode = key },
-                                                        modifier = Modifier.weight(1f),
-                                                        colors = ButtonDefaults.buttonColors(
-                                                            containerColor = if (codeMode == key) CpBlueDark else CpPanelSoft,
-                                                            contentColor = Color.White
-                                                        ),
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    ) { Text(label, fontSize = 11.sp) }
-                                                }
-                                            }
-                                            if (codeMode == "fixed") {
-                                                OutlinedTextField(
-                                                    value = codeAmount,
-                                                    onValueChange = { codeAmount = it },
-                                                    label = { Text("固定金额") },
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    singleLine = true
-                                                )
-                                            }
-                                            if (codePayType == "alipay") {
-                                                OutlinedTextField(
-                                                    value = alipayUserId,
-                                                    onValueChange = { alipayUserId = it },
-                                                    label = { Text("支付宝 PID（选填）") },
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    singleLine = true
-                                                )
-                                            }
-                                            OutlinedTextField(
-                                                value = qrPayload,
-                                                onValueChange = { qrPayload = it },
-                                                label = { Text("二维码内容 / 收款链接（选填）") },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                minLines = 2
-                                            )
-                                            OutlinedTextField(
-                                                value = directPayUrl,
-                                                onValueChange = { directPayUrl = it },
-                                                label = { Text("直达支付 URL Scheme（选填）") },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                minLines = 2
-                                            )
-                                            Text(
-                                                text = if (uploadedCodeUrl.isBlank()) "尚未选择二维码图片" else "二维码图片已上传",
-                                                fontSize = 11.sp,
-                                                color = if (uploadedCodeUrl.isBlank()) CpAmber else CpGreen
-                                            )
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                Button(
-                                                    onClick = { imagePicker.launch("image/*") },
-                                                    modifier = Modifier.weight(1f),
-                                                    colors = ButtonDefaults.buttonColors(containerColor = CpPanelSoft, contentColor = CpText),
-                                                    shape = RoundedCornerShape(12.dp)
-                                                ) { Text("选择图片") }
-                                                Button(
-                                                    onClick = {
-                                                        if (uploadedCodeUrl.isBlank()) {
-                                                            actionMessage = "请先选择并上传二维码图片。"
-                                                            return@Button
-                                                        }
-                                                        val amount = if (codeMode == "fixed") codeAmount.toDoubleOrNull() ?: 0.0 else 0.0
-                                                        scope.launch(Dispatchers.IO) {
-                                                            val (deviceCode, timestamp, sign) = signedParts()
-                                                            val response = RetrofitClient.getService(this@MainActivity).createMobilePaymentCode(
-                                                                deviceCode,
-                                                                timestamp,
-                                                                sign,
-                                                                MobilePaymentCodeCreateRequest(
-                                                                    codePayType,
-                                                                    codeMode,
-                                                                    amount,
-                                                                    uploadedCodeUrl,
-                                                                    settings.deviceCode.let { data!!.devices.find { d -> d.deviceCode == it }?.id },
-                                                                    alipayUserId.ifBlank { null },
-                                                                    qrPayload.ifBlank { null },
-                                                                    directPayUrl.ifBlank { null }
-                                                                )
-                                                            )
-                                                            withContext(Dispatchers.Main) {
-                                                                if (response.isSuccessful) {
-                                                                    uploadedCodeUrl = ""
-                                                                    qrPayload = ""
-                                                                    directPayUrl = ""
-                                                                    refreshAfterAction("收款码创建成功。")
-                                                                } else {
-                                                                    actionMessage = "收款码创建失败：${response.code()}"
-                                                                }
-                                                            }
-                                                        }
-                                                    },
-                                                    modifier = Modifier.weight(1f),
-                                                    colors = ButtonDefaults.buttonColors(containerColor = CpGreen, contentColor = Color.White),
-                                                    shape = RoundedCornerShape(12.dp)
-                                                ) { Text("创建通道") }
-                                            }
-                                        }
-                                    }
-                                }
-                                items(data!!.paymentCodes) { code ->
-                                    PaymentCodeCard(
-                                        code = code,
-                                        onToggle = {
-                                            scope.launch(Dispatchers.IO) {
-                                                val (deviceCode, timestamp, sign) = signedParts()
-                                                val next = if (code.status == "active") "inactive" else "active"
-                                                val response = RetrofitClient.getService(this@MainActivity).updateMobilePaymentCode(
-                                                    deviceCode,
-                                                    timestamp,
-                                                    sign,
-                                                    code.id,
-                                                    MobilePaymentCodeUpdateRequest(status = next)
-                                                )
-                                                withContext(Dispatchers.Main) {
-                                                    refreshAfterAction(if (response.isSuccessful) "收款码状态已更新。" else "状态更新失败：${response.code()}")
-                                                }
-                                            }
-                                        },
-                                        onDelete = { codeToDelete = code }
-                                    )
-                                }
-                                if (data!!.paymentCodes.isEmpty()) item { EmptyCard("暂无收款码", "请先在控制台上传微信或支付宝收款码，并绑定当前监听设备。") }
-                            }
-                            "devices" -> {
-                                item { MetricRow("设备通道", "${data!!.devices.count { it.online }}/${data!!.devices.size}", "在线设备 / 全部设备") }
-                                item {
-                                    PanelCard {
-                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                            SectionTitle("当前设备安全", "Security")
-                                            Text("重置密钥会使旧设备签名立即失效。操作后本机将保存新密钥并继续连接。", fontSize = 11.sp, color = CpMuted, lineHeight = 16.sp)
-                                            Button(
-                                                onClick = {
-                                                    scope.launch(Dispatchers.IO) {
-                                                        val (deviceCode, timestamp, sign) = signedParts()
-                                                        val response = RetrofitClient.getService(this@MainActivity).resetMobileDeviceSecret(deviceCode, timestamp, sign)
-                                                        withContext(Dispatchers.Main) {
-                                                            if (response.isSuccessful && !response.body()?.deviceSecret.isNullOrBlank()) {
-                                                                settings.deviceSecret = response.body()!!.deviceSecret!!
-                                                                refreshAfterAction("设备密钥已重置。")
-                                                            } else {
-                                                                actionMessage = "设备密钥重置失败：${response.code()}"
-                                                            }
-                                                        }
-                                                    }
-                                                },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = ButtonDefaults.buttonColors(containerColor = CpAmberDark, contentColor = Color.White),
-                                                shape = RoundedCornerShape(12.dp)
-                                            ) { Text("重置当前设备密钥") }
-                                        }
-                                    }
-                                }
-                                items(data!!.devices) { device ->
-                                    NativeListCard(
-                                        title = device.name,
-                                        primary = device.deviceCode,
-                                        secondary = if (device.online) "在线" else "离线",
-                                        meta = "通知 ${if (device.notificationPermission) "已开" else "未开"} · 电池 ${device.batteryOptimization ?: "未知"}",
-                                        color = if (device.online) CpGreen else CpAmber
+                                    PaymentCodesScreen(
+                                        data = data!!,
+                                        onRefresh = { refresh() },
+                                        scope = scope,
+                                        onActionMessage = { actionMessage = it }
                                     )
                                 }
                             }
-                            "exceptions" -> {
-                                item { MetricRow("异常中心", "${data!!.exceptions.count { it.status == "active" }}", "活跃异常 / 最近 30 条") }
-                                items(data!!.exceptions) { exception ->
-                                    NativeListCard(
-                                        title = exception.title,
-                                        primary = exception.type,
-                                        secondary = if (exception.status == "active") "待处理" else "已处理",
-                                        meta = "${exception.refId} · ${formatDate(exception.createdAt)}",
-                                        color = if (exception.status == "active") CpAmber else CpSubtle
+                            "devices" -> {
+                                item {
+                                    DevicesScreen(
+                                        data = data!!,
+                                        onRefresh = { refresh() },
+                                        scope = scope,
+                                        onActionMessage = { actionMessage = it },
+                                        isNotificationPermissionGranted = isNotificationServiceEnabled(),
+                                        isListenerBound = isNotificationServiceEnabled(),
+                                        isBatteryOptimizedIgnored = isBatteryOptimizationIgnored()
                                     )
                                 }
-                                if (data!!.exceptions.isEmpty()) item { EmptyCard("暂无异常", "未匹配到账、过期到账、Webhook失败和设备离线会显示在这里。") }
                             }
                             "docs" -> {
                                 item {
@@ -1370,8 +983,17 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             else -> {
-                                item { BillingSummary(data!!) }
-                                item { MetricRow("订单", "${data!!.orders.size}", "最近订单") }
+                                item {
+                                    PanelCard {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            SectionTitle("充值订阅", "Billing")
+                                            Text(data!!.user.email, fontSize = 12.sp, color = CpMuted)
+                                            Text("¥${formatAmount(data!!.user.feeBalance)}", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = CpText)
+                                            Text("当前套餐：${packageLabel(data!!.user.packageType)}。余额用于订阅和交易手续费；低于或等于0元时将停止创建新订单。", fontSize = 11.sp, color = CpSubtle, lineHeight = 16.sp)
+                                        }
+                                    }
+                                }
+                                item { MetricRow("订单", "${data!!.orderSummary?.total ?: 0}", "全部订单数") }
                                 item { MetricRow("收款码", "${data!!.paymentCodes.size}", "已配置码") }
                                 item { MetricRow("设备", "${data!!.devices.count { it.online }}/${data!!.devices.size}", "在线状态") }
                             }
@@ -1422,7 +1044,7 @@ class MainActivity : ComponentActivity() {
                 SectionTitle("充值订阅", "Billing")
                 Text(data.user.email, fontSize = 12.sp, color = CpMuted)
                 Text("¥${formatAmount(data.user.feeBalance)}", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = CpText)
-                Text("当前套餐：${data.user.packageType}。余额用于订阅和交易手续费；低于或等于0元时将停止创建新订单。", fontSize = 11.sp, color = CpSubtle, lineHeight = 16.sp)
+                Text("当前套餐：${packageLabel(data.user.packageType)}。余额用于订阅和交易手续费；低于或等于0元时将停止创建新订单。", fontSize = 11.sp, color = CpSubtle, lineHeight = 16.sp)
             }
         }
     }
@@ -1449,266 +1071,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @Composable
-    private fun DataUriImage(dataUri: String) {
-        val bitmap = remember(dataUri) {
-            try {
-                val base64 = dataUri.substringAfter("base64,", "")
-                val bytes = Base64.decode(base64, Base64.DEFAULT)
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            } catch (_: Exception) {
-                null
-            }
-        }
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = "payment qr",
-                modifier = Modifier
-                    .size(220.dp)
-                    .background(Color.White, RoundedCornerShape(16.dp))
-                    .padding(10.dp)
-            )
-        } else {
-            Text("二维码图片解析失败。", fontSize = 11.sp, color = CpRed)
-        }
+    private fun packageLabel(value: String): String = when (value) {
+        "trial" -> "体验版"
+        "pro" -> "专业版"
+        "max" -> "高级版"
+        else -> "免费调试版"
     }
 
-    @Composable
-    private fun PaymentCodeCard(
-        code: MobilePaymentCode,
-        onToggle: () -> Unit,
-        onDelete: () -> Unit
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CpPanel),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("${payTypeLabel(code.type)} ${if (code.codeType == "fixed") "固定金额" else "通用码"}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CpText)
-                        Text("绑定设备 ${code.deviceId ?: "未绑定"} · ${formatDate(code.createdAt)}", fontSize = 10.sp, color = CpSubtle, maxLines = 1)
-                    }
-                    Text(if (code.amount > 0) "¥${formatAmount(code.amount)}" else "任意金额", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (code.status == "active") CpGreen else CpSubtle)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = onToggle,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = if (code.status == "active") CpAmberDark else CpGreen, contentColor = Color.White),
-                        shape = RoundedCornerShape(12.dp)
-                    ) { Text(if (code.status == "active") "停用" else "启用", fontSize = 11.sp) }
-                    Button(
-                        onClick = onDelete,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = CpRed, contentColor = Color.White),
-                        shape = RoundedCornerShape(12.dp)
-                    ) { Text("删除", fontSize = 11.sp) }
-                }
-            }
-        }
-    }
 
-    @Composable
-    private fun MetricRow(title: String, value: String, caption: String) {
-        PanelCard {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CpText)
-                    Text(caption, fontSize = 10.sp, color = CpSubtle)
-                }
-                Text(value, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = CpText)
-            }
-        }
-    }
-
-    @Composable
-    private fun NativeListCard(title: String, primary: String, secondary: String, meta: String, color: Color) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CpPanel),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CpText, maxLines = 1)
-                    Text(secondary, fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold)
-                    Text(meta, fontSize = 10.sp, color = CpSubtle, maxLines = 1)
-                }
-                Text(primary, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = color)
-            }
-        }
-    }
-
-    @Composable
-    private fun OrderCard(order: cn.coderpay.watcher.api.MobileOrder) {
-        val color = statusColor(order.status)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CpPanel),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(order.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CpText, maxLines = 1)
-                        Text("${payTypeLabel(order.payType)} · ${statusLabel(order.status)}", fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold)
-                        Text(order.id, fontSize = 10.sp, color = CpSubtle, maxLines = 1)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("¥${formatAmount(order.realAmount)}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = color)
-                        if (order.realAmount != order.amount) {
-                            Text("原价 ¥${formatAmount(order.amount)}", fontSize = 10.sp, color = CpAmber)
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(CpPanelSoft, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("过期时间", fontSize = 10.sp, color = CpSubtle, fontWeight = FontWeight.Bold)
-                        Text(formatOptionalDate(order.expiresAt), fontSize = 11.sp, color = CpMuted, fontFamily = FontFamily.Monospace)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(if (order.paymentCodeId == null) "未锁定码" else "已锁定码", fontSize = 10.sp, color = CpSubtle, fontWeight = FontWeight.Bold)
-                        Text(order.paymentCodeId?.take(8) ?: "--", fontSize = 11.sp, color = CpMuted, fontFamily = FontFamily.Monospace)
-                    }
-                }
-
-                if (order.status == "manual_review") {
-                    Text(
-                        text = "该订单存在并发冲突或需要人工核验，系统不会自动猜测匹配。",
-                        fontSize = 11.sp,
-                        color = Color(0xFFC084FC),
-                        lineHeight = 16.sp
-                    )
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun RechargeOrderCard(order: cn.coderpay.watcher.api.MobileRechargeOrder) {
-        val effectiveStatus = order.displayStatus ?: order.status
-        val color = statusColor(effectiveStatus)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CpPanel),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("账户余额充值", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CpText, maxLines = 1)
-                        Text("${payTypeLabel(order.payType)} · ${statusLabel(effectiveStatus)}", fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold)
-                        order.rechargeUserEmail?.let {
-                            Text("充值人 $it", fontSize = 10.sp, color = CpMuted, maxLines = 1)
-                        }
-                        Text(order.id, fontSize = 10.sp, color = CpSubtle, maxLines = 1)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("¥${formatAmount(order.realAmount)}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = color)
-                        if (order.realAmount != order.amount) {
-                            Text("原价 ¥${formatAmount(order.amount)}", fontSize = 10.sp, color = CpAmber)
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(CpPanelSoft, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("过期时间", fontSize = 10.sp, color = CpSubtle, fontWeight = FontWeight.Bold)
-                        Text(formatOptionalDate(order.expiresAt), fontSize = 11.sp, color = CpMuted, fontFamily = FontFamily.Monospace)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("到账时间", fontSize = 10.sp, color = CpSubtle, fontWeight = FontWeight.Bold)
-                        Text(formatOptionalDate(order.payTime), fontSize = 11.sp, color = CpMuted, fontFamily = FontFamily.Monospace)
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun EmptyCard(title: String, caption: String = "") {
-        PanelCard {
-            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CpText)
-                if (caption.isNotBlank()) {
-                    Text(caption, fontSize = 11.sp, color = CpMuted, lineHeight = 16.sp)
-                }
-            }
-        }
-    }
-
-    private fun formatAmount(value: Double): String = "%.2f".format(value)
-
-    private fun formatDate(value: String): String = value.replace("T", " ").take(16)
-
-    private fun formatOptionalDate(value: String?): String = value?.replace("T", " ")?.take(16) ?: "--"
-
-    private fun payTypeLabel(value: String): String = when (value) {
-        "wechat" -> "微信"
-        "alipay" -> "支付宝"
-        else -> value
-    }
-
-    private fun statusLabel(value: String): String = when (value) {
-        "pending" -> "待支付"
-        "success" -> "已成功"
-        "paid" -> "已到账"
-        "expired" -> "已过期"
-        "failed" -> "失败"
-        "manual_review" -> "人工审核"
-        else -> value
-    }
-
-    private fun statusColor(value: String): Color = when (value) {
-        "success", "paid" -> CpGreen
-        "pending" -> CpAmber
-        "failed", "expired" -> CpRed
-        else -> CpSubtle
-    }
 
     private fun isNotificationServiceEnabled(): Boolean {
         val cn = ComponentName(this, NotificationService::class.java)

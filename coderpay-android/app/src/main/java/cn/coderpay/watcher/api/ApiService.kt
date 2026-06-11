@@ -86,6 +86,49 @@ interface ApiService {
         @Header("x-coderpay-timestamp") timestamp: String,
         @Header("x-coderpay-sign") sign: String
     ): Response<MobileResetSecretResponse>
+
+    @GET("api/mobile/orders")
+    suspend fun getMobileOrders(
+        @Header("x-coderpay-device") deviceCode: String,
+        @Header("x-coderpay-timestamp") timestamp: String,
+        @Header("x-coderpay-sign") sign: String,
+        @retrofit2.http.Query("page") page: Int,
+        @retrofit2.http.Query("limit") limit: Int,
+        @retrofit2.http.Query("status") status: String?,
+        @retrofit2.http.Query("payType") payType: String?,
+        @retrofit2.http.Query("keyword") keyword: String?,
+        @retrofit2.http.Query("startDate") startDate: String? = null,
+        @retrofit2.http.Query("endDate") endDate: String? = null
+    ): Response<PaginatedOrdersResponse>
+
+    @GET("api/mobile/orders/{id}")
+    suspend fun getMobileOrderDetail(
+        @Header("x-coderpay-device") deviceCode: String,
+        @Header("x-coderpay-timestamp") timestamp: String,
+        @Header("x-coderpay-sign") sign: String,
+        @Path("id") id: String
+    ): Response<MobileOrderDetailResponse>
+
+    @GET("api/mobile/exceptions")
+    suspend fun getMobileExceptions(
+        @Header("x-coderpay-device") deviceCode: String,
+        @Header("x-coderpay-timestamp") timestamp: String,
+        @Header("x-coderpay-sign") sign: String,
+        @retrofit2.http.Query("page") page: Int,
+        @retrofit2.http.Query("limit") limit: Int,
+        @retrofit2.http.Query("status") status: String?,
+        @retrofit2.http.Query("type") type: String?
+    ): Response<PaginatedExceptionsResponse>
+
+    @GET("api/mobile/billing-records")
+    suspend fun getMobileBillingRecords(
+        @Header("x-coderpay-device") deviceCode: String,
+        @Header("x-coderpay-timestamp") timestamp: String,
+        @Header("x-coderpay-sign") sign: String,
+        @retrofit2.http.Query("page") page: Int,
+        @retrofit2.http.Query("limit") limit: Int,
+        @retrofit2.http.Query("type") type: String?
+    ): Response<PaginatedBillingRecordsResponse>
 }
 
 // Request & Response Data Models
@@ -132,7 +175,17 @@ data class MobileConsoleResponse(
     val paymentCodes: List<MobilePaymentCode>,
     val devices: List<MobileDevice>,
     val billingRecords: List<MobileBillingRecord>,
-    val exceptions: List<MobileException> = emptyList()
+    val exceptions: List<MobileException> = emptyList(),
+    val orderSummary: MobileOrderSummary? = null
+)
+
+data class MobileOrderSummary(
+    val total: Int,
+    val pending: Int,
+    val success: Int,
+    val expired: Int,
+    val failed: Int,
+    val manualReview: Int
 )
 
 data class MobileRechargeRequest(
@@ -151,7 +204,8 @@ data class MobileRechargeData(
     val real_amount: String,
     val pay_type: String,
     val expired_at: String,
-    val payment_code: MobilePaymentCode?
+    val payment_code: MobilePaymentCode?,
+    val requires_manual_confirm: Boolean = false
 )
 
 data class MobileRechargeStatusResponse(
@@ -161,7 +215,8 @@ data class MobileRechargeStatusResponse(
     val payType: String,
     val status: String,
     val expiresAt: String,
-    val paymentCode: MobilePaymentCode?
+    val paymentCode: MobilePaymentCode?,
+    val requiresManualConfirm: Boolean = false
 )
 
 data class MobileRechargeOrder(
@@ -177,7 +232,8 @@ data class MobileRechargeOrder(
     val createdAt: String,
     val expiresAt: String,
     val payTime: String?,
-    val paymentCodeId: String? = null
+    val paymentCodeId: String? = null,
+    val requiresManualConfirm: Boolean = false
 )
 
 data class MobileSubscribeRequest(
@@ -250,6 +306,9 @@ data class MobileOrder(
     val amountCents: Int? = null,
     val realAmountCents: Int? = null,
     val status: String,
+    val confirmMode: String? = null,
+    val manualConfirmedAt: String? = null,
+    val manualConfirmNote: String? = null,
     val createdAt: String,
     val expiresAt: String? = null,
     val payTime: String?,
@@ -270,7 +329,8 @@ data class MobilePaymentCode(
     val alipayUserId: String? = null,
     val qrPayload: String? = null,
     val directPayUrl: String? = null,
-    val directPayMode: String? = null
+    val directPayMode: String? = null,
+    val deviceName: String? = null
 )
 
 data class MobileDevice(
@@ -283,7 +343,9 @@ data class MobileDevice(
     val alipayListener: String?,
     val notificationPermission: Boolean,
     val batteryOptimization: String?,
-    val status: String
+    val status: String,
+    val todayEventCount: Int = 0,
+    val todayMatchCount: Int = 0
 )
 
 data class MobileBillingRecord(
@@ -303,4 +365,67 @@ data class MobileException(
     val createdAt: String,
     val refId: String,
     val status: String
+)
+
+data class PaginatedOrdersResponse(
+    val orders: List<MobileOrder>,
+    val total: Int,
+    val page: Int,
+    val limit: Int,
+    val hasMore: Boolean
+)
+
+data class PaginatedExceptionsResponse(
+    val exceptions: List<MobileException>,
+    val total: Int,
+    val page: Int,
+    val limit: Int,
+    val hasMore: Boolean
+)
+
+data class PaginatedBillingRecordsResponse(
+    val billingRecords: List<MobileBillingRecord>,
+    val total: Int,
+    val page: Int,
+    val limit: Int,
+    val hasMore: Boolean
+)
+
+data class MobileOrderDetailResponse(
+    val status: String,
+    val order: MobileOrderDetail
+)
+
+data class MobileOrderDetail(
+    val id: String,
+    val outOrderNo: String,
+    val title: String,
+    val payType: String,
+    val amount: Double,
+    val realAmount: Double,
+    val amountCents: Int? = null,
+    val realAmountCents: Int? = null,
+    val status: String,
+    val confirmMode: String?,
+    val manualConfirmedAt: String?,
+    val manualConfirmNote: String?,
+    val createdAt: String,
+    val expiresAt: String? = null,
+    val payTime: String?,
+    val webhookStatus: String,
+    val paymentCodeId: String? = null,
+    val appId: String,
+    val appName: String,
+    val notifyUrl: String,
+    val returnUrl: String?,
+    val paymentCode: MobilePaymentCode?,
+    val webhookLogs: List<MobileWebhookLog> = emptyList()
+)
+
+data class MobileWebhookLog(
+    val id: String,
+    val requestTime: String,
+    val statusCode: Int?,
+    val result: String,
+    val responseSummary: String?
 )

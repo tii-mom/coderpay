@@ -1,4 +1,4 @@
-import { FREE_ORDER_LIMIT, isSubscriptionActive } from "@/lib/billing-plans";
+import { FREE_ORDER_LIMIT, getEffectivePackageType } from "@/lib/billing-plans";
 
 export type OrderAccessUser = {
   id: string;
@@ -13,7 +13,7 @@ export function assertCanCreateOrder(user: OrderAccessUser, now = new Date()) {
     throw Object.assign(new Error("账户余额已低于或等于 0 元，请充值后继续使用 CoderPay 服务"), { status: 402 });
   }
 
-  if (isSubscriptionActive(user, now)) {
+  if (getEffectivePackageType(user, now) !== "free") {
     return { mode: "subscription" as const, shouldIncrementFreeOrder: false };
   }
 

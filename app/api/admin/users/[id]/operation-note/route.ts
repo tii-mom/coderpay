@@ -3,10 +3,10 @@ import { NextRequest } from "next/server";
 import { requireAdminUser, adminJson } from "@/lib/admin-auth";
 import { getAuthD1 } from "@/lib/auth-d1";
 
-// Operational record only — no automatic refund or withdrawal is performed.
-// This logs a refund/withdrawal note to AdminAuditLog so support actions are
-// auditable. No money moves and no balance is changed here.
-const VALID_KINDS = ["refund_note", "withdrawal_note"];
+// Operational record only — no automatic refund is performed. This logs a
+// refund note to AdminAuditLog so support actions are auditable. No money moves
+// and no balance is changed here.
+const VALID_KINDS = ["refund_note"];
 
 export async function POST(
   req: NextRequest,
@@ -81,7 +81,7 @@ export async function POST(
 
     return adminJson({ status: "success" });
   } catch (err) {
-    console.error("Admin refund/withdrawal note failed:", err);
+    console.error("Admin refund note failed:", err);
     return adminJson({ error: "Internal server error" }, { status: 500 });
   }
 }

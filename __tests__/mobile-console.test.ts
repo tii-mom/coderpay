@@ -26,6 +26,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     order: {
       findMany: vi.fn(() => []),
+      count: vi.fn(() => 0),
     },
     rechargeOrder: {
       findMany: vi.fn(({ where }) => {
@@ -61,6 +62,9 @@ vi.mock("@/lib/prisma", () => ({
       findMany: vi.fn(() => []),
     },
     exceptionItem: {
+      findMany: vi.fn(() => []),
+    },
+    paymentEvent: {
       findMany: vi.fn(() => []),
     },
   },

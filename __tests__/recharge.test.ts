@@ -62,32 +62,37 @@ describe("platform recharge channel selection", () => {
     vi.clearAllMocks();
   });
 
-  it("does not use a heartbeat-only device when the payment listener is stopped", async () => {
+  it("falls back to manual confirmation when the payment listener is stopped", async () => {
     state.codes.push(paymentCode({
       device: { alipayListener: "stopped" },
     }));
 
-    await expect(selectRechargePaymentChannel({
+    const result = await selectRechargePaymentChannel({
       payType: "alipay",
       amountCents: 100,
       now: new Date("2026-06-11T08:00:00Z"),
-    })).rejects.toMatchObject({
-      message: "No online platform recharge Watcher device available",
-      status: 503,
     });
+
+    expect(result.selectedCode.id).toBe("code-1");
+    expect(result.realAmountCents).toBe(100);
+    expect(result.requiresManualConfirm).toBe(true);
   });
 
-  it("requires notification permission and battery exemption before selecting a recharge code", async () => {
+  it("marks recharge codes manual when notification permission or battery exemption is missing", async () => {
     state.codes.push(
       paymentCode({ id: "no-notification", device: { notificationPermission: false } }),
       paymentCode({ id: "battery-optimized", device: { batteryOptimization: "optimized" } }),
     );
 
-    await expect(selectRechargePaymentChannel({
+    const result = await selectRechargePaymentChannel({
       payType: "alipay",
       amountCents: 100,
       now: new Date("2026-06-11T08:00:00Z"),
-    })).rejects.toMatchObject({ status: 503 });
+    });
+
+    expect(["no-notification", "battery-optimized"]).toContain(result.selectedCode.id);
+    expect(result.realAmountCents).toBe(100);
+    expect(result.requiresManualConfirm).toBe(true);
   });
 
   it("selects an active recent device whose listener chain is ready", async () => {
@@ -101,5 +106,6 @@ describe("platform recharge channel selection", () => {
 
     expect(result.selectedCode.id).toBe("ready-code");
     expect(result.realAmountCents).toBe(100);
+    expect(result.requiresManualConfirm).toBe(false);
   });
 });

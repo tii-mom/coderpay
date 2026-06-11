@@ -45,7 +45,7 @@ and keep the worktree clean at a reviewed commit.
 - Add device-offline alerting for stale Watcher heartbeats.
 - Add automatic Webhook compensation by Cron or Queue while keeping manual retry.
 - Maintain an operator acceptance runbook for device permissions, payment tests,
-  merchant callbacks, recharge, withdrawal instructions, and exception handling.
+  merchant callbacks, recharge, refund / exception handling, and reconciliation.
 
 ## P2 Stabilization Backlog
 

@@ -7,7 +7,7 @@ import {
   ArrowLeft, RefreshCw, DollarSign, Crown, StickyNote,
   FileText, CreditCard, ShoppingCart, Smartphone, Code,
   ClipboardList, AlertTriangle, CheckCircle, XCircle, Loader2,
-  KeyRound, Undo2, Banknote, Download, Copy, TrendingUp,
+  KeyRound, Undo2, Download, Copy, TrendingUp,
   UserPlus, Wallet, Wifi, Webhook, Filter
 } from 'lucide-react';
 
@@ -90,6 +90,7 @@ function fmtMoney(v: number | null | undefined) {
 function pkgBadge(pkg: string) {
   const map: Record<string, { label: string; cls: string }> = {
     free: { label: '免费版', cls: 'bg-slate-700 text-slate-300' },
+    trial: { label: '体验版', cls: 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30' },
     pro: { label: '专业版', cls: 'bg-blue-600/20 text-blue-400 border border-blue-500/30' },
     max: { label: '高级版', cls: 'bg-amber-600/20 text-amber-400 border border-amber-500/30' },
   };
@@ -103,7 +104,6 @@ function actionLabel(action: string) {
     subscription_adjust: '订阅调整',
     user_note: '备注更新',
     refund_note: '退款备注',
-    withdrawal_note: '提现备注',
     password_reset: '密码重置',
   };
   return map[action] || action;
@@ -115,7 +115,6 @@ const AUDIT_ACTION_OPTIONS = [
   { value: 'subscription_adjust', label: '订阅调整' },
   { value: 'user_note', label: '备注更新' },
   { value: 'refund_note', label: '退款备注' },
-  { value: 'withdrawal_note', label: '提现备注' },
   { value: 'password_reset', label: '密码重置' },
 ];
 
@@ -227,8 +226,8 @@ export default function AdminPage() {
   const [pwReason, setPwReason] = useState('');
   const [pwConfirmEmail, setPwConfirmEmail] = useState('');
 
-  // Refund / withdrawal note form
-  const [opKind, setOpKind] = useState<'refund_note' | 'withdrawal_note'>('refund_note');
+  // Refund note form
+  const [opKind] = useState<'refund_note'>('refund_note');
   const [opAmount, setOpAmount] = useState('');
   const [opChannel, setOpChannel] = useState('');
   const [opNote, setOpNote] = useState('');
@@ -448,11 +447,12 @@ export default function AdminPage() {
       showToast('付费套餐必须设置到期时间', 'error'); return;
     }
 
-    // Mirror backend: downgrade-to-free or shortened expiry requires email confirm.
+    // Mirror backend: downgrade to free/trial or shortened expiry requires email confirm.
     const oldExpiry = detail.user.subscriptionExpiresAt ? new Date(detail.user.subscriptionExpiresAt).getTime() : null;
-    const newExpiry = subPkg === 'free' ? null : (subExpires ? new Date(subExpires).getTime() : null);
-    const isDowngradeToFree = subPkg === 'free' && detail.user.packageType !== 'free';
-    const isShorten = subPkg !== 'free' && oldExpiry !== null && newExpiry !== null && newExpiry < oldExpiry;
+    const needsExpiry = subPkg === 'pro' || subPkg === 'max';
+    const newExpiry = needsExpiry ? (subExpires ? new Date(subExpires).getTime() : null) : null;
+    const isDowngradeToFree = (subPkg === 'free' || subPkg === 'trial') && detail.user.packageType !== 'free' && detail.user.packageType !== 'trial';
+    const isShorten = needsExpiry && oldExpiry !== null && newExpiry !== null && newExpiry < oldExpiry;
     const requiresConfirm = isDowngradeToFree || isShorten;
     if (requiresConfirm && subConfirmEmail.trim().toLowerCase() !== detail.user.email.toLowerCase()) {
       showToast('降级或缩短到期时间需输入正确的目标用户邮箱确认', 'error'); return;
@@ -465,7 +465,7 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           packageType: subPkg,
-          subscriptionExpiresAt: subPkg === 'free' ? null : new Date(subExpires).toISOString(),
+          subscriptionExpiresAt: (subPkg === 'pro' || subPkg === 'max') ? new Date(subExpires).toISOString() : null,
           reason: subReason.trim(),
           confirmEmail: subConfirmEmail.trim(),
         }),
@@ -515,7 +515,7 @@ export default function AdminPage() {
     }
   };
 
-  // Refund / withdrawal note
+  // Refund note
   const handleOperationNote = async () => {
     if (!detail) return;
     const amount = parseFloat(opAmount);
@@ -538,7 +538,7 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || '操作失败', 'error'); return; }
-      showToast(opKind === 'refund_note' ? '退款备注已记录' : '提现备注已记录', 'success');
+      showToast('退款备注已记录', 'success');
       setOpAmount('');
       setOpChannel('');
       setOpNote('');
@@ -905,6 +905,7 @@ export default function AdminPage() {
                             className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/40"
                           >
                             <option value="free">免费版 (free)</option>
+                            <option value="trial">体验版 (trial)</option>
                             <option value="pro">专业版 (pro)</option>
                             <option value="max">高级版 (max)</option>
                           </select>
@@ -915,7 +916,7 @@ export default function AdminPage() {
                             type="datetime-local"
                             value={subExpires}
                             onChange={e => setSubExpires(e.target.value)}
-                            disabled={subPkg === 'free'}
+                            disabled={subPkg === 'free' || subPkg === 'trial'}
                             className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/40 disabled:opacity-40"
                           />
                         </div>
@@ -932,9 +933,10 @@ export default function AdminPage() {
                       </div>
                       {(() => {
                         const oldExp = detail.user.subscriptionExpiresAt ? new Date(detail.user.subscriptionExpiresAt).getTime() : null;
-                        const newExp = subPkg === 'free' ? null : (subExpires ? new Date(subExpires).getTime() : null);
-                        const downgrade = subPkg === 'free' && detail.user.packageType !== 'free';
-                        const shorten = subPkg !== 'free' && oldExp !== null && newExp !== null && newExp < oldExp;
+                        const needsExpiry = subPkg === 'pro' || subPkg === 'max';
+                        const newExp = needsExpiry ? (subExpires ? new Date(subExpires).getTime() : null) : null;
+                        const downgrade = (subPkg === 'free' || subPkg === 'trial') && detail.user.packageType !== 'free' && detail.user.packageType !== 'trial';
+                        const shorten = needsExpiry && oldExp !== null && newExp !== null && newExp < oldExp;
                         if (!downgrade && !shorten) return null;
                         return (
                           <div className="mt-4">
@@ -1049,26 +1051,19 @@ export default function AdminPage() {
                       <p className="mt-2 text-[10px] text-slate-500">密码以哈希形式存储，不会被记录或返回。请通过可靠渠道告知用户。</p>
                     </div>
 
-                    {/* Refund / Withdrawal Note */}
+                    {/* Refund Note */}
                     <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
                       <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                        {opKind === 'refund_note'
-                          ? <Undo2 className="w-4 h-4 text-cyan-400" />
-                          : <Banknote className="w-4 h-4 text-cyan-400" />}
-                        退款 / 提现备注
+                        <Undo2 className="w-4 h-4 text-cyan-400" />
+                        退款备注
                         <span className="text-[10px] text-slate-500 font-normal">仅记录，不触发实际资金操作</span>
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div>
                           <label className="text-[10px] text-slate-400 uppercase mb-1 block">类型</label>
-                          <select
-                            value={opKind}
-                            onChange={e => setOpKind(e.target.value as 'refund_note' | 'withdrawal_note')}
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/40"
-                          >
-                            <option value="refund_note">退款备注</option>
-                            <option value="withdrawal_note">提现备注</option>
-                          </select>
+                          <div className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200">
+                            退款备注
+                          </div>
                         </div>
                         <div>
                           <label className="text-[10px] text-slate-400 uppercase mb-1 block">金额</label>

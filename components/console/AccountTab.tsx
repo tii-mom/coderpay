@@ -71,7 +71,9 @@ export function AccountTab({ state, onTriggerToast, db }: AccountTabProps) {
     ? '高级版' 
     : state.packageType === 'pro' 
       ? '专业版' 
-      : '免费调试版';
+      : state.packageType === 'trial'
+        ? '体验版'
+        : '免费调试版';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start text-left animate-fade-in" id="account-tab-panel">

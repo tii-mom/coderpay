@@ -6,6 +6,7 @@ import { amountFromCents, centsFromAmount, deviceSignaturePayload, formatAmount,
 import { calculateFeeCents } from "@/lib/billing-plans";
 import { triggerWebhook } from "@/lib/webhook";
 import { getRechargePromotion, getRechargePromotionDescription, getRechargePromotionUpdate } from "@/lib/recharge-promotions";
+import { buildReferralRewardStatements } from "@/lib/referrals";
 
 export async function GET(req: NextRequest) {
   try {
@@ -209,6 +210,13 @@ export async function POST(req: NextRequest) {
               )
             );
           }
+          financialWrites.push(
+            ...(await buildReferralRewardStatements(db, {
+              id: rechargeOrder.id,
+              userId: rechargeOrder.userId,
+              amountCents: Number(rechargeOrder.amountCents),
+            }, nowIso))
+          );
         }
       }
     } else if (rechargeCandidates.length > 1) {

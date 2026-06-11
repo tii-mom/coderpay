@@ -8,6 +8,7 @@ import {
   getRechargePromotionDescription,
   getRechargePromotionUpdate,
 } from "@/lib/recharge-promotions";
+import { buildReferralRewardStatements } from "@/lib/referrals";
 
 // Manually confirm a real recharge payment that the automatic notification
 // matcher missed (e.g. RC96251105). Admin-only, requires typing the target
@@ -192,6 +193,14 @@ export async function POST(
           nowIso,
           rechargeId
         )
+    );
+
+    writes.push(
+      ...(await buildReferralRewardStatements(db, {
+        id: rechargeId,
+        userId: user.id,
+        amountCents: Number(recharge.amountCents),
+      }, nowIso, { requireRechargeNotSuccess: true }))
     );
 
     writes.push(

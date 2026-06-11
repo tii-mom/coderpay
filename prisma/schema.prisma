@@ -19,12 +19,15 @@ model User {
   passwordResetTokenHash String?
   passwordResetExpiresAt DateTime?
   feeBalance   Float           @default(0)
-  packageType  String          @default("free") // free, pro, max
+  packageType  String          @default("free") // free, trial, pro, max
   freeOrderUsed Int            @default(0)
   subscriptionStartedAt DateTime?
   subscriptionExpiresAt DateTime?
   firstProDiscountUsed Boolean @default(false)
   firstMaxDiscountUsed Boolean @default(false)
+  inviteCode   String?         @unique
+  referredByUserId String?
+  referredAt   DateTime?
   adminNote    String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
@@ -34,6 +37,7 @@ model User {
   exceptions   ExceptionItem[]
   billings     BillingRecord[]
   rechargeOrders RechargeOrder[]
+  referralRewards ReferralReward[]
 }
 
 model App {
@@ -193,6 +197,27 @@ model RechargeOrder {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   paymentCodeId String?
   paymentCode   PaymentCode? @relation(fields: [paymentCodeId], references: [id], onDelete: SetNull)
+  confirmMode   String   @default("auto") // auto / manual
+}
+
+model ReferralReward {
+  id                String    @id @default(uuid())
+  rechargeOrderId   String
+  invitedUserId     String
+  beneficiaryUserId String
+  beneficiary       User      @relation(fields: [beneficiaryUserId], references: [id], onDelete: Cascade)
+  depth             Int
+  tier              String
+  rateBps           Int
+  baseAmountCents   Int
+  rewardCents       Int
+  status            String    @default("pending") // pending / credited / void
+  createdAt         DateTime  @default(now())
+  creditedAt        DateTime?
+
+  @@unique([rechargeOrderId, beneficiaryUserId, depth])
+  @@index([beneficiaryUserId, createdAt])
+  @@index([invitedUserId])
 }
 
 model AdminAuditLog {

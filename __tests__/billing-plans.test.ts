@@ -38,6 +38,15 @@ describe("billing plans", () => {
     expect(calculateFeeCents(1, { packageType: "free" })).toBe(0);
   });
 
+  it("supports a subscription-free trial plan with 1.98% fee and 0.10 minimum", () => {
+    expect(calculateFeeCents(100, { packageType: "trial" })).toBe(10);
+    expect(calculateFeeCents(10000, { packageType: "trial" })).toBe(198);
+    expect(assertCanCreateOrder({ id: "u1", feeBalance: 1, freeOrderUsed: 10, packageType: "trial" })).toEqual({
+      mode: "subscription",
+      shouldIncrementFreeOrder: false,
+    });
+  });
+
   it("enforces order amount limit checks by package type", () => {
     // Pro limit is 10,000.00 CNY (1,000,000 cents)
     expect(() => assertOrderAmountWithinPlanLimit(1000000, "pro")).not.toThrow();

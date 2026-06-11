@@ -327,6 +327,25 @@ describe("Admin API — adjust-subscription validation", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("allows trial plan without subscription expiry", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/users/[id]/adjust-subscription/route"
+    );
+    const res = await POST(
+      makeRequest(
+        "http://localhost/api/admin/users/target-1/adjust-subscription",
+        "POST",
+        {
+          packageType: "trial",
+          subscriptionExpiresAt: null,
+          reason: "switch to subscription-free trial",
+        }
+      ),
+      { params: Promise.resolve({ id: "target-1" }) }
+    );
+    expect(res.status).toBe(200);
+  });
 });
 
 describe("Admin API — user detail security", () => {
@@ -427,6 +446,21 @@ describe("Admin API — confirmEmail enforcement", () => {
       { params: Promise.resolve({ id: "target-1" }) }
     );
     expect(res.status).toBe(200);
+  });
+
+  it("subscription downgrade to trial requires matching confirmEmail", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/users/[id]/adjust-subscription/route"
+    );
+    const res = await POST(
+      makeRequest(
+        "http://localhost/api/admin/users/target-1/adjust-subscription",
+        "POST",
+        { packageType: "trial", reason: "downgrade", confirmEmail: "wrong@example.com" }
+      ),
+      { params: Promise.resolve({ id: "target-1" }) }
+    );
+    expect(res.status).toBe(400);
   });
 });
 

@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
         pay_type: rechargeOrder.payType,
         expired_at: rechargeOrder.expiresAt.toISOString(),
         payment_code: rechargeOrder.paymentCode,
+        requires_manual_confirm: Boolean((rechargeOrder as any).requiresManualConfirm),
         promotion
       }
     });

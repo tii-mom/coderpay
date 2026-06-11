@@ -6,6 +6,7 @@ import { triggerWebhook } from "@/lib/webhook";
 import { centsToAmount, getOrderAmountCents, getOrderRealAmountCents } from "@/lib/money";
 import { getOrderExpiresAt } from "@/lib/payment-matching";
 import { chargeOrderFee } from "@/lib/billing";
+import { isDeviceReadyForRecharge } from "@/lib/recharge";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -41,22 +42,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         where: { id },
         include: {
           paymentCode: {
-            select: {
-              type: true,
-              codeType: true,
-              amount: true,
-              imageUrl: true,
-              alipayUserId: true,
-              qrPayload: true,
-              directPayUrl: true,
-              directPayMode: true,
-            }
+            include: { device: true },
           }
         }
       });
       if (!rechargeOrder) {
         return NextResponse.json({ error: "Order not found" }, { status: 404 });
       }
+      const { device: _device, ...paymentCode } = rechargeOrder.paymentCode || {};
+      const autoConfirmAvailable = rechargeOrder.paymentCode
+        ? isDeviceReadyForRecharge(
+            { device: rechargeOrder.paymentCode.device },
+            rechargeOrder.payType as "wechat" | "alipay",
+            new Date(Date.now() - 3 * 60 * 1000)
+          )
+        : false;
       return NextResponse.json({
         id: rechargeOrder.id,
         outOrderNo: rechargeOrder.id,
@@ -71,7 +71,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         expiresAt: rechargeOrder.expiresAt,
         payTime: rechargeOrder.payTime,
         webhookStatus: "unsent",
-        confirmMode: "auto",
+        confirmMode: autoConfirmAvailable ? "auto" : "manual",
+        requiresManualConfirm: !autoConfirmAvailable,
         manualConfirmedAt: null,
         manualConfirmedBy: null,
         manualConfirmNote: null,
@@ -81,7 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           returnUrl: "/console",
           feedbackUrl: null,
         },
-        paymentCode: rechargeOrder.paymentCode,
+        paymentCode,
         orderType: "recharge",
       });
     }

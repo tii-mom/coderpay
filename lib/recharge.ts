@@ -6,7 +6,7 @@ import { getRechargePromotion, getRechargePromotionDescription, getRechargePromo
 
 const RECHARGE_EXPIRE_MINUTES = 10;
 
-function isDeviceReadyForRecharge(
+export function isDeviceReadyForRecharge(
   code: {
     device?: {
       online: boolean;
@@ -68,14 +68,16 @@ export async function selectRechargePaymentChannel({
 
   const threeMinutesAgo = new Date(now.getTime() - 3 * 60 * 1000);
   const onlineCodes = activeCodes.filter(c => isDeviceReadyForRecharge(c, payType, threeMinutesAgo));
-  if (onlineCodes.length === 0) {
-    throw Object.assign(new Error("No online platform recharge Watcher device available"), { status: 503 });
-  }
-  const fallbackCodes = onlineCodes;
-  const fixedCode = fallbackCodes.find(c => c.codeType === "fixed" && Math.round(c.amount * 100) === amountCents);
-  if (fixedCode) return { selectedCode: fixedCode, realAmountCents: amountCents };
+  const onlineFixedCode = onlineCodes.find(c => c.codeType === "fixed" && Math.round(c.amount * 100) === amountCents);
+  if (onlineFixedCode) return { selectedCode: onlineFixedCode, realAmountCents: amountCents, requiresManualConfirm: false };
 
-  const anyCodes = fallbackCodes.filter(c => c.codeType === "any");
+  const offlineFixedCode = activeCodes.find(c => c.codeType === "fixed" && Math.round(c.amount * 100) === amountCents);
+  if (offlineFixedCode) return { selectedCode: offlineFixedCode, realAmountCents: amountCents, requiresManualConfirm: true };
+
+  const onlineAnyCodes = onlineCodes.filter(c => c.codeType === "any");
+  const activeAnyCodes = activeCodes.filter(c => c.codeType === "any");
+  const requiresManualConfirm = onlineAnyCodes.length === 0;
+  const anyCodes = requiresManualConfirm ? activeAnyCodes : onlineAnyCodes;
   if (anyCodes.length === 0) {
     throw Object.assign(new Error("No platform recharge any-amount payment code configured"), { status: 503 });
   }
@@ -111,7 +113,7 @@ export async function selectRechargePaymentChannel({
   for (const offset of offsets) {
     const candidate = amountCents + offset;
     if (candidate >= 1 && !occupied.has(candidate)) {
-      return { selectedCode, realAmountCents: candidate };
+      return { selectedCode, realAmountCents: candidate, requiresManualConfirm };
     }
   }
 
@@ -143,9 +145,10 @@ export async function createRechargeOrder({
       expiresAt,
       userId,
       paymentCodeId: channel.selectedCode.id,
+      confirmMode: channel.requiresManualConfirm ? "manual" : "auto",
     },
     include: { paymentCode: true },
-  });
+  }).then((order) => Object.assign(order, { requiresManualConfirm: channel.requiresManualConfirm }));
 }
 
 export async function matchRechargeOrder({

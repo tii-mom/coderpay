@@ -15,6 +15,10 @@ export function centsToBillingAmount(cents: number) {
   return Number((cents / 100).toFixed(2));
 }
 
+function formatRatePercent(rate: number) {
+  return Number((rate * 100).toFixed(2)).toString();
+}
+
 export async function chargeOrderFee(tx: BillingTx, user: ChargeUser, order: { id: string; amount: number; amountCents?: number | null }) {
   const amountCents = getOrderAmountCents(order);
   const feeCents = calculateFeeCents(amountCents, user);
@@ -33,7 +37,7 @@ export async function chargeOrderFee(tx: BillingTx, user: ChargeUser, order: { i
       type: "fee",
       amount: -fee,
       balance: updatedUser.feeBalance,
-      description: `技术服务费扣除 (${(rate * 100).toFixed(1)}%): 订单 ${order.id}, 金额 ${formatCents(amountCents)} 元`,
+      description: `技术服务费扣除 (${formatRatePercent(rate)}%): 订单 ${order.id}, 金额 ${formatCents(amountCents)} 元`,
       userId: user.id,
     },
   });

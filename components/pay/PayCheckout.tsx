@@ -192,7 +192,7 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
   // Switch WeChat/Alipay Payment Code matches
   const qrUrl = paymentCode?.imageUrl || '';
   const isRechargeOrder = order?.orderType === 'recharge';
-  const isManualMode = !isRechargeOrder && order?.confirmMode === 'manual';
+  const isManualMode = order?.confirmMode === 'manual' || Boolean(order?.requiresManualConfirm);
   const directPayLabel = activeChannel === 'alipay' ? '打开支付宝付款' : '尝试打开微信付款';
   const directPayMode = activeChannel === 'alipay' && paymentCode?.alipayUserId
     ? 'alipay_to_account'
@@ -271,7 +271,7 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
             <h3 className="text-base font-bold text-emerald-800">支付已核销入账</h3>
             <p className="text-[11px] text-slate-500 mt-1 max-w-xs leading-relaxed">
               {isRechargeOrder
-                ? '充值款项已到账，账户余额已自动入账。'
+                ? '充值款项已到账，账户余额已入账。'
                 : order.manualConfirmedAt
                   ? '商户已人工确认收款，订单已完成。'
                   : '您的款项已直达开发者个人账户。免签心跳探针已成功激发到账上报。'}
@@ -417,11 +417,19 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
               {paymentCode?.codeType === 'fixed' ? (
                 <p className="mt-1 font-medium text-slate-600">该二维码为固定金额码，请支付页面显示的固定金额。</p>
               ) : (
-                <p className="mt-1 font-medium text-slate-600">{isManualMode ? '请不要多付或少付尾数分钱，商户将按该金额核对到账。' : '系统全自动侦测到账通知，请不要多付或少付尾数分钱。'}</p>
+                <p className="mt-1 font-medium text-slate-600">
+                  {isManualMode
+                    ? isRechargeOrder
+                      ? '请不要多付或少付尾数分钱，管理员将按该金额核对到账。'
+                      : '请不要多付或少付尾数分钱，商户将按该金额核对到账。'
+                    : '系统全自动侦测到账通知，请不要多付或少付尾数分钱。'}
+                </p>
               )}
               {isManualMode && (
                 <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 font-semibold">
-                  当前商户设备离线，付款后需要商户人工确认。请保留付款凭证或联系商户。
+                  {isRechargeOrder
+                    ? '当前平台收款手机离线或监听未就绪，付款后需要管理员在后台人工确认入账。请保留付款凭证并联系管理员。'
+                    : '当前商户设备离线，付款后需要商户人工确认。请保留付款凭证或联系商户。'}
                 </p>
               )}
             </div>

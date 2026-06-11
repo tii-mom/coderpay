@@ -5,6 +5,7 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import { getAuthD1 } from "@/lib/auth-d1";
 import { addMinutes, createRawToken, hashAuthToken } from "@/lib/auth-tokens";
 import { assertEmailConfigured, buildVerificationEmail, sendEmail } from "@/lib/email";
+import { createUniqueInviteCode, normalizeInviteCode } from "@/lib/referrals";
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -20,9 +21,10 @@ export async function POST(req: NextRequest) {
     const limited = enforceRateLimit(req, { name: "auth:register", limit: 5, windowMs: 300_000 });
     if (limited) return limited;
 
-    const { email, password } = await req.json();
+    const { email, password, inviteCode, invite_code } = await req.json();
     const normalizedEmail = normalizeEmail(String(email || ""));
     const rawPassword = String(password || "");
+    const normalizedInviteCode = normalizeInviteCode(inviteCode || invite_code);
 
     if (!isValidEmail(normalizedEmail)) {
       return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
@@ -40,6 +42,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Account already exists" }, { status: 409 });
     }
 
+    let referrer: { id: string; email: string } | null = null;
+    if (normalizedInviteCode) {
+      referrer = await db.prepare(`SELECT id, email FROM User WHERE inviteCode = ? LIMIT 1`)
+        .bind(normalizedInviteCode)
+        .first<{ id: string; email: string }>();
+      if (!referrer) {
+        return NextResponse.json({ error: "Invalid inviteCode" }, { status: 400 });
+      }
+      if (normalizeEmail(referrer.email) === normalizedEmail) {
+        return NextResponse.json({ error: "Cannot use your own inviteCode" }, { status: 400 });
+      }
+    }
+
     const token = createRawToken();
     const user = {
       id: crypto.randomUUID(),
@@ -48,18 +63,22 @@ export async function POST(req: NextRequest) {
       feeBalance: 0,
     };
     const now = new Date().toISOString();
+    const userInviteCode = await createUniqueInviteCode(db);
 
     await db.prepare(`
       INSERT INTO User (
         id, email, passwordHash, emailVerifyTokenHash, emailVerifyExpiresAt, feeBalance, packageType,
-        freeOrderUsed, firstProDiscountUsed, firstMaxDiscountUsed, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, 0, 'free', 0, 0, 0, ?, ?)
+        freeOrderUsed, firstProDiscountUsed, firstMaxDiscountUsed, inviteCode, referredByUserId, referredAt, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, 0, 'free', 0, 0, 0, ?, ?, ?, ?, ?)
     `).bind(
       user.id,
       user.email,
       user.passwordHash,
       await hashAuthToken(token),
       addMinutes(new Date(), 24 * 60).toISOString(),
+      userInviteCode,
+      referrer?.id ?? null,
+      referrer ? now : null,
       now,
       now
     ).run();
@@ -73,6 +92,7 @@ export async function POST(req: NextRequest) {
         id: user.id,
         email: user.email,
         feeBalance: user.feeBalance,
+        inviteCode: userInviteCode,
       },
     });
   } catch (err) {

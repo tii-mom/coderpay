@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrderExpiresAt } from "@/lib/payment-matching";
 import { centsToAmount, getOrderRealAmountCents } from "@/lib/money";
+import { isDeviceReadyForRecharge } from "@/lib/recharge";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -42,16 +43,28 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           realAmount: true,
           realAmountCents: true,
           expiresAt: true,
+          payType: true,
+          paymentCode: {
+            include: { device: true },
+          },
         }
       });
       if (!rechargeOrder) {
         return NextResponse.json({ error: "Order not found" }, { status: 404 });
       }
+      const autoConfirmAvailable = rechargeOrder.paymentCode
+        ? isDeviceReadyForRecharge(
+            { device: rechargeOrder.paymentCode.device },
+            rechargeOrder.payType as "wechat" | "alipay",
+            new Date(Date.now() - 3 * 60 * 1000)
+          )
+        : false;
       return NextResponse.json({
         ...rechargeOrder,
         status: rechargeOrder.status === "pending" && rechargeOrder.expiresAt.getTime() <= Date.now() ? "expired" : rechargeOrder.status,
         webhookStatus: "unsent",
-        confirmMode: "auto",
+        confirmMode: autoConfirmAvailable ? "auto" : "manual",
+        requiresManualConfirm: !autoConfirmAvailable,
         manualConfirmedAt: null,
         manualConfirmedBy: null,
         manualConfirmNote: null,

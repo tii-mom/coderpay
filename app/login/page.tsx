@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import { usePaymentState } from '@/hooks/use-payment-state';
-import { Lock, Mail, ShieldAlert, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { Gift, Lock, Mail, ShieldAlert, CheckCircle, Eye, EyeOff, X } from 'lucide-react';
 
 function getAuthErrorMessage(error?: string) {
   switch (error) {
@@ -28,6 +28,10 @@ function getAuthErrorMessage(error?: string) {
       return '邮箱尚未验证，请先打开验证邮件完成验证';
     case 'Email service is not configured':
       return '邮件服务尚未配置，暂时无法注册新账号';
+    case 'Invalid inviteCode':
+      return '邀请码无效，请确认邀请链接是否完整';
+    case 'Cannot use your own inviteCode':
+      return '不能使用自己的邀请码注册';
     case 'Internal server error':
       return '服务器暂时无法完成请求，请稍后重试或联系管理员';
     default:
@@ -50,11 +54,19 @@ export default function LoginPage() {
   const [successText, setSuccessText] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setMounted(true);
       setIdentifier(localStorage.getItem('coderpay:last-login') || '');
+      const ref = new URLSearchParams(window.location.search).get('ref') || localStorage.getItem('coderpay:invite-code') || '';
+      const normalizedRef = ref.trim().toUpperCase();
+      if (normalizedRef) {
+        localStorage.setItem('coderpay:invite-code', normalizedRef);
+        setInviteCode(normalizedRef);
+        setIsLogin(false);
+      }
     }, 0);
     return () => clearTimeout(timer);
   }, []);
@@ -92,12 +104,13 @@ export default function LoginPage() {
           router.push(redirectTarget);
         }, 500);
       } else {
-        const result = await db.register(identifier, password);
+        const result = await db.register(identifier, password, inviteCode || undefined);
         if (!result.ok) {
           setErrorText(getAuthErrorMessage(result.error));
           return;
         }
         localStorage.setItem('coderpay:last-login', identifier);
+        localStorage.removeItem('coderpay:invite-code');
         setSuccessText('注册成功，请打开验证邮件完成邮箱验证后再登录。');
       }
     } catch {
@@ -200,6 +213,40 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
+
+            {!isLogin && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-slate-300">邀请码（选填）</label>
+                <div className="relative">
+                  <Gift className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-amber-400" />
+                  <input
+                    type="text"
+                    value={inviteCode}
+                    onChange={(e) => {
+                      const normalized = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+                      setInviteCode(normalized);
+                      if (normalized) localStorage.setItem('coderpay:invite-code', normalized);
+                      else localStorage.removeItem('coderpay:invite-code');
+                    }}
+                    placeholder="有邀请链接会自动填入"
+                    className="w-full pl-11 pr-11 py-3 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all font-mono"
+                  />
+                  {inviteCode && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        localStorage.removeItem('coderpay:invite-code');
+                        setInviteCode('');
+                      }}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 focus:outline-none"
+                      aria-label="清除邀请码"
+                    >
+                      <X className="w-4.5 h-4.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Error & Success Alert states */}
             {errorText && (
