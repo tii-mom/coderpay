@@ -18,7 +18,8 @@ const FUNCTIONS_DIR = path.join(OUTPUT_DIR, 'functions')
 // Marker strings that must exist in the built functions. Each maps a critical
 // fix to a unique string the bundler preserves (user-facing text / log lines).
 const REQUIRED_MARKERS = [
-  { label: 'P0-1 webhook callback on /api/events', needle: 'Error triggering webhook in background', file: 'api/events.func/index.js' },
+  { label: 'P0-1 webhook status machine skip guard', needle: 'webhook_status_', file: 'api/events.func/index.js' },
+  { label: 'P0-1 webhook dispatcher failure path', needle: 'dispatcher_error', file: 'api/events.func/index.js' },
   { label: 'P0-2 full-email-only login', needle: '请输入完整的注册邮箱', file: 'api/auth/login.func/index.js' },
   { label: 'P1-5 expired_payment branch', needle: '但订单已过期', file: 'api/events.func/index.js' },
 ]
@@ -89,4 +90,3 @@ if (process.argv.includes('--dry-run')) {
 }
 run('npx', deployArgs, `Deploy to Cloudflare Pages (${PROJECT_NAME})`)
 console.log('\n✓ Deployment complete. Verify the production alias and run smoke tests.')
-
