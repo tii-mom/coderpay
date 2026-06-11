@@ -1150,8 +1150,12 @@ class MainActivity : ComponentActivity() {
                                 items(data!!.orders) { order ->
                                     OrderCard(order)
                                 }
-                                item { MetricRow("充值订单", "${data!!.rechargeOrders.size}", "最近 30 笔充值") }
+                                item { MetricRow("我的充值", "${data!!.rechargeOrders.size}", "当前开发者账户发起") }
                                 items(data!!.rechargeOrders) { order ->
+                                    RechargeOrderCard(order)
+                                }
+                                item { MetricRow("平台代收充值", "${data!!.incomingRechargeOrders.size}", "使用本机收款码入账") }
+                                items(data!!.incomingRechargeOrders) { order ->
                                     RechargeOrderCard(order)
                                 }
                                 if (data!!.orders.isEmpty()) item { EmptyCard("暂无订单", "开发者服务端创建订单后，最近订单会同步到这里。") }
@@ -1612,7 +1616,8 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun RechargeOrderCard(order: cn.coderpay.watcher.api.MobileRechargeOrder) {
-        val color = statusColor(order.status)
+        val effectiveStatus = order.displayStatus ?: order.status
+        val color = statusColor(effectiveStatus)
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CpPanel),
@@ -1629,7 +1634,10 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("账户余额充值", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CpText, maxLines = 1)
-                        Text("${payTypeLabel(order.payType)} · ${statusLabel(order.status)}", fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold)
+                        Text("${payTypeLabel(order.payType)} · ${statusLabel(effectiveStatus)}", fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold)
+                        order.rechargeUserEmail?.let {
+                            Text("充值人 $it", fontSize = 10.sp, color = CpMuted, maxLines = 1)
+                        }
                         Text(order.id, fontSize = 10.sp, color = CpSubtle, maxLines = 1)
                     }
                     Column(horizontalAlignment = Alignment.End) {

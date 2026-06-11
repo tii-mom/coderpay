@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { PaymentCode, Device } from '@/types';
-import { buildAlipayQrScheme, extractAlipayUserId } from '@/lib/direct-pay';
+import { buildAlipayQrScheme, extractAlipayUserId, extractAmountFromQrPayload, getPaymentCodeCapability } from '@/lib/direct-pay';
 import { 
   Plus, 
   Trash2, 
@@ -72,6 +72,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
   const [alipayUserId, setAlipayUserId] = useState('');
   const [qrPayload, setQrPayload] = useState('');
   const [directPayUrl, setDirectPayUrl] = useState('');
+  const [qrAnalysis, setQrAnalysis] = useState('');
 
   // Loader state
   const [isLoadingCodeOperation, setIsLoadingCodeOperation] = useState(false);
@@ -97,6 +98,11 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
       const decodedPayload = await decodeQrCodeFromFile(file);
       if (decodedPayload) {
         setQrPayload(decodedPayload);
+        const detectedAmount = extractAmountFromQrPayload(decodedPayload);
+        if (detectedAmount != null) {
+          setCodeType('fixed');
+          setAmount(detectedAmount);
+        }
 
         if (type === 'alipay') {
           const extractedUserId = extractAlipayUserId(decodedPayload);
@@ -111,13 +117,25 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
         } else {
           setDirectPayUrl(decodedPayload);
         }
+        const capability = getPaymentCodeCapability({
+          type,
+          alipayUserId: type === 'alipay' ? (extractAlipayUserId(decodedPayload) || alipayUserId) : null,
+          qrPayload: decodedPayload,
+          directPayUrl: type === 'alipay' && (decodedPayload.startsWith('https://qr.alipay.com/') || decodedPayload.startsWith('http://qr.alipay.com/'))
+            ? buildAlipayQrScheme(decodedPayload)
+            : decodedPayload,
+        }, 'mobile');
+        setQrAnalysis(`${capability.label}${detectedAmount != null ? ` · 已识别固定金额 ¥${detectedAmount.toFixed(2)}` : ' · 未识别固定金额'}`);
         onTriggerToast(
           type === 'alipay'
-            ? '已解析支付宝收款码。若补充支付宝 PID，买家可直接打开转账页并自动带入金额。'
+            ? detectedAmount != null
+              ? `已解析支付宝收款码，并识别固定金额 ¥${detectedAmount.toFixed(2)}。`
+              : '已解析支付宝收款码。若补充支付宝 PID，买家可直接打开转账页并自动带入金额。'
             : '已解析微信收款码内容，收银台将优先尝试唤起微信，失败时保留二维码兜底。',
           'success'
         );
       } else {
+        setQrAnalysis('未能解析二维码内容。仍可保存图片作为二维码兜底，但无法自动判断直达能力或固定金额。');
         onTriggerToast('未能从图片中解析出二维码内容，您可以稍后手动填写。', 'warning');
       }
 
@@ -181,6 +199,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
       setAlipayUserId('');
       setQrPayload('');
       setDirectPayUrl('');
+      setQrAnalysis('');
       setActiveTab('list');
     } finally {
       setIsLoadingCodeOperation(false);
@@ -379,6 +398,17 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
                     <span className="text-[10px] leading-relaxed text-slate-500 break-all">
                       已生成可访问图片地址，提交后将作为收银台展示二维码使用。
                     </span>
+                  </div>
+                )}
+                {qrAnalysis && (
+                  <div className="mt-2 rounded-xl border border-blue-500/20 bg-blue-950/20 p-3 text-[10px] leading-relaxed text-blue-200">
+                    <span className="font-bold text-blue-300 block mb-1">二维码识别结果</span>
+                    {qrAnalysis}
+                    {type === 'alipay' && !alipayUserId && (
+                      <span className="block mt-1 text-amber-300">
+                        未识别到支付宝 PID。可唤起支付宝识别收款码，但不能保证金额自动预填。
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

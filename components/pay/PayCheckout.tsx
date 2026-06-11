@@ -32,9 +32,11 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
   const [secondsLeft, setSecondsLeft] = useState(300);
   const [hasAutoRedirected, setHasAutoRedirected] = useState(false);
   const [queryCount, setQueryCount] = useState(0);
+  const [isMobileRuntime, setIsMobileRuntime] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    setIsMobileRuntime(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
     if (!providedOrderId) {
       const idFromSearch = new URLSearchParams(window.location.search).get('id');
       if (idFromSearch) {
@@ -143,8 +145,7 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
   useEffect(() => {
     if (!order || order.status !== 'pending' || !directPayUrl || hasAutoRedirected) return;
 
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (!isMobile) return;
+    if (!isMobileRuntime) return;
 
     setHasAutoRedirected(true);
 
@@ -153,7 +154,7 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [order, directPayUrl, activeChannel, hasAutoRedirected]);
+  }, [order, directPayUrl, activeChannel, hasAutoRedirected, isMobileRuntime]);
 
   if (!mounted) {
     return <div className="min-h-screen bg-[#F1F5F9]" />;
@@ -196,12 +197,15 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
   const directPayMode = activeChannel === 'alipay' && paymentCode?.alipayUserId
     ? 'alipay_to_account'
     : paymentCode?.directPayMode;
+  const showDirectPayButton = !!directPayUrl && (isMobileRuntime || activeChannel !== 'alipay');
   const directPayHint = activeChannel === 'alipay'
-    ? paymentCode?.alipayUserId
-      ? `将尝试打开支付宝转账页，并自动带入应付金额 ¥${order.realAmount.toFixed(2)}。`
-      : directPayUrl
-        ? `将尝试打开支付宝识别收款码。请务必支付精确金额 ¥${order.realAmount.toFixed(2)}，否则可能无法自动匹配。`
-        : `当前支付宝收款码未配置直达信息，请使用二维码支付精确金额 ¥${order.realAmount.toFixed(2)}。`
+    ? isMobileRuntime
+      ? paymentCode?.alipayUserId
+        ? `将尝试打开支付宝转账页，并自动带入应付金额 ¥${order.realAmount.toFixed(2)}。`
+        : directPayUrl
+          ? `将尝试打开支付宝识别收款码。请务必支付精确金额 ¥${order.realAmount.toFixed(2)}，否则可能无法自动匹配。`
+          : `当前支付宝收款码未配置直达信息，请使用二维码支付精确金额 ¥${order.realAmount.toFixed(2)}。`
+      : `桌面浏览器无法稳定打开支付宝 App。请使用手机扫码，或在手机浏览器打开本页后支付精确金额 ¥${order.realAmount.toFixed(2)}。`
     : directPayUrl
       ? `微信个人收款直达受平台限制，按钮会尽力唤起微信；失败时请保存或扫码支付精确金额 ¥${order.realAmount.toFixed(2)}。`
       : `请使用微信扫码支付精确金额 ¥${order.realAmount.toFixed(2)}。`;
@@ -334,7 +338,7 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
               </button>
             </div>
 
-            {directPayUrl && (
+            {showDirectPayButton ? (
               <div className="mb-5 w-full max-w-[280px]">
                 <a
                   href={directPayUrl}
@@ -350,6 +354,10 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
                 }`}>
                   {directPayHint}
                 </div>
+              </div>
+            ) : (
+              <div className="mb-5 w-full max-w-[280px] rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-[10px] leading-relaxed text-amber-700">
+                {directPayHint}
               </div>
             )}
 

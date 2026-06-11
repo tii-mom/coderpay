@@ -2,6 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { getRechargeDisplayStatus } from "@/lib/recharge-status";
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,7 +27,10 @@ export async function GET(req: NextRequest) {
       firstProDiscountUsed: user.firstProDiscountUsed,
       firstMaxDiscountUsed: user.firstMaxDiscountUsed,
       records,
-      rechargeOrders
+      rechargeOrders: rechargeOrders.map((order) => ({
+        ...order,
+        displayStatus: getRechargeDisplayStatus(order),
+      }))
     });
   } catch (err) {
     console.error("API request failed:", err);

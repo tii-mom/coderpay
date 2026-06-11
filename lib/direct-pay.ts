@@ -17,6 +17,14 @@ export type CheckoutDirectPayInput = {
   directPayUrl?: string | null;
 };
 
+export type PaymentCodeCapability = {
+  canOpenApp: boolean;
+  canPrefillAmount: boolean;
+  needsAlipayUserId: boolean;
+  mode: DirectPayMode;
+  label: string;
+};
+
 function normalizeOptional(value: unknown) {
   const text = typeof value === "string" ? value.trim() : "";
   return text || null;
@@ -47,6 +55,32 @@ export function normalizeAlipayDirectUrl(url: string | null | undefined) {
 
 function hasPositiveAmount(amount: string | number | null | undefined) {
   return Number(amount) > 0;
+}
+
+function toAmount(value: string | null) {
+  if (!value) return null;
+  const decoded = decodeURIComponent(value).trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(decoded)) return null;
+  const amount = Number(decoded);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+export function extractAmountFromQrPayload(payload: string | null | undefined) {
+  const text = normalizeOptional(payload);
+  if (!text) return null;
+
+  try {
+    const url = new URL(text);
+    for (const key of ["amount", "money", "total_amount", "total_fee"]) {
+      const amount = toAmount(url.searchParams.get(key));
+      if (amount != null) return amount;
+    }
+  } catch {
+    // Not all QR payloads are full URLs. Fall back to parameter-style parsing.
+  }
+
+  const match = text.match(/(?:amount|money|total_amount|total_fee)=([0-9]+(?:\.[0-9]{1,2})?)/i);
+  return toAmount(match?.[1] ?? null);
 }
 
 export function normalizeDirectPayFields(input: DirectPayInput) {
@@ -108,4 +142,60 @@ export function resolveCheckoutDirectPayUrl(input: CheckoutDirectPayInput) {
   }
 
   return directPayUrl || qrPayload || "";
+}
+
+export function getPaymentCodeCapability(input: {
+  type: DirectPayType;
+  alipayUserId?: string | null;
+  qrPayload?: string | null;
+  directPayUrl?: string | null;
+  directPayMode?: DirectPayMode | null;
+}, runtimeEnvironment: "mobile" | "desktop" = "mobile"): PaymentCodeCapability {
+  const alipayUserId = normalizeOptional(input.alipayUserId);
+  const directPayUrl = normalizeOptional(input.directPayUrl);
+  const qrPayload = normalizeOptional(input.qrPayload);
+  const mode = input.directPayMode || normalizeDirectPayFields({
+    type: input.type,
+    alipayUserId,
+    directPayUrl,
+    qrPayload,
+  }).directPayMode;
+
+  if (input.type === "alipay" && alipayUserId) {
+    return {
+      canOpenApp: runtimeEnvironment === "mobile",
+      canPrefillAmount: true,
+      needsAlipayUserId: false,
+      mode: "alipay_to_account",
+      label: runtimeEnvironment === "mobile" ? "支付宝转账直达，金额可预填" : "手机端可直达支付宝转账",
+    };
+  }
+
+  if (input.type === "alipay" && (directPayUrl || qrPayload)) {
+    return {
+      canOpenApp: runtimeEnvironment === "mobile",
+      canPrefillAmount: false,
+      needsAlipayUserId: true,
+      mode: "alipay_qr",
+      label: runtimeEnvironment === "mobile" ? "可唤起支付宝识别收款码，金额需核对" : "桌面端建议扫码支付，补 PID 可金额预填",
+    };
+  }
+
+  if (input.type === "wechat" && (directPayUrl || qrPayload)) {
+    return {
+      canOpenApp: runtimeEnvironment === "mobile",
+      canPrefillAmount: false,
+      needsAlipayUserId: false,
+      mode: "wechat_qr",
+      label: runtimeEnvironment === "mobile" ? "可尝试唤起微信，失败时扫码兜底" : "微信个人码建议扫码支付",
+    };
+  }
+
+  return {
+    canOpenApp: false,
+    canPrefillAmount: false,
+    needsAlipayUserId: input.type === "alipay",
+    mode: "image_fallback",
+    label: "仅二维码兜底",
+  };
 }

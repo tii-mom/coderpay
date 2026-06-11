@@ -133,6 +133,8 @@ export interface RechargeOrder {
   realAmount: number;
   payType: 'wechat' | 'alipay';
   status: 'pending' | 'success' | 'expired' | 'failed';
+  displayStatus?: 'pending' | 'success' | 'expired' | 'failed';
+  rechargeUserEmail?: string;
   createdAt: string;
   expiresAt: string;
   payTime: string | null;

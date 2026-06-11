@@ -33,7 +33,13 @@ export function BillingTab({ plan, billingRecords, rechargeOrders, onTriggerToas
   const [planLoading, setPlanLoading] = useState(false);
   const [customFeeStr, setCustomFeeStr] = useState<string>('100');
   const [rechargePayType, setRechargePayType] = useState<'alipay' | 'wechat'>('alipay');
+  const [nowMs] = useState(() => Date.now());
   const rechargeAmounts = [10, 50, 100, 500, 5000, 10000];
+  const getRechargeStatus = (order: RechargeOrder) => {
+    if (order.displayStatus) return order.displayStatus;
+    if (order.status === 'pending' && new Date(order.expiresAt).getTime() <= nowMs) return 'expired';
+    return order.status;
+  };
 
   const handleRechargeTechnicalFee = async (amountVal: number) => {
     if (!Number.isFinite(amountVal) || amountVal <= 0) {
@@ -325,7 +331,9 @@ export function BillingTab({ plan, billingRecords, rechargeOrders, onTriggerToas
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[rgba(255,255,255,0.04)] text-slate-300">
-                  {rechargeOrders.map((order) => (
+                  {rechargeOrders.map((order) => {
+                    const displayStatus = getRechargeStatus(order);
+                    return (
                     <tr key={order.id} className="hover:bg-cp-hover/20">
                       <td className="py-3.5 px-5 font-mono text-slate-500 text-[11px] select-all">
                         {order.id}
@@ -347,20 +355,20 @@ export function BillingTab({ plan, billingRecords, rechargeOrders, onTriggerToas
                       </td>
                       <td className="py-3.5 px-4 font-sans">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                          order.status === 'success'
+                          displayStatus === 'success'
                             ? 'bg-emerald-950/40 border-emerald-500/20 text-emerald-400'
-                            : order.status === 'expired'
+                            : displayStatus === 'expired'
                               ? 'bg-slate-800 border-slate-700 text-slate-400'
                               : 'bg-amber-950/40 border-amber-500/20 text-amber-300 animate-pulse'
                         }`}>
-                          {order.status === 'success' ? '充值成功' : order.status === 'expired' ? '已过期' : '等待支付'}
+                          {displayStatus === 'success' ? '充值成功' : displayStatus === 'expired' ? '已过期' : '等待支付'}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 font-mono text-slate-500 text-[10px]">
                         {new Date(order.createdAt).toLocaleString()}
                       </td>
                       <td className="py-3.5 px-5 text-right">
-                        {order.status === 'pending' && (
+                        {displayStatus === 'pending' && (
                           <a
                             href={`/pay/checkout?id=${encodeURIComponent(order.id)}`}
                             target="_blank"
@@ -370,15 +378,16 @@ export function BillingTab({ plan, billingRecords, rechargeOrders, onTriggerToas
                             继续支付 <ExternalLink className="w-3 h-3" />
                           </a>
                         )}
-                        {order.status === 'success' && (
+                        {displayStatus === 'success' && (
                           <span className="text-[10px] text-slate-500 font-mono">已入账</span>
                         )}
-                        {order.status === 'expired' && (
-                          <span className="text-[10px] text-slate-500 font-mono">过期废弃</span>
+                        {displayStatus === 'expired' && (
+                          <span className="text-[10px] text-slate-500 font-mono">已过期，请重新发起充值</span>
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {rechargeOrders.length === 0 && (
                     <tr>
                       <td colSpan={7} className="py-8 text-center text-slate-500 font-sans">

@@ -5,6 +5,7 @@ import { omitDeviceSecret } from "@/lib/devices";
 import { centsToAmount, getOrderAmountCents, getOrderRealAmountCents } from "@/lib/money";
 import { getOrderExpiresAt } from "@/lib/payment-matching";
 import { getMobileDevice } from "@/lib/mobile-auth";
+import { getRechargeDisplayStatus } from "@/lib/recharge-status";
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
     if (auth.error) return auth.error;
     const device = auth.device;
 
-    const [orders, rechargeOrders, paymentCodes, devices, billingRecords, exceptions] = await Promise.all([
+    const [orders, rechargeOrders, incomingRechargeOrders, paymentCodes, devices, billingRecords, exceptions] = await Promise.all([
       prisma.order.findMany({
         where: { app: { userId: device.userId } },
         include: { app: true },
@@ -22,6 +23,15 @@ export async function GET(req: NextRequest) {
       prisma.rechargeOrder.findMany({
         where: { userId: device.userId },
         include: { paymentCode: true },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      }),
+      prisma.rechargeOrder.findMany({
+        where: { paymentCode: { userId: device.userId } },
+        include: {
+          user: { select: { email: true } },
+          paymentCode: true,
+        },
         orderBy: { createdAt: "desc" },
         take: 30,
       }),
@@ -78,7 +88,23 @@ export async function GET(req: NextRequest) {
         amountCents: order.amountCents,
         realAmountCents: order.realAmountCents,
         payType: order.payType,
-        status: order.status === "pending" && order.expiresAt.getTime() <= Date.now() ? "expired" : order.status,
+        status: order.status,
+        displayStatus: getRechargeDisplayStatus(order),
+        createdAt: order.createdAt,
+        expiresAt: order.expiresAt,
+        payTime: order.payTime,
+        paymentCodeId: order.paymentCodeId,
+      })),
+      incomingRechargeOrders: incomingRechargeOrders.map((order) => ({
+        id: order.id,
+        rechargeUserEmail: order.user.email,
+        amount: centsToAmount(order.amountCents),
+        realAmount: centsToAmount(order.realAmountCents),
+        amountCents: order.amountCents,
+        realAmountCents: order.realAmountCents,
+        payType: order.payType,
+        status: order.status,
+        displayStatus: getRechargeDisplayStatus(order),
         createdAt: order.createdAt,
         expiresAt: order.expiresAt,
         payTime: order.payTime,
