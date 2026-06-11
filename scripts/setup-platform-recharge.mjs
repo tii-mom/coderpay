@@ -7,7 +7,8 @@ import path from 'node:path'
 // whole developer-recharge chain is ready:
 //   1. user from PLATFORM_RECHARGE_USER_EMAIL exists
 //   2. it owns at least one active payment code (wechat/alipay)
-//   3. that code's Watcher device is online with a recent heartbeat
+//   3. that code's Watcher device is online with a recent heartbeat and a
+//      running notification listener
 //
 // Device binding + real QR upload are intentionally NOT done here — they must go
 // through the real app/console with a physical device and the actual payment-code
@@ -122,7 +123,9 @@ if (!user) {
 const devices = query(`SELECT COUNT(*) AS c FROM Device WHERE userId = ${sqlString(user.id)};`)[0]?.c ?? 0
 const codeRows = query(
   `SELECT pc.type AS type, pc.codeType AS codeType, pc.status AS status, ` +
-  `d.online AS online, d.status AS deviceStatus, d.lastHeartbeat AS lastHeartbeat ` +
+  `d.online AS online, d.status AS deviceStatus, d.lastHeartbeat AS lastHeartbeat, ` +
+  `d.wechatListener AS wechatListener, d.alipayListener AS alipayListener, ` +
+  `d.notificationPermission AS notificationPermission, d.batteryOptimization AS batteryOptimization ` +
   `FROM PaymentCode pc LEFT JOIN Device d ON d.id = pc.deviceId ` +
   `WHERE pc.userId = ${sqlString(user.id)} AND pc.status = 'active';`
 )
@@ -130,7 +133,9 @@ const codeRows = query(
 const threeMinAgo = Date.now() - 3 * 60 * 1000
 const usable = codeRows.filter(c =>
   Number(c.online) === 1 && c.deviceStatus === 'active' &&
-  c.lastHeartbeat && new Date(c.lastHeartbeat).getTime() >= threeMinAgo
+  c.lastHeartbeat && new Date(c.lastHeartbeat).getTime() >= threeMinAgo &&
+  Number(c.notificationPermission) === 1 && c.batteryOptimization === 'ignored' &&
+  (c.type === 'wechat' ? c.wechatListener : c.alipayListener) === 'running'
 )
 const types = new Set(usable.map(c => c.type))
 
@@ -146,6 +151,6 @@ if (ready) {
   console.log('\n✗ NOT ready yet. Remaining steps (do on a physical device / console):')
   if (Number(devices) === 0) console.log('  1. Sign into the console as the platform user and bind a Watcher device (install the app, use the dev_ code).')
   console.log('  2. Upload the real platform payment code(s) (WeChat/Alipay personal QR) under the platform user.')
-  console.log('  3. Keep the device online (heartbeat within 3 min) so recharge channel selection succeeds.')
+  console.log('  3. Keep the device online (heartbeat within 3 min) and confirm notification/listener/battery health are all normal.')
   if (!checkOnly) process.exitCode = 0 // creation succeeded; readiness is a follow-up, don't fail hard
 }

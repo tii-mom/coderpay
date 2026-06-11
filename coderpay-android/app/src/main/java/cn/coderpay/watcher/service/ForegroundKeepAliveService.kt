@@ -5,12 +5,13 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.service.notification.NotificationListenerService
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import cn.coderpay.watcher.R
@@ -38,6 +39,7 @@ class ForegroundKeepAliveService : Service() {
     companion object {
         private const val CHANNEL_ID = "CP_Watcher_KeepAlive"
         private const val NOTIFICATION_ID = 8808
+        private const val REBIND_COOLDOWN_MS = 5 * 60 * 1000L
 
         fun startService(context: Context) {
             val startIntent = Intent(context, ForegroundKeepAliveService::class.java)
@@ -49,6 +51,8 @@ class ForegroundKeepAliveService : Service() {
             context.stopService(stopIntent)
         }
     }
+
+    private var lastRebindRequestAt = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -80,6 +84,10 @@ class ForegroundKeepAliveService : Service() {
     private suspend fun sendHeartbeatToServer() {
         try {
             val isNotificationGranted = isNotificationServiceEnabled()
+            val isListenerBound = NotificationService.isListenerConnected
+            val isListenerReady = isNotificationGranted && isListenerBound
+            maybeRequestNotificationListenerRebind(isNotificationGranted, isListenerBound)
+
             val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
             val isIgnoringBattery = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 pm.isIgnoringBatteryOptimizations(packageName)
@@ -93,8 +101,8 @@ class ForegroundKeepAliveService : Service() {
 
             val request = HeartbeatRequest(
                 deviceCode = settings.deviceCode,
-                wechatListener = "running",
-                alipayListener = "running",
+                wechatListener = if (isListenerReady) "running" else "stopped",
+                alipayListener = if (isListenerReady) "running" else "stopped",
                 notificationPermission = isNotificationGranted,
                 batteryOptimization = if (isIgnoringBattery) "ignored" else "optimized",
                 timestamp = timestamp,
@@ -116,7 +124,6 @@ class ForegroundKeepAliveService : Service() {
                     if (it.isNotEmpty()) settings.alipayRegex = it
                 }
                 val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-                val isListenerBound = NotificationService.isListenerConnected
                 val risk = mutableListOf<String>()
                 if (!isNotificationGranted) risk.add("通知未授权")
                 if (!isListenerBound) risk.add("监听未绑定")
@@ -129,7 +136,7 @@ class ForegroundKeepAliveService : Service() {
                 updateNotification(content)
                 LogTracker.log("探针心跳上报成功。状态: 在线，电池忽略: $isIgnoringBattery, 通知授权: $isNotificationGranted, 监听绑定: $isListenerBound")
                 if (isNotificationGranted && !isListenerBound) {
-                    LogTracker.log("⚠️ 通知权限已开启但监听服务未被系统绑定！请在系统设置中关闭再重新开启 CoderPay 通知使用权。")
+                    LogTracker.log("⚠️ 通知权限已开启但监听服务未被系统绑定！已请求系统重新绑定；若仍未恢复，请在系统设置中关闭再重新开启 CoderPay 通知使用权。")
                 }
             } else {
                 LogTracker.log("心跳错误：云端通信返回码 - ${response.code()}")
@@ -143,6 +150,22 @@ class ForegroundKeepAliveService : Service() {
         val cn = android.content.ComponentName(this, NotificationService::class.java)
         val flat = android.provider.Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
         return flat != null && flat.contains(cn.flattenToString())
+    }
+
+    private fun maybeRequestNotificationListenerRebind(isNotificationGranted: Boolean, isListenerBound: Boolean) {
+        if (!isNotificationGranted || isListenerBound) return
+
+        val now = System.currentTimeMillis()
+        if (now - lastRebindRequestAt < REBIND_COOLDOWN_MS) return
+        lastRebindRequestAt = now
+
+        try {
+            val componentName = ComponentName(applicationContext, NotificationService::class.java)
+            NotificationListenerService.requestRebind(componentName)
+            LogTracker.log("已请求系统重新绑定通知监听服务。")
+        } catch (e: Exception) {
+            LogTracker.log("请求重新绑定通知监听服务失败：${e.message}")
+        }
     }
 
     private fun createNotification(content: String): Notification {

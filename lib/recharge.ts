@@ -6,6 +6,31 @@ import { getRechargePromotion, getRechargePromotionDescription, getRechargePromo
 
 const RECHARGE_EXPIRE_MINUTES = 10;
 
+function isDeviceReadyForRecharge(
+  code: {
+    device?: {
+      online: boolean;
+      status: string;
+      lastHeartbeat: Date | string | null;
+      wechatListener?: string | null;
+      alipayListener?: string | null;
+      notificationPermission?: boolean | null;
+      batteryOptimization?: string | null;
+    } | null;
+  },
+  payType: "wechat" | "alipay",
+  onlineThreshold: Date
+) {
+  const device = code.device;
+  if (!device?.online || device.status !== "active" || !device.lastHeartbeat) return false;
+  if (new Date(device.lastHeartbeat) < onlineThreshold) return false;
+  if (device.notificationPermission !== true) return false;
+  if (device.batteryOptimization !== "ignored") return false;
+
+  const listenerStatus = payType === "wechat" ? device.wechatListener : device.alipayListener;
+  return listenerStatus === "running";
+}
+
 export function getPlatformRechargeEmail() {
   return (resolveEnvVar("PLATFORM_RECHARGE_USER_EMAIL") || "").trim().toLowerCase();
 }
@@ -42,13 +67,7 @@ export async function selectRechargePaymentChannel({
   }
 
   const threeMinutesAgo = new Date(now.getTime() - 3 * 60 * 1000);
-  const onlineCodes = activeCodes.filter(c =>
-    c.device &&
-    c.device.online &&
-    c.device.status === "active" &&
-    c.device.lastHeartbeat &&
-    new Date(c.device.lastHeartbeat) >= threeMinutesAgo
-  );
+  const onlineCodes = activeCodes.filter(c => isDeviceReadyForRecharge(c, payType, threeMinutesAgo));
   if (onlineCodes.length === 0) {
     throw Object.assign(new Error("No online platform recharge Watcher device available"), { status: 503 });
   }

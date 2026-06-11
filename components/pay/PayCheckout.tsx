@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { resolveCheckoutDirectPayUrl } from '@/lib/direct-pay';
 import { 
   ShieldCheck, 
   Smartphone, 
@@ -130,10 +131,13 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
 
   // Switch WeChat/Alipay Payment Code matches
   const paymentCode = realOrder?.paymentCode;
-  const directPayUrl = paymentCode?.directPayUrl
-    || (activeChannel === 'alipay' && paymentCode?.alipayUserId
-      ? `alipays://platformapi/startapp?appId=09999988&actionType=toAccount&goBack=NO&userId=${encodeURIComponent(paymentCode.alipayUserId)}&amount=${encodeURIComponent(order?.realAmount?.toFixed(2) || '0.00')}`
-      : paymentCode?.qrPayload || '');
+  const directPayUrl = paymentCode ? resolveCheckoutDirectPayUrl({
+    type: activeChannel,
+    amount: order?.realAmount || 0,
+    alipayUserId: paymentCode.alipayUserId,
+    qrPayload: paymentCode.qrPayload,
+    directPayUrl: paymentCode.directPayUrl,
+  }) : '';
 
   // Mobile auto-redirect handler
   useEffect(() => {
@@ -144,14 +148,8 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
 
     setHasAutoRedirected(true);
 
-    let targetUrl = directPayUrl;
-    // For Alipay qr links, wrapping in alipays scheme ensures it directly opens Alipay scan view
-    if (activeChannel === 'alipay' && targetUrl.startsWith('https://qr.alipay.com/')) {
-      targetUrl = `alipays://platformapi/startapp?saId=10000007&clientVersion=3.7.0.0718&qrcode=${encodeURIComponent(targetUrl)}`;
-    }
-
     const timer = setTimeout(() => {
-      window.location.href = targetUrl;
+      window.location.href = directPayUrl;
     }, 800);
 
     return () => clearTimeout(timer);
@@ -195,6 +193,18 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
   const isRechargeOrder = order?.orderType === 'recharge';
   const isManualMode = !isRechargeOrder && order?.confirmMode === 'manual';
   const directPayLabel = activeChannel === 'alipay' ? '打开支付宝付款' : '尝试打开微信付款';
+  const directPayMode = activeChannel === 'alipay' && paymentCode?.alipayUserId
+    ? 'alipay_to_account'
+    : paymentCode?.directPayMode;
+  const directPayHint = activeChannel === 'alipay'
+    ? paymentCode?.alipayUserId
+      ? `将尝试打开支付宝转账页，并自动带入应付金额 ¥${order.realAmount.toFixed(2)}。`
+      : directPayUrl
+        ? `将尝试打开支付宝识别收款码。请务必支付精确金额 ¥${order.realAmount.toFixed(2)}，否则可能无法自动匹配。`
+        : `当前支付宝收款码未配置直达信息，请使用二维码支付精确金额 ¥${order.realAmount.toFixed(2)}。`
+    : directPayUrl
+      ? `微信个人收款直达受平台限制，按钮会尽力唤起微信；失败时请保存或扫码支付精确金额 ¥${order.realAmount.toFixed(2)}。`
+      : `请使用微信扫码支付精确金额 ¥${order.realAmount.toFixed(2)}。`;
 
   // User click "Paid / Refresh Link"
   const handleManualRefresh = () => {
@@ -325,13 +335,22 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
             </div>
 
             {directPayUrl && (
-              <a
-                href={directPayUrl}
-                className={`mb-5 w-full max-w-[280px] px-5 py-3.5 ${activeChannel === 'alipay' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-emerald-600 hover:bg-emerald-500'} text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer`}
-              >
-                <Smartphone className="w-4 h-4" />
-                {directPayLabel}
-              </a>
+              <div className="mb-5 w-full max-w-[280px]">
+                <a
+                  href={directPayUrl}
+                  className={`w-full px-5 py-3.5 ${activeChannel === 'alipay' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-emerald-600 hover:bg-emerald-500'} text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer`}
+                >
+                  <Smartphone className="w-4 h-4" />
+                  {directPayLabel}
+                </a>
+                <div className={`mt-2 rounded-xl border px-3 py-2 text-[10px] leading-relaxed ${
+                  directPayMode === 'alipay_to_account'
+                    ? 'bg-blue-50 text-blue-700 border-blue-100'
+                    : 'bg-amber-50 text-amber-700 border-amber-100'
+                }`}>
+                  {directPayHint}
+                </div>
+              </div>
             )}
 
             {/* QR Scanner Frame with simulated loading or overlays */}

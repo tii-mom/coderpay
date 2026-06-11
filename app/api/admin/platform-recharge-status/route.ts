@@ -5,8 +5,9 @@ import { getAuthD1 } from "@/lib/auth-d1";
 import { resolveEnvVar } from "@/lib/d1-binding";
 
 // Mirrors the readiness logic in scripts/setup-platform-recharge.mjs:
-// a payment code is "usable now" if its bound device is online, active, and
-// has sent a heartbeat within the last 3 minutes.
+// a payment code is "usable now" if its bound device is online, active, has
+// sent a heartbeat within the last 3 minutes, and its notification listener is
+// actually running for that payment type.
 export async function GET(req: NextRequest) {
   try {
     const admin = await requireAdminUser(req);
@@ -55,7 +56,10 @@ export async function GET(req: NextRequest) {
       db
         .prepare(
           `SELECT pc.type AS type, pc.status AS status,
-                  d.online AS online, d.status AS deviceStatus, d.lastHeartbeat AS lastHeartbeat
+                  d.online AS online, d.status AS deviceStatus, d.lastHeartbeat AS lastHeartbeat,
+                  d.wechatListener AS wechatListener, d.alipayListener AS alipayListener,
+                  d.notificationPermission AS notificationPermission,
+                  d.batteryOptimization AS batteryOptimization
            FROM PaymentCode pc
            LEFT JOIN Device d ON d.id = pc.deviceId
            WHERE pc.userId = ? AND pc.status = 'active'`
@@ -67,6 +71,10 @@ export async function GET(req: NextRequest) {
           online: number | null;
           deviceStatus: string | null;
           lastHeartbeat: string | null;
+          wechatListener: string | null;
+          alipayListener: string | null;
+          notificationPermission: number | boolean | null;
+          batteryOptimization: string | null;
         }>(),
     ]);
 
@@ -76,7 +84,10 @@ export async function GET(req: NextRequest) {
         Number(c.online) === 1 &&
         c.deviceStatus === "active" &&
         c.lastHeartbeat &&
-        new Date(c.lastHeartbeat).getTime() >= onlineThresholdMs
+        new Date(c.lastHeartbeat).getTime() >= onlineThresholdMs &&
+        (c.notificationPermission === true || Number(c.notificationPermission) === 1) &&
+        c.batteryOptimization === "ignored" &&
+        (c.type === "wechat" ? c.wechatListener : c.alipayListener) === "running"
     );
     const usableTypes = new Set(usable.map((c) => c.type));
     const hasWechat = usableTypes.has("wechat");
@@ -102,8 +113,8 @@ export async function GET(req: NextRequest) {
     const gaps: string[] = [];
     if (boundDevices === 0) gaps.push("尚未绑定任何 Watcher 设备");
     if (codes.length === 0) gaps.push("没有 active 状态的收款码");
-    if (!hasWechat) gaps.push("缺少可用的微信收款码（设备需在线）");
-    if (!hasAlipay) gaps.push("缺少可用的支付宝收款码（设备需在线）");
+    if (!hasWechat) gaps.push("缺少可用的微信收款码（设备需在线，且微信通知监听需 running）");
+    if (!hasAlipay) gaps.push("缺少可用的支付宝收款码（设备需在线，且支付宝通知监听需 running）");
 
     const ready = usable.length > 0 && hasWechat && hasAlipay;
 

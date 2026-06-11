@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { PaymentCode, Device } from '@/types';
+import { buildAlipayQrScheme, extractAlipayUserId } from '@/lib/direct-pay';
 import { 
   Plus, 
   Trash2, 
@@ -93,21 +94,29 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
 
     setIsUploadingImage(true);
     try {
-      // Decode QR Code locally first
       const decodedPayload = await decodeQrCodeFromFile(file);
       if (decodedPayload) {
         setQrPayload(decodedPayload);
-        // Automatically prefill directPayUrl
-        setDirectPayUrl(decodedPayload);
-        
-        // If it's an Alipay URL and we can extract alipayUserId (often 2088xxxx)
+
         if (type === 'alipay') {
-          const userIdMatch = decodedPayload.match(/userId=(\d{16})/);
-          if (userIdMatch && userIdMatch[1]) {
-            setAlipayUserId(userIdMatch[1]);
+          const extractedUserId = extractAlipayUserId(decodedPayload);
+          if (extractedUserId) {
+            setAlipayUserId(extractedUserId);
           }
+          setDirectPayUrl(
+            decodedPayload.startsWith('https://qr.alipay.com/') || decodedPayload.startsWith('http://qr.alipay.com/')
+              ? buildAlipayQrScheme(decodedPayload)
+              : decodedPayload
+          );
+        } else {
+          setDirectPayUrl(decodedPayload);
         }
-        onTriggerToast('成功解析收款码内容，已自动填入付款链接中！', 'success');
+        onTriggerToast(
+          type === 'alipay'
+            ? '已解析支付宝收款码。若补充支付宝 PID，买家可直接打开转账页并自动带入金额。'
+            : '已解析微信收款码内容，收银台将优先尝试唤起微信，失败时保留二维码兜底。',
+          'success'
+        );
       } else {
         onTriggerToast('未能从图片中解析出二维码内容，您可以稍后手动填写。', 'warning');
       }
@@ -389,7 +398,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
                   className="px-4 py-2.5 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
                 />
                 <p className="text-[10px] text-slate-500 leading-relaxed">
-                  配置后，收银台可自动为您生成极速拉起链接，买家无需在手机上手动输入付款金额和收款人。可在支付宝“我的 - 商家服务 - 商家工具 - 收钱码”或支付宝商家中心查询。
+                  强烈建议填写。配置后，收银台会按每笔订单的真实金额动态生成支付宝直达转账链接，买家无需再次扫码，也无需手动输入金额。仅解析二维码短链时只能唤起支付宝识别收款码，不能稳定预填金额。
                 </p>
               </div>
             )}
@@ -398,7 +407,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-slate-300">二维码内容 / 收款链接 (选填)</label>
                 <textarea
-                  placeholder="从二维码解析出的内容，或微信/支付宝收款链接。用于移动端优先唤起支付 App。"
+                  placeholder="上传二维码后会自动解析。支付宝常见为 https://qr.alipay.com/...，可用于唤起支付宝但不保证金额预填。"
                   value={qrPayload}
                   onChange={(e) => setQrPayload(e.target.value)}
                   className="min-h-24 px-4 py-2.5 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none font-mono"
@@ -407,7 +416,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-slate-300">直达支付 URL Scheme (选填)</label>
                 <textarea
-                  placeholder="如 alipays://... 或 weixin://...；留空时系统会根据 PID/二维码内容自动生成兜底。"
+                  placeholder="如 alipays://... 或 weixin://...。支付宝如已填写 PID，可留空，系统会按订单金额动态生成。"
                   value={directPayUrl}
                   onChange={(e) => setDirectPayUrl(e.target.value)}
                   className="min-h-24 px-4 py-2.5 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none font-mono"

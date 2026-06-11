@@ -608,6 +608,26 @@ describe("Admin API — recharge manual-confirm", () => {
     expect(res.status).toBe(409);
   });
 
+  it("returns 409 when a concurrent confirm claims the recharge first", async () => {
+    mockRun
+      .mockResolvedValueOnce({ success: true, meta: { changes: 1 } })
+      .mockResolvedValueOnce({ success: true, meta: { changes: 1 } })
+      .mockResolvedValueOnce({ success: true, meta: { changes: 1 } })
+      .mockResolvedValueOnce({ success: true, meta: { changes: 0 } });
+    const { POST } = await import(
+      "@/app/api/admin/recharge-orders/[id]/manual-confirm/route"
+    );
+    const res = await POST(
+      makeRequest(
+        "http://localhost/api/admin/recharge-orders/RC96251105/manual-confirm",
+        "POST",
+        { confirmEmail: "target@example.com" }
+      ),
+      { params: Promise.resolve({ id: "RC96251105" }) }
+    );
+    expect(res.status).toBe(409);
+  });
+
   it("credits balance and writes audit log when confirmEmail matches", async () => {
     const { POST } = await import(
       "@/app/api/admin/recharge-orders/[id]/manual-confirm/route"

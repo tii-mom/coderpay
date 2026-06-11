@@ -189,6 +189,8 @@ class NotificationService : NotificationListenerService() {
     }
 
     override fun onDestroy() {
+        isListenerConnected = false
+        LogTracker.log("通知监听服务已销毁，连接状态已置为未绑定。")
         serviceScope.cancel()
         super.onDestroy()
     }

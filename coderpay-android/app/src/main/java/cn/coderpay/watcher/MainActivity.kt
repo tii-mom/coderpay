@@ -355,6 +355,7 @@ class MainActivity : ComponentActivity() {
                     PermissionStatusCard(
                         isBound = isBound,
                         notificationEnabled = isNotificationPermissionGranted,
+                        listenerBound = isListenerBound,
                         batteryIgnored = isBatteryOptimizedIgnored
                     )
                 }
@@ -599,10 +600,11 @@ class MainActivity : ComponentActivity() {
     private fun OperationsHero(
         isBound: Boolean,
         notificationEnabled: Boolean,
+        listenerBound: Boolean,
         batteryIgnored: Boolean,
         deviceCode: String
     ) {
-        val healthy = isBound && notificationEnabled && batteryIgnored
+        val healthy = isBound && notificationEnabled && listenerBound && batteryIgnored
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = if (healthy) Color(0xFF052E2B) else CpPanel),
@@ -642,7 +644,8 @@ class MainActivity : ComponentActivity() {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     HealthTile("云端", if (isBound) "已绑定" else "未绑定", isBound, Modifier.weight(1f))
-                    HealthTile("通知", if (notificationEnabled) "可读取" else "未授权", notificationEnabled, Modifier.weight(1f))
+                    HealthTile("通知", if (notificationEnabled) "已授权" else "未授权", notificationEnabled, Modifier.weight(1f))
+                    HealthTile("监听", if (listenerBound) "已连接" else "未连接", listenerBound, Modifier.weight(1f))
                     HealthTile("保活", if (batteryIgnored) "已豁免" else "需设置", batteryIgnored, Modifier.weight(1f))
                 }
             }
@@ -739,13 +742,15 @@ class MainActivity : ComponentActivity() {
     private fun PermissionStatusCard(
         isBound: Boolean,
         notificationEnabled: Boolean,
+        listenerBound: Boolean,
         batteryIgnored: Boolean
     ) {
-        val healthy = isBound && notificationEnabled && batteryIgnored
+        val healthy = isBound && notificationEnabled && listenerBound && batteryIgnored
         val message = when {
             !isBound -> "先完成设备绑定。绑定成功后，App 才会上传心跳和到账事件。"
             !notificationEnabled && !batteryIgnored -> "还需要开启通知读取权限，并把 CoderPay 加入电池优化白名单，否则真实到账通知可能无法识别或后台被系统清理。"
             !notificationEnabled -> "还需要开启通知读取权限。未授权时，微信/支付宝真实到账通知不会被 App 读取。"
+            !listenerBound -> "通知读取权限已开启，但系统尚未真正连接监听服务。请关闭再重新开启 CoderPay 通知使用权；vivo 还需要允许自启动和后台运行。"
             !batteryIgnored -> "还需要忽略电池省电限制。未豁免时，息屏或后台运行一段时间后可能停止心跳。"
             else -> "监听链路已具备上线运行条件。请保持前台守护通知常驻。"
         }

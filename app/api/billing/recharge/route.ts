@@ -27,7 +27,7 @@ function getRechargeErrorMessage(message: string) {
     return "平台未配置对应支付方式的 active 收款码，请先上传微信/支付宝收款码。";
   }
   if (message.includes("No online platform recharge Watcher device available")) {
-    return "平台收款手机不在线或心跳超过 3 分钟，请打开安卓监听端并保持在线后重试。";
+    return "平台收款手机不在线、通知监听未连接或心跳超过 3 分钟，请打开安卓监听端并确认通知/监听/保活均为正常后重试。";
   }
   if (message.includes("No platform recharge any-amount payment code configured")) {
     return "平台未配置任意金额收款码，请上传任意金额微信/支付宝收款码后重试。";

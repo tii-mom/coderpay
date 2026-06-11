@@ -93,38 +93,39 @@ export async function POST(
 
     const auditReason = `人工确认充值到账 [确认: ${user.email}]${reason && typeof reason === "string" && reason.trim() ? ` - ${reason.trim()}` : ""}`;
 
-    // Atomically claim the recharge: the UPDATE only flips a non-success row, so
-    // a concurrent confirm can't double-credit. The balance/billing/promotion/
-    // audit writes commit together with the claim.
+    // Atomically claim the recharge. Every mutating statement is guarded by the
+    // current recharge status, so a concurrent second confirmation becomes a
+    // no-op instead of crediting the balance or writing duplicate bills.
     const writes: Parameters<typeof runAuthAtomic>[1] = [];
-
-    writes.push(
-      db
-        .prepare(
-          `UPDATE RechargeOrder SET status = 'success', payTime = ? WHERE id = ? AND status != 'success'`
-        )
-        .bind(nowIso, rechargeId)
-    );
 
     if (promotionUpdate) {
       writes.push(
         db
           .prepare(
-            `UPDATE User SET feeBalance = ?, packageType = ?, subscriptionExpiresAt = ?, updatedAt = ? WHERE id = ?`
+            `UPDATE User
+             SET feeBalance = ?, packageType = ?, subscriptionExpiresAt = ?, updatedAt = ?
+             WHERE id = ?
+               AND EXISTS (SELECT 1 FROM RechargeOrder WHERE id = ? AND status != 'success')`
           )
           .bind(
             newBalance,
             promotionUpdate.packageType,
             promotionUpdate.subscriptionExpiresAt.toISOString(),
             nowIso,
-            user.id
+            user.id,
+            rechargeId
           )
       );
     } else {
       writes.push(
         db
-          .prepare(`UPDATE User SET feeBalance = ?, updatedAt = ? WHERE id = ?`)
-          .bind(newBalance, nowIso, user.id)
+          .prepare(
+            `UPDATE User
+             SET feeBalance = ?, updatedAt = ?
+             WHERE id = ?
+               AND EXISTS (SELECT 1 FROM RechargeOrder WHERE id = ? AND status != 'success')`
+          )
+          .bind(newBalance, nowIso, user.id, rechargeId)
       );
     }
 
@@ -132,7 +133,8 @@ export async function POST(
       db
         .prepare(
           `INSERT INTO BillingRecord (id, type, amount, balance, description, createdAt, userId)
-           VALUES (?, 'charge', ?, ?, ?, ?, ?)`
+           SELECT ?, 'charge', ?, ?, ?, ?, ?
+           WHERE EXISTS (SELECT 1 FROM RechargeOrder WHERE id = ? AND status != 'success')`
         )
         .bind(
           crypto.randomUUID(),
@@ -140,7 +142,8 @@ export async function POST(
           newBalance,
           `人工确认充值入账: 充值单 ${rechargeId}, 实付 ${formatAmount(Number(recharge.realAmountCents))} 元 (操作管理员: ${admin.email})`,
           nowIso,
-          user.id
+          user.id,
+          rechargeId
         )
     );
 
@@ -149,14 +152,16 @@ export async function POST(
         db
           .prepare(
             `INSERT INTO BillingRecord (id, type, amount, balance, description, createdAt, userId)
-             VALUES (?, 'promotion', 0, ?, ?, ?, ?)`
+             SELECT ?, 'promotion', 0, ?, ?, ?, ?
+             WHERE EXISTS (SELECT 1 FROM RechargeOrder WHERE id = ? AND status != 'success')`
           )
           .bind(
             crypto.randomUUID(),
             newBalance,
             `${getRechargePromotionDescription(promotion)}: 充值单 ${rechargeId}`,
             nowIso,
-            user.id
+            user.id,
+            rechargeId
           )
       );
     }
@@ -165,7 +170,8 @@ export async function POST(
       db
         .prepare(
           `INSERT INTO AdminAuditLog (id, adminEmail, action, targetType, targetId, beforeJson, afterJson, reason, createdAt)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+           WHERE EXISTS (SELECT 1 FROM RechargeOrder WHERE id = ? AND status != 'success')`
         )
         .bind(
           crypto.randomUUID(),
@@ -183,11 +189,27 @@ export async function POST(
             promotion: promotion?.title ?? null,
           }),
           auditReason,
-          nowIso
+          nowIso,
+          rechargeId
         )
     );
 
-    await runAuthAtomic(db, writes);
+    writes.push(
+      db
+        .prepare(
+          `UPDATE RechargeOrder SET status = 'success', payTime = ? WHERE id = ? AND status != 'success'`
+        )
+        .bind(nowIso, rechargeId)
+    );
+
+    const results = await runAuthAtomic(db, writes);
+    const claimResult = results[results.length - 1];
+    if (claimResult?.meta?.changes === 0) {
+      return adminJson(
+        { error: "该充值单已入账，不能重复确认" },
+        { status: 409 }
+      );
+    }
 
     return adminJson({
       status: "success",
