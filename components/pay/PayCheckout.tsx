@@ -193,12 +193,15 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
   const qrUrl = paymentCode?.imageUrl || '';
   const isRechargeOrder = order?.orderType === 'recharge';
   const isManualMode = order?.confirmMode === 'manual' || Boolean(order?.requiresManualConfirm);
+  const isProviderMode = order?.confirmMode === 'provider';
   const directPayLabel = activeChannel === 'alipay' ? '打开支付宝付款' : '尝试打开微信付款';
   const directPayMode = activeChannel === 'alipay' && paymentCode?.alipayUserId
     ? 'alipay_to_account'
     : paymentCode?.directPayMode;
-  const showDirectPayButton = !!directPayUrl && (isMobileRuntime || activeChannel !== 'alipay');
-  const directPayHint = activeChannel === 'alipay'
+  const showDirectPayButton = !isProviderMode && !!directPayUrl && (isMobileRuntime || activeChannel !== 'alipay');
+  const directPayHint = isProviderMode
+    ? `请在上游支付页面完成付款。支付服务确认后，本页会自动更新。`
+    : activeChannel === 'alipay'
     ? isMobileRuntime
       ? paymentCode?.alipayUserId
         ? `将尝试打开支付宝转账页，并自动带入应付金额 ¥${order.realAmount.toFixed(2)}。`
@@ -338,7 +341,13 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
               </button>
             </div>
 
-            {showDirectPayButton ? (
+            {isProviderMode ? (
+              <div className="mb-5 w-full max-w-[280px] rounded-2xl border border-blue-100 bg-blue-50 px-4 py-5 text-center">
+                <RotateCw className="w-8 h-8 text-blue-500 mx-auto animate-spin" />
+                <div className="text-sm font-bold text-slate-800 mt-3">等待支付服务确认</div>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">商户已启用无安卓支付接入。付款完成后，系统会通过服务端回调自动确认。</p>
+              </div>
+            ) : showDirectPayButton ? (
               <div className="mb-5 w-full max-w-[280px]">
                 <a
                   href={directPayUrl}
@@ -362,6 +371,7 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
             )}
 
             {/* QR Scanner Frame with simulated loading or overlays */}
+            {!isProviderMode && (
             <div className="relative w-48 h-48 sm:w-56 sm:h-56 border border-slate-200 rounded-2xl p-2.5 bg-slate-50 flex items-center justify-center shadow-inner group">
               {/* Corner scan crosshairs */}
               <div className="absolute top-2.5 left-2.5 w-4 h-4 border-t-2 border-l-2 border-slate-400" />
@@ -407,14 +417,17 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
                 <span>请在 <strong className="text-amber-300 font-bold">{formatTime(secondsLeft)}</strong> 内付清</span>
               </div>
             </div>
+            )}
 
             {/* Instructional banner */}
             <div className="mt-5 text-center text-[11px] text-slate-400 bg-slate-50 p-3.5 rounded-2xl border border-slate-100 max-w-sm w-full leading-relaxed">
               <p className="flex items-center justify-center gap-1">
                 <QrCode className="w-3.5 h-3.5" />
-                优先点击上方按钮打开支付 App；如果无法唤起，请保存二维码后在微信/支付宝中识别付款。
+                {isProviderMode ? '支付完成后请保持本页打开，系统会自动刷新确认状态。' : '优先点击上方按钮打开支付 App；如果无法唤起，请保存二维码后在微信/支付宝中识别付款。'}
               </p>
-              {paymentCode?.codeType === 'fixed' ? (
+              {isProviderMode ? (
+                <p className="mt-1 font-medium text-slate-600">本订单由商户配置的服务端支付通道确认，不需要安卓监听设备。</p>
+              ) : paymentCode?.codeType === 'fixed' ? (
                 <p className="mt-1 font-medium text-slate-600">该二维码为固定金额码，请支付页面显示的固定金额。</p>
               ) : (
                 <p className="mt-1 font-medium text-slate-600">

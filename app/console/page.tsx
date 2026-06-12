@@ -10,6 +10,7 @@ const OverviewTab = React.lazy(() => import('@/components/console/OverviewTab').
 const AppsTab = React.lazy(() => import('@/components/console/AppsTab').then(m => ({ default: m.AppsTab })));
 const CodesTab = React.lazy(() => import('@/components/console/CodesTab').then(m => ({ default: m.CodesTab })));
 const DevicesTab = React.lazy(() => import('@/components/console/DevicesTab').then(m => ({ default: m.DevicesTab })));
+const NoAndroidPayTab = React.lazy(() => import('@/components/console/NoAndroidPayTab').then(m => ({ default: m.NoAndroidPayTab })));
 const OrdersTab = React.lazy(() => import('@/components/console/OrdersTab').then(m => ({ default: m.OrdersTab })));
 const EventsTab = React.lazy(() => import('@/components/console/EventsTab').then(m => ({ default: m.EventsTab })));
 const ExceptionsTab = React.lazy(() => import('@/components/console/ExceptionsTab').then(m => ({ default: m.ExceptionsTab })));
@@ -39,7 +40,8 @@ import {
   Menu,
   X,
   CreditCard,
-  Award
+  Award,
+  Webhook
 } from 'lucide-react';
 
 function getUniqueToastId(): string {
@@ -54,6 +56,7 @@ const VALID_CONSOLE_TABS = new Set([
   'apps',
   'codes',
   'devices',
+  'no-android-pay',
   'orders',
   'events',
   'exceptions',
@@ -258,6 +261,9 @@ export default function ConsolePage() {
       case 'devices':
         element = <DevicesTab devices={state.devices} paymentCodes={state.paymentCodes} onTriggerToast={triggerToast} db={db} />;
         break;
+      case 'no-android-pay':
+        element = <NoAndroidPayTab providers={state.paymentProviders} onTriggerToast={triggerToast} db={db} />;
+        break;
       case 'orders':
         element = <OrdersTab orders={state.orders} apps={state.apps} onTriggerToast={triggerToast} db={db} />;
         break;
@@ -322,6 +328,7 @@ export default function ConsolePage() {
   const menuItems = [
     { id: 'overview', label: '工作台', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'apps', label: '应用管理', icon: <Code className="w-4 h-4" /> },
+    { id: 'no-android-pay', label: '无安卓支付接入', icon: <Webhook className="w-4 h-4" /> },
     { id: 'devices', label: '安卓监听设备', icon: <Smartphone className="w-4 h-4" /> },
     { id: 'codes', label: '收款码', icon: <QrCode className="w-4 h-4" /> },
     { id: 'orders', label: '订单管理', icon: <FileText className="w-4 h-4" /> },
@@ -539,6 +546,7 @@ export default function ConsolePage() {
                   {
                     overview: '查看订单、余额、设备和异常概况，按步骤完成首次接入。',
                     apps: '创建应用，配置回调地址，获取 App ID 和 App Secret。',
+                    'no-android-pay': '为只有 iPhone 或没有备用安卓机的用户配置服务端支付回调通道。',
                     devices: '绑定用于监听微信/支付宝到账通知的安卓手机。',
                     codes: '上传微信或支付宝收款码，并绑定到安卓监听设备。',
                     orders: '查看订单状态，处理人工确认和回调重试。',

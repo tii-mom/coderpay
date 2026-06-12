@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       include: { device: true }
     });
     
-    if (!event || event.device.userId !== user.id) {
+    if (!event || !event.device || event.device.userId !== user.id) {
       return NextResponse.json({ error: "Payment event not found" }, { status: 404 });
     }
     

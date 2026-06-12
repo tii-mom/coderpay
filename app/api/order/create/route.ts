@@ -2,6 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { amountFromCents, centsFromAmount, formatAmount, getDirectD1, randomOrderId, verifyMerchantSign } from "@/lib/d1-direct";
 import { LOW_BALANCE_WARNING_YUAN, getEffectivePackageType, BILLING_PLANS, assertOrderAmountWithinPlanLimit } from "@/lib/billing-plans";
+import { providerSupportsChannel } from "@/lib/provider-payments";
 
 export async function POST(req: NextRequest) {
   try {
@@ -63,6 +64,72 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date();
+    const activeProvider = await db.prepare(`
+      SELECT id, name, channels FROM PaymentProvider
+      WHERE userId = ? AND status = 'active'
+      ORDER BY createdAt ASC
+      LIMIT 10
+    `).bind(app.userId).all<any>();
+    const provider = (activeProvider.results || []).find(row => providerSupportsChannel(row.channels, pay_type));
+
+    if (provider) {
+      const orderId = randomOrderId();
+      const expiresAt = new Date(Date.now() + app.expireMinutes * 60 * 1000);
+      try {
+        await db.prepare(`
+          INSERT INTO "Order" (id, outOrderNo, title, payType, amount, realAmount, amountCents, realAmountCents, status, confirmMode, createdAt, expiresAt, webhookStatus, appId, paymentCodeId)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'provider', ?, ?, 'unsent', ?, NULL)
+        `).bind(
+          orderId,
+          out_order_no,
+          title,
+          pay_type,
+          amountFromCents(amountCents),
+          amountFromCents(amountCents),
+          amountCents,
+          amountCents,
+          now.toISOString(),
+          expiresAt.toISOString(),
+          app.id
+        ).run();
+      } catch (insertErr: any) {
+        if (String(insertErr?.message || "").includes("UNIQUE") || String(insertErr?.cause?.message || "").includes("UNIQUE")) {
+          return NextResponse.json({ error: "Duplicate out_order_no" }, { status: 400 });
+        }
+        throw insertErr;
+      }
+
+      let origin = process.env.NEXT_PUBLIC_APP_URL;
+      if (!origin) {
+        const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "localhost:3000";
+        const proto = req.headers.get("x-forwarded-proto") || "http";
+        origin = `${proto}://${host}`;
+      }
+      if (origin.endsWith("/")) origin = origin.slice(0, -1);
+      const paymentUrl = `${origin}/pay/checkout?id=${encodeURIComponent(orderId)}`;
+
+      return NextResponse.json({
+        code: 200,
+        msg: "success",
+        data: {
+          order_id: orderId,
+          out_order_no,
+          amount: formatAmount(amountCents),
+          real_amount: formatAmount(amountCents),
+          pay_type,
+          payment_url: paymentUrl,
+          expired_at: expiresAt.toISOString(),
+          confirm_mode: "provider",
+          channel_online: true,
+          manual_confirm_required: false,
+          provider_id: provider.id,
+          provider_name: provider.name,
+          free_order_remaining: null,
+          low_balance_warning: Number(app.feeBalance) <= LOW_BALANCE_WARNING_YUAN
+        }
+      });
+    }
+
     const threeMinutesAgo = new Date(now.getTime() - 3 * 60 * 1000).toISOString();
     const activeCodes = (await db.prepare(`
       SELECT PaymentCode.id, PaymentCode.codeType, PaymentCode.amount, PaymentCode.deviceId,

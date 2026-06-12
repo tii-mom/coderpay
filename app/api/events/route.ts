@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
       select: {
         id: true,
         deviceId: true,
+        sourceType: true,
+        sourceId: true,
         payType: true,
         amount: true,
         receivedAt: true,
@@ -297,10 +299,11 @@ export async function POST(req: NextRequest) {
     // notification, the second batch fails on the unique constraint and leaves
     // no partial financial effect.
     const paymentEventInsert = db.prepare(`
-      INSERT INTO PaymentEvent (id, deviceId, payType, amount, receivedAt, matchStatus, matchedOrderId, confidence, notificationHash, rawNotification, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO PaymentEvent (id, deviceId, sourceType, sourceId, payType, amount, receivedAt, matchStatus, matchedOrderId, confidence, notificationHash, dedupeKey, rawNotification, createdAt)
+      VALUES (?, ?, 'android_device', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       eventId,
+      device.id,
       device.id,
       payType,
       amountFromCents(amountCents),
@@ -308,6 +311,7 @@ export async function POST(req: NextRequest) {
       matchStatus,
       matchedOrderId,
       confidence,
+      notificationHash,
       notificationHash,
       typeof rawNotification === "string" ? rawNotification.slice(0, 500) : null,
       nowIso
@@ -420,6 +424,8 @@ export async function POST(req: NextRequest) {
       event: {
         id: eventId,
         deviceId: device.id,
+        sourceType: "android_device",
+        sourceId: device.id,
         payType,
         amount: amountFromCents(amountCents),
         receivedAt: eventTime.toISOString(),

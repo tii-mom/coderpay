@@ -7,6 +7,7 @@ export function usePaymentState() {
   const [state, setState] = useState<CoderPayState>(() => ({
     apps: [],
     paymentCodes: [],
+    paymentProviders: [],
     devices: [],
     orders: [],
     events: [],
@@ -97,6 +98,7 @@ export function usePaymentState() {
           ...prev,
           apps: [],
           paymentCodes: [],
+          paymentProviders: [],
           devices: [],
           orders: [],
           events: [],
@@ -120,9 +122,10 @@ export function usePaymentState() {
       }
       const me = await meRes.json();
 
-      const [apps, codes, devices, orders, events, exceptions, webhookLogs, billingData, referralSummary, noticeData] = await Promise.all([
+      const [apps, codes, providers, devices, orders, events, exceptions, webhookLogs, billingData, referralSummary, noticeData] = await Promise.all([
         fetchJsonSafely("/api/apps", []),
         fetchJsonSafely("/api/codes", []),
+        fetchJsonSafely("/api/payment-providers", []),
         fetchJsonSafely("/api/devices", []),
         fetchJsonSafely("/api/orders", []),
         fetchJsonSafely("/api/events", []),
@@ -136,6 +139,7 @@ export function usePaymentState() {
       setState(prev => ({
         apps,
         paymentCodes: codes,
+        paymentProviders: providers,
         devices,
         orders,
         events,
@@ -294,6 +298,18 @@ export function usePaymentState() {
 
     createPaymentCode: async (code: any) => {
       return mutate("/api/codes", { method: "POST", body: code });
+    },
+
+    createPaymentProvider: async (provider: any) => {
+      return mutate("/api/payment-providers", { method: "POST", body: provider });
+    },
+
+    updatePaymentProvider: async (id: string, updates: any) => {
+      return mutate(`/api/payment-providers/${id}`, { method: "PUT", body: updates });
+    },
+
+    deletePaymentProvider: async (id: string) => {
+      return mutate(`/api/payment-providers/${id}`, { method: "DELETE" });
     },
 
     updatePaymentCode: async (id: string, updates: any) => {

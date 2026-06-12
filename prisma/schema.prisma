@@ -38,6 +38,7 @@ model User {
   billings     BillingRecord[]
   rechargeOrders RechargeOrder[]
   referralRewards ReferralReward[]
+  paymentProviders PaymentProvider[]
 }
 
 model App {
@@ -124,6 +125,7 @@ model Order {
   app           App           @relation(fields: [appId], references: [id], onDelete: Cascade)
   paymentCodeId String?
   paymentCode   PaymentCode?  @relation(fields: [paymentCodeId], references: [id], onDelete: SetNull)
+  providerPayments ProviderPayment[]
   webhookLogs   WebhookLog[]
 
   @@unique([appId, outOrderNo])
@@ -132,8 +134,10 @@ model Order {
 
 model PaymentEvent {
   id               String   @id @default(uuid())
-  deviceId         String
-  device           Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId         String?
+  device           Device?  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  sourceType       String   @default("android_device")
+  sourceId         String?
   payType          String // wechat / alipay
   amount           Float
   receivedAt       DateTime
@@ -141,8 +145,45 @@ model PaymentEvent {
   matchedOrderId   String?
   confidence       Int
   notificationHash String   @unique
+  dedupeKey        String?
   rawNotification  String?
   createdAt        DateTime @default(now())
+}
+
+model PaymentProvider {
+  id              String   @id @default(uuid())
+  type            String   @default("custom_webhook")
+  name            String
+  status          String   @default("active") // active / inactive
+  channels        String   // comma-separated: wechat,alipay
+  webhookSecret   String
+  secretPreview   String
+  configJson      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerPayments ProviderPayment[]
+
+  @@index([userId, status])
+}
+
+model ProviderPayment {
+  id              String   @id @default(uuid())
+  providerId      String
+  provider        PaymentProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  orderId         String?
+  order           Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  providerTradeNo String
+  outOrderNo      String
+  payType         String
+  amountCents     Int
+  status          String   @default("success")
+  rawPayload      String?
+  createdAt       DateTime @default(now())
+
+  @@unique([providerId, providerTradeNo])
+  @@index([orderId])
 }
 
 model WebhookLog {

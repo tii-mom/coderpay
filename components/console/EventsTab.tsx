@@ -138,6 +138,7 @@ export function EventsTab({ events, orders, devices, onTriggerToast, db }: Event
               ) : (
                 filteredEvents.map((evt) => {
                   const dev = devices.find(d => d.id === evt.deviceId);
+                  const isProviderEvent = evt.sourceType === 'provider_webhook';
                   return (
                     <tr key={evt.id} className="hover:bg-cp-hover/30 transition-colors">
                       <td className="py-4 px-5 font-mono font-medium text-slate-400 select-all">
@@ -146,7 +147,7 @@ export function EventsTab({ events, orders, devices, onTriggerToast, db }: Event
                       <td className="py-4 px-4">
                         <span className="text-slate-200 font-semibold flex items-center gap-1">
                           <Smartphone className="w-3.5 h-3.5 text-slate-500" />
-                          {dev ? dev.name.split(' ')[0] : '未知上报终端'}
+                          {isProviderEvent ? 'Provider 回调' : dev ? dev.name.split(' ')[0] : '未知上报终端'}
                         </span>
                       </td>
                       <td className="py-4 px-4">

@@ -60,7 +60,7 @@ export interface Order {
   amountCents?: number;
   realAmountCents?: number;
   status: OrderStatus;
-  confirmMode?: 'auto' | 'manual';
+  confirmMode?: 'auto' | 'manual' | 'provider';
   createdAt: string;
   expiresAt?: string | null;
   payTime: string | null;
@@ -73,13 +73,29 @@ export interface Order {
 
 export interface PaymentEvent {
   id: string;
-  deviceId: string;
+  deviceId: string | null;
+  sourceType?: 'android_device' | 'provider_webhook' | 'provider_query' | 'manual_assistant';
+  sourceId?: string | null;
   payType: 'wechat' | 'alipay';
   amount: number;
   receivedAt: string;
   matchStatus: 'matched' | 'unmatched' | 'conflict' | 'ignored' | 'manual';
   matchedOrderId: string | null;
   confidence: number;
+}
+
+export interface PaymentProvider {
+  id: string;
+  type: 'custom_webhook';
+  name: string;
+  status: 'active' | 'inactive';
+  channels: Array<'wechat' | 'alipay'>;
+  secretPreview: string;
+  webhookSecret?: string;
+  webhookUrl: string;
+  configJson?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WebhookLog {
@@ -200,6 +216,7 @@ export interface SystemNotice {
 export interface CoderPayState {
   apps: App[];
   paymentCodes: PaymentCode[];
+  paymentProviders: PaymentProvider[];
   devices: Device[];
   orders: Order[];
   events: PaymentEvent[];
