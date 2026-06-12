@@ -26,8 +26,23 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
 
   // Metrics
   const orders = state.orders.filter(filterApp);
+  
+  // Calculate today's time range boundaries in user timezone
+  const nowTime = new Date();
+  const startOfTodayMs = new Date(nowTime.getFullYear(), nowTime.getMonth(), nowTime.getDate()).getTime();
+
+  const todayOrders = orders.filter(o => {
+    try {
+      const t = new Date(o.createdAt).getTime();
+      return t >= startOfTodayMs;
+    } catch {
+      return false;
+    }
+  });
+
   const successOrders = orders.filter(o => o.status === 'success');
-  const todaySuccessAmount = successOrders.reduce((sum, o) => sum + o.amount, 0);
+  const todaySuccessOrders = todayOrders.filter(o => o.status === 'success');
+  const todaySuccessAmount = todaySuccessOrders.reduce((sum, o) => sum + o.amount, 0);
   const activeExceptions = state.exceptions.filter(e => e.status === 'active');
   const onlineDevices = state.devices.filter(d => d.online && d.status === 'active').length;
   
@@ -77,8 +92,8 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
   const stats = [
     {
       title: '今日订单成交数',
-      value: successOrders.length,
-      desc: `待支付订单 ${orders.filter(o => o.status === 'pending').length} 笔`,
+      value: todaySuccessOrders.length,
+      desc: `待支付订单 ${todayOrders.filter(o => o.status === 'pending').length} 笔`,
       icon: <TrendingUp className="w-5 h-5 text-blue-400" />,
       color: 'border-blue-500/10 bg-blue-500/5'
     },
@@ -118,6 +133,43 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
       color: activeExceptions.length > 0 ? 'border-rose-500/20 bg-rose-500/5 animate-pulse' : 'border-slate-800 bg-[#111827]'
     }
   ];
+
+  // ----------------- Dynamic Transaction Trend Calculations (Real Data) -----------------
+  const trendSlots = [
+    { label: '00:00', startHour: 0, endHour: 4, amount: 0, count: 0 },
+    { label: '04:00', startHour: 4, endHour: 8, amount: 0, count: 0 },
+    { label: '08:00', startHour: 8, endHour: 12, amount: 0, count: 0 },
+    { label: '12:00', startHour: 12, endHour: 16, amount: 0, count: 0 },
+    { label: '16:00', startHour: 16, endHour: 20, amount: 0, count: 0 },
+    { label: '20:00', startHour: 20, endHour: 24, amount: 0, count: 0 }
+  ];
+
+  todaySuccessOrders.forEach(o => {
+    try {
+      const date = new Date(o.createdAt);
+      const hour = date.getHours();
+      const slotIndex = Math.min(5, Math.floor(hour / 4));
+      trendSlots[slotIndex].amount += o.amount;
+      trendSlots[slotIndex].count += 1;
+    } catch {}
+  });
+
+  const maxSlotAmount = Math.max(...trendSlots.map(s => s.amount), 10);
+
+  const chartDots = trendSlots.map((s, index) => {
+    const cx = index * 120;
+    const cy = 175 - (s.amount / maxSlotAmount) * 150;
+    return {
+      cx,
+      cy: Math.round(cy),
+      val: s.amount.toFixed(2),
+      time: s.label,
+      count: s.count
+    };
+  });
+
+  const trendLinePath = `M ${chartDots.map(d => `${d.cx} ${d.cy}`).join(' L ')}`;
+  const trendAreaPath = `M 0 175 L ${chartDots.map(d => `${d.cx} ${d.cy}`).join(' L ')} L 600 175 Z`;
 
   return (
     <div className="flex flex-col gap-8 text-left" id="overview-tab-panel">
@@ -228,10 +280,10 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
           <div className="relative h-64 w-full flex items-end pt-4" id="trend-chart-container">
             {/* Y Axis Grid lines */}
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-slate-600 font-mono select-none">
-              <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥1,200</span></div>
-              <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥900</span></div>
-              <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥600</span></div>
-              <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥300</span></div>
+              <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥{maxSlotAmount.toFixed(0)}</span></div>
+              <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥{(maxSlotAmount * 0.75).toFixed(0)}</span></div>
+              <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥{(maxSlotAmount * 0.5).toFixed(0)}</span></div>
+              <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥{(maxSlotAmount * 0.25).toFixed(0)}</span></div>
               <div className="w-full border-b border-white/[0.03] pb-1 flex justify-between"><span>¥0</span></div>
             </div>
 
@@ -245,17 +297,17 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
               </defs>
 
               {/* Grid Lines */}
-              <line x1="0" y1="180" x2="600" y2="180" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+              <line x1="0" y1="175" x2="600" y2="175" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
 
               {/* Area path */}
               <path
-                d="M 0 160 C 60 150, 100 80, 150 70 C 200 60, 250 140, 300 110 C 350 80, 400 30, 450 40 C 500 50, 540 120, 600 90 L 600 180 L 0 180 Z"
+                d={trendAreaPath}
                 fill="url(#chartGradient)"
               />
 
               {/* Line path */}
               <path
-                d="M 0 160 C 60 150, 100 80, 150 70 C 200 60, 250 140, 300 110 C 350 80, 400 30, 450 40 C 500 50, 540 120, 600 90"
+                d={trendLinePath}
                 fill="none"
                 stroke="#3B82F6"
                 strokeWidth="3"
@@ -264,14 +316,7 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
               />
 
               {/* Interactive Data Dots & Hover effects */}
-              {[
-                { cx: 0, cy: 160, val: "0.00", time: "00:00", count: 0 },
-                { cx: 100, cy: 80, val: "780.00", time: "04:00", count: 8 },
-                { cx: 150, cy: 70, val: "880.00", time: "08:00", count: 12 },
-                { cx: 300, cy: 110, val: "540.00", time: "12:00", count: 6 },
-                { cx: 450, cy: 40, val: "1120.00", time: "16:00", count: 15 },
-                { cx: 600, cy: 90, val: "720.00", time: "20:00", count: 10 }
-              ].map((dot, dIdx) => (
+              {chartDots.map((dot, dIdx) => (
                 <g key={dIdx} className="group/dot cursor-pointer">
                   <circle
                     cx={dot.cx}
@@ -335,8 +380,9 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
               const wechatSuccess = successOrders.filter(o => o.payType === 'wechat').length;
               const alipaySuccess = successOrders.filter(o => o.payType === 'alipay').length;
               
-              const wechatPct = totalSuccess > 0 ? (wechatSuccess / totalSuccess) * 100 : 60;
-              const alipayPct = totalSuccess > 0 ? (alipaySuccess / totalSuccess) * 100 : 40;
+              const hasSuccessData = totalSuccess > 0;
+              const wechatPct = hasSuccessData ? (wechatSuccess / totalSuccess) * 100 : 0;
+              const alipayPct = hasSuccessData ? (alipaySuccess / totalSuccess) * 100 : 0;
 
               const filteredWebhookLogs = state.webhookLogs.filter(log => {
                 const o = state.orders.find(ord => ord.id === log.orderId);
@@ -344,7 +390,8 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
               });
               const totalWebhook = filteredWebhookLogs.length;
               const successWebhook = filteredWebhookLogs.filter(log => log.result === 'success').length;
-              const webhookSuccessRate = totalWebhook > 0 ? (successWebhook / totalWebhook) * 100 : 99.8;
+              const hasWebhookData = totalWebhook > 0;
+              const webhookSuccessRate = hasWebhookData ? (successWebhook / totalWebhook) * 100 : 0;
 
               return (
                 <>
@@ -352,32 +399,47 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
                     <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                       <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="3.5" />
                       
-                      {/* WeChat pay segment (emerald) */}
-                      <circle
-                        cx="18"
-                        cy="18"
-                        r="15.915"
-                        fill="none"
-                        stroke="#10B981"
-                        strokeWidth="3.5"
-                        strokeDasharray={`${wechatPct} ${100 - wechatPct}`}
-                        strokeDashoffset="0"
-                      />
-                      
-                      {/* Alipay segment (blue) */}
-                      <circle
-                        cx="18"
-                        cy="18"
-                        r="15.915"
-                        fill="none"
-                        stroke="#3B82F6"
-                        strokeWidth="3.5"
-                        strokeDasharray={`${alipayPct} ${100 - alipayPct}`}
-                        strokeDashoffset={-wechatPct}
-                      />
+                      {!hasSuccessData ? (
+                        <circle
+                          cx="18"
+                          cy="18"
+                          r="15.915"
+                          fill="none"
+                          stroke="rgba(255,255,255,0.1)"
+                          strokeWidth="3.5"
+                        />
+                      ) : (
+                        <>
+                          {/* WeChat pay segment (emerald) */}
+                          <circle
+                            cx="18"
+                            cy="18"
+                            r="15.915"
+                            fill="none"
+                            stroke="#10B981"
+                            strokeWidth="3.5"
+                            strokeDasharray={`${wechatPct} ${100 - wechatPct}`}
+                            strokeDashoffset="0"
+                          />
+                          
+                          {/* Alipay segment (blue) */}
+                          <circle
+                            cx="18"
+                            cy="18"
+                            r="15.915"
+                            fill="none"
+                            stroke="#3B82F6"
+                            strokeWidth="3.5"
+                            strokeDasharray={`${alipayPct} ${100 - alipayPct}`}
+                            strokeDashoffset={-wechatPct}
+                          />
+                        </>
+                      )}
                     </svg>
                     <div className="absolute flex flex-col items-center leading-none text-center">
-                      <span className="text-[10px] font-extrabold text-white">支付比</span>
+                      <span className="text-[10px] font-extrabold text-white">
+                        {hasSuccessData ? '支付比' : '暂无交易'}
+                      </span>
                       <span className="text-[9px] text-slate-500 mt-1 font-mono">WX/ZFB</span>
                     </div>
                   </div>
@@ -392,16 +454,20 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
                         cy="18"
                         r="15.915"
                         fill="none"
-                        stroke="#22C55E"
+                        stroke={hasWebhookData ? '#22C55E' : 'rgba(255,255,255,0.1)'}
                         strokeWidth="3.5"
-                        strokeDasharray={`${webhookSuccessRate} ${100 - webhookSuccessRate}`}
+                        strokeDasharray={hasWebhookData ? `${webhookSuccessRate} ${100 - webhookSuccessRate}` : '0 100'}
                         strokeDashoffset="0"
                         className="transition-all duration-1000"
                       />
                     </svg>
                     <div className="absolute flex flex-col items-center leading-none text-center">
-                      <span className="text-[13px] font-extrabold text-emerald-400 font-mono">{webhookSuccessRate.toFixed(1)}%</span>
-                      <span className="text-[9px] text-slate-500 mt-1">回调成功</span>
+                      <span className="text-[13px] font-extrabold text-emerald-400 font-mono">
+                        {hasWebhookData ? `${webhookSuccessRate.toFixed(1)}%` : 'N/A'}
+                      </span>
+                      <span className="text-[9px] text-slate-500 mt-1">
+                        {hasWebhookData ? '回调成功' : '暂无回调'}
+                      </span>
                     </div>
                   </div>
                 </>
@@ -413,8 +479,9 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
             const totalSuccess = successOrders.length;
             const wechatSuccess = successOrders.filter(o => o.payType === 'wechat').length;
             const alipaySuccess = successOrders.filter(o => o.payType === 'alipay').length;
-            const wechatPct = totalSuccess > 0 ? (wechatSuccess / totalSuccess) * 100 : 60;
-            const alipayPct = totalSuccess > 0 ? (alipaySuccess / totalSuccess) * 100 : 40;
+            const hasSuccessData = totalSuccess > 0;
+            const wechatPct = hasSuccessData ? (wechatSuccess / totalSuccess) * 100 : 0;
+            const alipayPct = hasSuccessData ? (alipaySuccess / totalSuccess) * 100 : 0;
 
             return (
               <div className="flex flex-col gap-2.5 mt-2 pt-2 border-t border-[rgba(255,255,255,0.04)]">
