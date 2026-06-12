@@ -51,12 +51,33 @@ interface AuditLog {
 interface Summary {
   totalUsers: number;
   todayNewUsers: number;
+  weekNewUsers: number;
+  monthNewUsers: number;
   todaySuccessOrderAmount: number;
   todayFeeIncome: number;
+  todayRechargeAmount: number;
+  yesterdayRechargeAmount: number;
+  weekRechargeAmount: number;
+  monthRechargeAmount: number;
+  pendingRechargeAmount: number;
+  failedRechargeAmount: number;
+  totalDeveloperBalance: number;
+  lowBalanceUsers: number;
+  activeUsers: number;
   onlineDevices: number;
   rechargePending: number;
   rechargeFailed: number;
   webhookFailed: number;
+  packageDistribution: Array<{ packageType: string; count: number }>;
+  acquisitionSources: Array<{ source: string; count: number }>;
+  funnel: {
+    registered: number;
+    boundDevice: number;
+    uploadedCode: number;
+    activeThisWeek: number;
+    successfulPayee: number;
+  };
+  trends: Array<{ day: string; label: string; users: number; rechargeAmount: number }>;
 }
 
 interface PlatformStatus {
@@ -85,6 +106,11 @@ interface ExceptionItem {
   userEmail?: string;
 }
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
 // ---- Helpers ----
 
 function fmt(date: string | null | undefined) {
@@ -107,6 +133,29 @@ function pkgBadge(pkg: string) {
   };
   const info = map[pkg] || map.trial;
   return <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-bold ${info.cls}`}>{info.label}</span>;
+}
+
+function pkgLabel(pkg: string) {
+  const map: Record<string, string> = {
+    free: '体验版',
+    trial: '体验版',
+    pro: '专业版',
+    max: '高级版',
+  };
+  return map[pkg] || pkg;
+}
+
+function sourceLabel(source: string) {
+  const map: Record<string, string> = {
+    direct: '自然注册',
+    invite: '邀请码',
+  };
+  return map[source] || source;
+}
+
+function percent(value: number, total: number) {
+  if (!total) return 0;
+  return Math.round((value / total) * 100);
 }
 
 function actionLabel(action: string) {
@@ -202,6 +251,123 @@ function DataTable({ columns, rows }: { columns: { key: string; label: string; r
   );
 }
 
+function MetricCard({
+  label,
+  value,
+  hint,
+  icon,
+  warn,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  icon: React.ReactNode;
+  warn?: boolean;
+}) {
+  return (
+    <div className={`bg-[#111827] border rounded-2xl p-4 ${warn ? 'border-red-500/30' : 'border-white/5'}`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] text-slate-500 uppercase tracking-wider">{label}</span>
+        {icon}
+      </div>
+      <span className={`text-lg font-bold font-mono ${warn ? 'text-red-400' : 'text-white'}`}>{value}</span>
+      {hint && <p className="mt-1 text-[10px] text-slate-500 leading-relaxed">{hint}</p>}
+    </div>
+  );
+}
+
+function MiniBars({
+  data,
+  field,
+  color = 'bg-blue-500',
+  money = false,
+}: {
+  data: Array<{ label: string; [key: string]: string | number }>;
+  field: string;
+  color?: string;
+  money?: boolean;
+}) {
+  const max = Math.max(1, ...data.map((item) => Number(item[field]) || 0));
+  return (
+    <div className="flex items-end gap-1.5 h-28 pt-4">
+      {data.map((item) => {
+        const value = Number(item[field]) || 0;
+        const height = Math.max(4, Math.round((value / max) * 92));
+        return (
+          <div key={String(item.label)} className="flex-1 min-w-0 flex flex-col items-center gap-1">
+            <div className="w-full rounded-t-md bg-white/[0.04] flex items-end h-24 overflow-hidden">
+              <div
+                className={`w-full ${color} rounded-t-md transition-all`}
+                style={{ height }}
+                title={`${item.label}: ${money ? fmtMoney(value) : value}`}
+              />
+            </div>
+            <span className="text-[9px] text-slate-600 font-mono truncate">{item.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DistributionBars({
+  rows,
+  labelFor,
+}: {
+  rows: Array<{ count: number; [key: string]: string | number }>;
+  labelFor: (row: Record<string, string | number>) => string;
+}) {
+  const total = rows.reduce((sum, row) => sum + Number(row.count || 0), 0);
+  if (!rows.length || !total) return <p className="text-xs text-slate-500 py-4">暂无数据</p>;
+  return (
+    <div className="space-y-3">
+      {rows.map((row, index) => {
+        const pct = percent(Number(row.count), total);
+        return (
+          <div key={index} className="space-y-1">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-slate-300">{labelFor(row)}</span>
+              <span className="text-slate-500 font-mono">{row.count} · {pct}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-white/[0.05] overflow-hidden">
+              <div className="h-full rounded-full bg-blue-500/80" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FunnelBars({ summary }: { summary: Summary }) {
+  const rows = [
+    { label: '注册开发者', value: summary.funnel.registered },
+    { label: '绑定设备', value: summary.funnel.boundDevice },
+    { label: '上传收款码', value: summary.funnel.uploadedCode },
+    { label: '近7天活跃', value: summary.funnel.activeThisWeek },
+    { label: '成功收款', value: summary.funnel.successfulPayee },
+  ];
+  const total = Math.max(1, summary.funnel.registered);
+  return (
+    <div className="space-y-3">
+      {rows.map((row) => {
+        const pct = percent(row.value, total);
+        return (
+          <div key={row.label} className="space-y-1.5">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-slate-300">{row.label}</span>
+              <span className="text-slate-500 font-mono">{row.value} · {pct}%</span>
+            </div>
+            <div className="h-2.5 rounded-full bg-white/[0.05] overflow-hidden">
+              <div className="h-full rounded-full bg-emerald-500/80" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ---- Main Page ----
 
 export default function AdminPage() {
@@ -209,6 +375,8 @@ export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
   const [authState, setAuthState] = useState<'loading' | 'forbidden' | 'ok'>('loading');
   const [adminEmail, setAdminEmail] = useState('');
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   // Mobile navigation
   const [mobileTab, setMobileTab] = useState<'pending' | 'users' | 'exceptions' | 'audit' | 'overview'>('pending');
@@ -300,6 +468,52 @@ export default function AdminPage() {
     const t = setTimeout(() => setMounted(true), 0);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    const standaloneTimer = setTimeout(() => setIsStandalone(standalone), 0);
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/admin-sw.js', { scope: '/admin' }).catch(() => {});
+    }
+
+    const onBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+    const onInstalled = () => {
+      setInstallPrompt(null);
+      setIsStandalone(true);
+      showToast('CoderPay Admin 已安装到主屏幕', 'success');
+    };
+
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      clearTimeout(standaloneTimer);
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, [mounted, showToast]);
+
+  const handleInstallPwa = async () => {
+    if (isStandalone) {
+      showToast('当前已处于独立应用模式', 'success');
+      return;
+    }
+    if (!installPrompt) {
+      showToast('请在浏览器菜单中选择“添加到主屏幕”安装管理后台', 'error');
+      return;
+    }
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    setInstallPrompt(null);
+    if (choice.outcome === 'accepted') {
+      showToast('已开始安装 CoderPay Admin', 'success');
+    }
+  };
 
   // Fetch users
   const fetchUsers = useCallback(async (page = 1, q = '') => {
@@ -769,6 +983,9 @@ export default function AdminPage() {
         </div>
         <div className="flex items-center gap-3 md:gap-4">
           <span className="text-xs text-slate-400 hidden sm:block">{adminEmail}</span>
+          <button onClick={handleInstallPwa} className="text-xs text-blue-300 hover:text-blue-200 transition-colors flex items-center gap-1">
+            <Download className="w-3.5 h-3.5" /> <span className="hidden xs:inline">{isStandalone ? '已安装' : '安装'}</span>
+          </button>
           <button onClick={() => router.push('/console')} className="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> <span className="hidden xs:inline">控制台</span>
           </button>
@@ -865,27 +1082,65 @@ export default function AdminPage() {
         <main className="flex-1 min-w-0 overflow-y-auto">
           {!detail && !detailLoading ? (
             <div className="p-6 space-y-6">
-              {/* Summary metrics */}
+              {/* Executive operating dashboard */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {[
-                  { label: '总开发者数', value: summary ? String(summary.totalUsers) : '—', icon: <Users className="w-4 h-4 text-blue-400" /> },
-                  { label: '今日新增用户', value: summary ? String(summary.todayNewUsers) : '—', icon: <UserPlus className="w-4 h-4 text-emerald-400" /> },
-                  { label: '今日成功订单额', value: summary ? fmtMoney(summary.todaySuccessOrderAmount) : '—', icon: <TrendingUp className="w-4 h-4 text-emerald-400" /> },
-                  { label: '今日手续费收入', value: summary ? fmtMoney(summary.todayFeeIncome) : '—', icon: <Wallet className="w-4 h-4 text-amber-400" /> },
-                  { label: '在线设备数', value: summary ? String(summary.onlineDevices) : '—', icon: <Wifi className="w-4 h-4 text-cyan-400" /> },
-                  { label: '充值待处理', value: summary ? String(summary.rechargePending) : '—', icon: <CreditCard className="w-4 h-4 text-blue-400" />, warn: !!summary && summary.rechargePending > 0 },
-                  { label: '充值失败', value: summary ? String(summary.rechargeFailed) : '—', icon: <XCircle className="w-4 h-4 text-red-400" />, warn: !!summary && summary.rechargeFailed > 0 },
-                  { label: 'Webhook 失败', value: summary ? String(summary.webhookFailed) : '—', icon: <Webhook className="w-4 h-4 text-red-400" />, warn: !!summary && summary.webhookFailed > 0 },
-                ].map((card, i) => (
-                  <div key={i} className={`bg-[#111827] border rounded-2xl p-4 ${card.warn ? 'border-red-500/30' : 'border-white/5'}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider">{card.label}</span>
-                      {card.icon}
-                    </div>
-                    <span className={`text-lg font-bold font-mono ${card.warn ? 'text-red-400' : 'text-white'}`}>{card.value}</span>
-                  </div>
-                ))}
+                <MetricCard label="总开发者" value={summary ? String(summary.totalUsers) : '—'} hint={summary ? `本周 +${summary.weekNewUsers} / 本月 +${summary.monthNewUsers}` : undefined} icon={<Users className="w-4 h-4 text-blue-400" />} />
+                <MetricCard label="今日新增" value={summary ? String(summary.todayNewUsers) : '—'} hint="新注册开发者" icon={<UserPlus className="w-4 h-4 text-emerald-400" />} />
+                <MetricCard label="今日充值" value={summary ? fmtMoney(summary.todayRechargeAmount) : '—'} hint={summary ? `昨日 ${fmtMoney(summary.yesterdayRechargeAmount)}` : undefined} icon={<CreditCard className="w-4 h-4 text-blue-400" />} />
+                <MetricCard label="本月充值" value={summary ? fmtMoney(summary.monthRechargeAmount) : '—'} hint={summary ? `本周 ${fmtMoney(summary.weekRechargeAmount)}` : undefined} icon={<TrendingUp className="w-4 h-4 text-emerald-400" />} />
+                <MetricCard label="开发者总余额" value={summary ? fmtMoney(summary.totalDeveloperBalance) : '—'} hint={summary ? `低余额 ${summary.lowBalanceUsers} 人` : undefined} icon={<Wallet className="w-4 h-4 text-amber-400" />} warn={!!summary && summary.lowBalanceUsers > 0} />
+                <MetricCard label="今日手续费" value={summary ? fmtMoney(summary.todayFeeIncome) : '—'} hint="成功订单扣费收入" icon={<DollarSign className="w-4 h-4 text-amber-400" />} />
+                <MetricCard label="充值待处理" value={summary ? `${summary.rechargePending} 笔` : '—'} hint={summary ? `待确认 ${fmtMoney(summary.pendingRechargeAmount)}` : undefined} icon={<AlertTriangle className="w-4 h-4 text-blue-400" />} warn={!!summary && summary.rechargePending > 0} />
+                <MetricCard label="系统异常" value={summary ? `${summary.webhookFailed + summary.rechargeFailed} 项` : '—'} hint={summary ? `Webhook ${summary.webhookFailed} / 充值失败 ${summary.rechargeFailed}` : undefined} icon={<Webhook className="w-4 h-4 text-red-400" />} warn={!!summary && (summary.webhookFailed > 0 || summary.rechargeFailed > 0)} />
               </div>
+
+              {summary && (
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                  <div className="xl:col-span-2 bg-[#111827] border border-white/5 rounded-2xl p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="text-sm font-bold text-white">增长与充值趋势</h3>
+                        <p className="text-[11px] text-slate-500 mt-1">最近 14 天，按上海时区聚合</p>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-mono">14D</span>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] mb-1">
+                          <span className="text-slate-300">新增用户</span>
+                          <span className="text-slate-500">人</span>
+                        </div>
+                        <MiniBars data={summary.trends} field="users" color="bg-emerald-500/80" />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] mb-1">
+                          <span className="text-slate-300">充值金额</span>
+                          <span className="text-slate-500">元</span>
+                        </div>
+                        <MiniBars data={summary.trends} field="rechargeAmount" color="bg-blue-500/80" money />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-5">
+                    <h3 className="text-sm font-bold text-white mb-3">注册到收款漏斗</h3>
+                    <FunnelBars summary={summary} />
+                  </div>
+                </div>
+              )}
+
+              {summary && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-5">
+                    <h3 className="text-sm font-bold text-white mb-3">用户来源</h3>
+                    <DistributionBars rows={summary.acquisitionSources} labelFor={(row) => sourceLabel(String(row.source))} />
+                  </div>
+                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-5">
+                    <h3 className="text-sm font-bold text-white mb-3">套餐分布</h3>
+                    <DistributionBars rows={summary.packageDistribution} labelFor={(row) => pkgLabel(String(row.packageType))} />
+                  </div>
+                </div>
+              )}
 
               {/* Platform status info */}
               <div className={`bg-[#111827] border rounded-2xl p-6 ${platform ? (platform.ready ? 'border-emerald-500/30' : 'border-amber-500/30') : 'border-white/5'}`}>
@@ -2049,23 +2304,46 @@ export default function AdminPage() {
 
             {/* Grid metrics */}
             <div className="grid grid-cols-2 gap-2.5">
-              {[
-                { label: '总开发者数', value: summary ? String(summary.totalUsers) : '—', icon: <Users className="w-4 h-4 text-blue-400" /> },
-                { label: '今日新增', value: summary ? String(summary.todayNewUsers) : '—', icon: <UserPlus className="w-4 h-4 text-emerald-400" /> },
-                { label: '今日成功订单额', value: summary ? fmtMoney(summary.todaySuccessOrderAmount) : '—', icon: <TrendingUp className="w-4 h-4 text-emerald-400" /> },
-                { label: '今日费率收入', value: summary ? fmtMoney(summary.todayFeeIncome) : '—', icon: <Wallet className="w-4 h-4 text-amber-400" /> },
-                { label: '在线监测设备', value: summary ? String(summary.onlineDevices) : '—', icon: <Wifi className="w-4 h-4 text-cyan-400" /> },
-                { label: '充值待核对', value: summary ? String(summary.rechargePending) : '—', icon: <CreditCard className="w-4 h-4 text-blue-400" />, warn: !!summary && summary.rechargePending > 0 },
-              ].map((card, i) => (
-                <div key={i} className={`bg-[#111827] border rounded-xl p-3.5 ${card.warn ? 'border-red-500/30' : 'border-white/5'}`}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider">{card.label}</span>
-                    {card.icon}
-                  </div>
-                  <span className={`text-sm font-bold font-mono ${card.warn ? 'text-red-400' : 'text-white'}`}>{card.value}</span>
-                </div>
-              ))}
+              <MetricCard label="总开发者" value={summary ? String(summary.totalUsers) : '—'} hint={summary ? `本周 +${summary.weekNewUsers}` : undefined} icon={<Users className="w-4 h-4 text-blue-400" />} />
+              <MetricCard label="今日新增" value={summary ? String(summary.todayNewUsers) : '—'} icon={<UserPlus className="w-4 h-4 text-emerald-400" />} />
+              <MetricCard label="今日充值" value={summary ? fmtMoney(summary.todayRechargeAmount) : '—'} hint={summary ? `昨日 ${fmtMoney(summary.yesterdayRechargeAmount)}` : undefined} icon={<CreditCard className="w-4 h-4 text-blue-400" />} />
+              <MetricCard label="本月充值" value={summary ? fmtMoney(summary.monthRechargeAmount) : '—'} hint={summary ? `本周 ${fmtMoney(summary.weekRechargeAmount)}` : undefined} icon={<TrendingUp className="w-4 h-4 text-emerald-400" />} />
+              <MetricCard label="总余额" value={summary ? fmtMoney(summary.totalDeveloperBalance) : '—'} hint={summary ? `低余额 ${summary.lowBalanceUsers} 人` : undefined} icon={<Wallet className="w-4 h-4 text-amber-400" />} warn={!!summary && summary.lowBalanceUsers > 0} />
+              <MetricCard label="充值待核对" value={summary ? `${summary.rechargePending} 笔` : '—'} hint={summary ? fmtMoney(summary.pendingRechargeAmount) : undefined} icon={<AlertTriangle className="w-4 h-4 text-blue-400" />} warn={!!summary && summary.rechargePending > 0} />
             </div>
+
+            {summary && (
+              <>
+                <div className="bg-[#111827] border border-white/5 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-bold text-white">14 天充值趋势</h3>
+                    <span className="text-[10px] text-slate-500 font-mono">{fmtMoney(summary.monthRechargeAmount)} / 30D</span>
+                  </div>
+                  <MiniBars data={summary.trends} field="rechargeAmount" color="bg-blue-500/80" money />
+                </div>
+
+                <div className="bg-[#111827] border border-white/5 rounded-xl p-4">
+                  <h3 className="text-xs font-bold text-white mb-3">用户增长</h3>
+                  <MiniBars data={summary.trends} field="users" color="bg-emerald-500/80" />
+                </div>
+
+                <div className="bg-[#111827] border border-white/5 rounded-xl p-4">
+                  <h3 className="text-xs font-bold text-white mb-3">注册到收款漏斗</h3>
+                  <FunnelBars summary={summary} />
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="bg-[#111827] border border-white/5 rounded-xl p-4">
+                    <h3 className="text-xs font-bold text-white mb-3">用户来源</h3>
+                    <DistributionBars rows={summary.acquisitionSources} labelFor={(row) => sourceLabel(String(row.source))} />
+                  </div>
+                  <div className="bg-[#111827] border border-white/5 rounded-xl p-4">
+                    <h3 className="text-xs font-bold text-white mb-3">套餐分布</h3>
+                    <DistributionBars rows={summary.packageDistribution} labelFor={(row) => pkgLabel(String(row.packageType))} />
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Platform status status card (Mobile) */}
             <div className={`bg-[#111827] border rounded-xl p-4 ${platform ? (platform.ready ? 'border-emerald-500/30' : 'border-amber-500/30') : 'border-white/5'}`}>
