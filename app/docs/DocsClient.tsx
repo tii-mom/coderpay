@@ -16,6 +16,13 @@ import {
 } from 'lucide-react';
 import { API_SPEC } from '@/lib/docs/api-spec';
 
+const SECTIONS = [
+  { id: 'overview', title: '系统集成总览', icon: <Shield className="w-4 h-4" /> },
+  { id: 'steps', title: '集成接入步骤', icon: <Cpu className="w-4 h-4" /> },
+  { id: 'watcher-setup', title: 'Android 挂机端配置', icon: <Smartphone className="w-4 h-4" /> },
+  { id: 'faq', title: '常见问题 FAQ', icon: <HelpCircle className="w-4 h-4" /> },
+];
+
 export default function DocsClient() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -26,19 +33,47 @@ export default function DocsClient() {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (!mounted) return;
+
+    const observerOptions = {
+      root: null,
+      rootMargin: '-15% 0px -65% 0px',
+      threshold: 0
+    };
+
+    const observerCallback = (entries: IntersectionObserverEntry[]) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          setActiveSection(entry.target.id);
+        }
+      });
+    };
+
+    const observer = new IntersectionObserver(observerCallback, observerOptions);
+
+    SECTIONS.forEach(sec => {
+      const element = document.getElementById(sec.id);
+      if (element) {
+        observer.observe(element);
+      }
+    });
+
+    return () => {
+      SECTIONS.forEach(sec => {
+        const element = document.getElementById(sec.id);
+        if (element) {
+          observer.unobserve(element);
+        }
+      });
+    };
+  }, [mounted]);
 
   if (!mounted) {
     return <div className="min-h-screen bg-[#070A12]" />;
   }
 
   const androidApkUrl = '/downloads/coderpay-android.apk';
-
-  const sections = [
-    { id: 'overview', title: '系统集成总览', icon: <Shield className="w-4 h-4" /> },
-    { id: 'steps', title: '集成接入步骤', icon: <Cpu className="w-4 h-4" /> },
-    { id: 'watcher-setup', title: 'Android 挂机端配置', icon: <Smartphone className="w-4 h-4" /> },
-    { id: 'faq', title: '常见问题 FAQ', icon: <HelpCircle className="w-4 h-4" /> },
-  ];
 
   return (
     <div className="min-h-screen bg-[#070A12] text-slate-100 flex flex-col font-sans" id="docs-page-root">
@@ -75,7 +110,7 @@ export default function DocsClient() {
         <aside className="lg:w-64 shrink-0 flex flex-col gap-2">
           <div className="sticky top-24 flex flex-col gap-1.5 text-left">
             <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider px-3 mb-2 block">FAQ 导览目录</span>
-            {sections.map(sec => {
+            {SECTIONS.map(sec => {
               const isActive = activeSection === sec.id;
               return (
                 <button
