@@ -4,6 +4,17 @@ import { prisma } from "@/lib/prisma";
 import { getMobileDevice } from "@/lib/mobile-auth";
 import { centsToAmount } from "@/lib/money";
 import { isDeviceReadyForRecharge } from "@/lib/recharge";
+import { resolveEnvVar } from "@/lib/d1-binding";
+
+function getOrigin(req: NextRequest) {
+  let origin = resolveEnvVar("NEXT_PUBLIC_APP_URL");
+  if (!origin) {
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "localhost:3000";
+    const proto = req.headers.get("x-forwarded-proto") || "http";
+    origin = `${proto}://${host}`;
+  }
+  return origin.replace(/\/$/, "");
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -32,6 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       amount: centsToAmount(rechargeOrder.amountCents),
       realAmount: centsToAmount(rechargeOrder.realAmountCents),
       payType: rechargeOrder.payType,
+      paymentUrl: `${getOrigin(req)}/pay/checkout?id=${encodeURIComponent(rechargeOrder.id)}`,
       status: rechargeOrder.status === "pending" && rechargeOrder.expiresAt.getTime() <= Date.now() ? "expired" : rechargeOrder.status,
       createdAt: rechargeOrder.createdAt,
       expiresAt: rechargeOrder.expiresAt,

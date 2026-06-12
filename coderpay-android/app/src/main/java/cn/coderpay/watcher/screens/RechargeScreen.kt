@@ -26,6 +26,7 @@ import cn.coderpay.watcher.screens.components.*
 import cn.coderpay.watcher.utils.SettingsManager
 import cn.coderpay.watcher.utils.SignatureHelper
 import cn.coderpay.watcher.utils.ApiErrorHelper
+import cn.coderpay.watcher.utils.PaymentLauncher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -49,6 +50,7 @@ fun RechargeScreen(
     var checkingStatus by remember { mutableStateOf(false) }
 
     var activeHistoryTab by remember { mutableStateOf("my_recharge") }
+    var creatingRecharge by remember { mutableStateOf(false) }
 
     fun signedParts(): Triple<String, String, String> {
         val timestamp = System.currentTimeMillis().toString()
@@ -172,11 +174,13 @@ fun RechargeScreen(
                     }
                     Button(
                         onClick = {
+                            if (creatingRecharge) return@Button
                             val amount = rechargeAmount.toDoubleOrNull()
                             if (amount == null || amount <= 0) {
                                 onActionMessage("请输入有效充值金额")
                                 return@Button
                             }
+                            creatingRecharge = true
                             scope.launch(Dispatchers.IO) {
                                 try {
                                     val (deviceCode, timestamp, sign) = signedParts()
@@ -187,22 +191,28 @@ fun RechargeScreen(
                                         MobileRechargeRequest(amount, rechargePayType)
                                     )
                                     withContext(Dispatchers.Main) {
+                                        creatingRecharge = false
                                         if (response.isSuccessful && response.body()?.data != null) {
                                             activeRecharge = response.body()!!.data
                                             val manualHint = if (activeRecharge!!.requires_manual_confirm) "，需人工确认" else ""
                                             onActionMessage("充值单创建成功$manualHint。")
+                                            PaymentLauncher.openUrl(context, activeRecharge!!.payment_url) { message ->
+                                                onActionMessage(message)
+                                            }
                                         } else {
                                             onActionMessage(ApiErrorHelper.formatApiError(response, "充值单创建失败"))
                                         }
                                     }
                                 } catch (e: Exception) {
                                     withContext(Dispatchers.Main) {
+                                        creatingRecharge = false
                                         onActionMessage("创建请求出错: ${e.message}")
                                     }
                                 }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
+                        enabled = !creatingRecharge,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = CpGreen,
                             contentColor = Color.White,
@@ -210,7 +220,7 @@ fun RechargeScreen(
                             disabledContentColor = CpMuted
                         ),
                         shape = RoundedCornerShape(14.dp)
-                    ) { Text("确认创建充值单") }
+                    ) { Text(if (creatingRecharge) "正在创建..." else "确认创建充值单") }
                 }
             }
         }
@@ -294,7 +304,16 @@ fun RechargeScreen(
             EmptyCard("暂无充值历史", "同步充值数据后会在这里显示。")
         } else {
             historyList.forEach { order ->
-                RechargeRowItem(order = order)
+                RechargeRowItem(
+                    order = order,
+                    onOpenPayment = { url ->
+                        PaymentLauncher.openUrl(context, url) { message -> onActionMessage(message) }
+                    },
+                    onCopyOrderId = {
+                        PaymentLauncher.copyToClipboard(context, order.id, "充值单号")
+                        onActionMessage("充值单号已复制")
+                    }
+                )
             }
         }
     }
@@ -307,6 +326,7 @@ fun ActiveRechargeCard(
     onCancel: () -> Unit,
     checkingStatus: Boolean
 ) {
+    val context = LocalContext.current
     // Countdown timer state
     var timeLeftSeconds by remember { mutableStateOf(600) } // 10 minutes default
     val timeLabel = remember(timeLeftSeconds) {
@@ -404,12 +424,32 @@ fun ActiveRechargeCard(
                     Text(if (checkingStatus) "查询中..." else "刷新状态", fontSize = 12.sp)
                 }
             }
+
+            Button(
+                onClick = {
+                    val directUrl = recharge.payment_code?.directPayUrl
+                    PaymentLauncher.openUrl(context, directUrl ?: recharge.payment_url) { }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = CpGreen, contentColor = Color.White),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    if (!recharge.payment_code?.directPayUrl.isNullOrBlank()) "打开支付 App" else "打开收银台继续支付",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
 
 @Composable
-fun RechargeRowItem(order: MobileRechargeOrder) {
+fun RechargeRowItem(
+    order: MobileRechargeOrder,
+    onOpenPayment: (String?) -> Unit,
+    onCopyOrderId: () -> Unit
+) {
     val status = order.displayStatus ?: order.status
     val color = statusColor(status)
     Card(
@@ -455,6 +495,29 @@ fun RechargeRowItem(order: MobileRechargeOrder) {
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(statusLabel(status), fontSize = 9.sp, color = color, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onCopyOrderId,
+                    colors = ButtonDefaults.buttonColors(containerColor = CpPanelSoft, contentColor = CpText),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    Text("复制单号", fontSize = 10.sp)
+                }
+                if (status == "pending") {
+                    Button(
+                        onClick = { onOpenPayment(order.paymentUrl) },
+                        colors = ButtonDefaults.buttonColors(containerColor = CpBlueDark, contentColor = Color.White),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(vertical = 4.dp)
+                    ) {
+                        Text("继续支付", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

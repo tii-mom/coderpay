@@ -6,12 +6,24 @@ import { centsToAmount, getOrderAmountCents, getOrderRealAmountCents } from "@/l
 import { getOrderExpiresAt } from "@/lib/payment-matching";
 import { getMobileDevice } from "@/lib/mobile-auth";
 import { getRechargeDisplayStatus } from "@/lib/recharge-status";
+import { resolveEnvVar } from "@/lib/d1-binding";
+
+function getOrigin(req: NextRequest) {
+  let origin = resolveEnvVar("NEXT_PUBLIC_APP_URL");
+  if (!origin) {
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "localhost:3000";
+    const proto = req.headers.get("x-forwarded-proto") || "http";
+    origin = `${proto}://${host}`;
+  }
+  return origin.replace(/\/$/, "");
+}
 
 export async function GET(req: NextRequest) {
   try {
     const auth = await getMobileDevice(req);
     if (auth.error) return auth.error;
     const device = auth.device;
+    const origin = getOrigin(req);
 
     const now = new Date();
     const startOfToday = new Date();
@@ -143,6 +155,7 @@ export async function GET(req: NextRequest) {
         expiresAt: order.expiresAt,
         payTime: order.payTime,
         paymentCodeId: order.paymentCodeId,
+        paymentUrl: `${origin}/pay/checkout?id=${encodeURIComponent(order.id)}`,
         requiresManualConfirm: order.confirmMode === "manual",
       })),
       incomingRechargeOrders: incomingRechargeOrders.map((order) => ({
@@ -159,6 +172,7 @@ export async function GET(req: NextRequest) {
         expiresAt: order.expiresAt,
         payTime: order.payTime,
         paymentCodeId: order.paymentCodeId,
+        paymentUrl: `${origin}/pay/checkout?id=${encodeURIComponent(order.id)}`,
         requiresManualConfirm: order.confirmMode === "manual",
       })),
       paymentCodes: paymentCodes.map((code) => ({

@@ -213,6 +213,7 @@ data class MobileRechargeData(
     val amount: String,
     val real_amount: String,
     val pay_type: String,
+    val payment_url: String? = null,
     val expired_at: String,
     val payment_code: MobilePaymentCode?,
     val requires_manual_confirm: Boolean = false
@@ -223,6 +224,7 @@ data class MobileRechargeStatusResponse(
     val amount: Double,
     val realAmount: Double,
     val payType: String,
+    val paymentUrl: String? = null,
     val status: String,
     val expiresAt: String,
     val paymentCode: MobilePaymentCode?,
@@ -243,6 +245,7 @@ data class MobileRechargeOrder(
     val expiresAt: String,
     val payTime: String?,
     val paymentCodeId: String? = null,
+    val paymentUrl: String? = null,
     val requiresManualConfirm: Boolean = false
 )
 
