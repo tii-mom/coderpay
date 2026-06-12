@@ -74,6 +74,17 @@ interface PlatformStatus {
   gaps?: string[];
 }
 
+interface ExceptionItem {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  createdAt: string;
+  refId: string;
+  status: string;
+  userEmail?: string;
+}
+
 // ---- Helpers ----
 
 function fmt(date: string | null | undefined) {
@@ -105,6 +116,7 @@ function actionLabel(action: string) {
     user_note: '备注更新',
     refund_note: '退款备注',
     password_reset: '密码重置',
+    recharge_manual_confirm: '充值人工确认',
   };
   return map[action] || action;
 }
@@ -116,6 +128,7 @@ const AUDIT_ACTION_OPTIONS = [
   { value: 'user_note', label: '备注更新' },
   { value: 'refund_note', label: '退款备注' },
   { value: 'password_reset', label: '密码重置' },
+  { value: 'recharge_manual_confirm', label: '充值人工确认' },
 ];
 
 // Copy-to-clipboard button for long fields (IDs, order numbers, etc.).
@@ -197,6 +210,9 @@ export default function AdminPage() {
   const [authState, setAuthState] = useState<'loading' | 'forbidden' | 'ok'>('loading');
   const [adminEmail, setAdminEmail] = useState('');
 
+  // Mobile navigation
+  const [mobileTab, setMobileTab] = useState<'pending' | 'users' | 'exceptions' | 'audit' | 'overview'>('pending');
+
   // Users list
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [usersTotal, setUsersTotal] = useState(0);
@@ -219,7 +235,6 @@ export default function AdminPage() {
   const [noteText, setNoteText] = useState('');
   const [noteReason, setNoteReason] = useState('');
   const [formLoading, setFormLoading] = useState(false);
-  const [rechargeConfirmingId, setRechargeConfirmingId] = useState('');
 
   // Reset password form
   const [pwNew, setPwNew] = useState('');
@@ -245,6 +260,32 @@ export default function AdminPage() {
   const [auditAdminEmail, setAuditAdminEmail] = useState('');
   const [auditFrom, setAuditFrom] = useState('');
   const [auditTo, setAuditTo] = useState('');
+
+  // Global pending recharge orders (for PWA Pnding tab)
+  const [pendingOrders, setPendingOrders] = useState<any[]>([]);
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [pendingSearch, setPendingSearch] = useState('');
+
+  // Global exception logs
+  const [exceptions, setExceptions] = useState<ExceptionItem[]>([]);
+  const [exceptionsTotal, setExceptionsTotal] = useState(0);
+  const [exceptionsPage, setExceptionsPage] = useState(1);
+  const [exceptionsLoading, setExceptionsLoading] = useState(false);
+  const [exceptionsStatus, setExceptionsStatus] = useState('active');
+
+  // Custom premium Manual Confirm Modal Overlay
+  const [confirmModalData, setConfirmModalData] = useState<{
+    id: string;
+    email: string;
+    amount: number;
+    realAmount: number;
+    payType: string;
+    createdAt: string;
+  } | null>(null);
+  const [confirmRemark, setConfirmRemark] = useState('');
+  const [confirmInputText, setConfirmInputText] = useState('');
 
   // Detail tab
   const [detailTab, setDetailTab] = useState('info');
@@ -285,17 +326,87 @@ export default function AdminPage() {
     }
   }, [router, showToast]);
 
-  // Fetch admin email
+  // Fetch global audit logs
+  const fetchAuditLogs = useCallback(async (page = 1) => {
+    try {
+      const p = new URLSearchParams({ page: String(page), pageSize: '20' });
+      if (auditAction) p.set('action', auditAction);
+      if (auditAdminEmail.trim()) p.set('adminEmail', auditAdminEmail.trim());
+      if (auditFrom) p.set('from', new Date(auditFrom).toISOString());
+      if (auditTo) p.set('to', new Date(auditTo).toISOString());
+      const res = await fetch(`/api/admin/audit-logs?${p.toString()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setAuditLogs(data.logs || []);
+      setAuditTotal(data.total || 0);
+      setAuditPage(data.page || 1);
+    } catch {}
+  }, [auditAction, auditAdminEmail, auditFrom, auditTo]);
+
+  // Fetch summary metrics + platform recharge status
+  const fetchOverview = useCallback(async () => {
+    try {
+      const [sRes, pRes] = await Promise.all([
+        fetch('/api/admin/summary'),
+        fetch('/api/admin/platform-recharge-status'),
+      ]);
+      if (sRes.ok) setSummary(await sRes.json());
+      if (pRes.ok) setPlatform(await pRes.json());
+    } catch {}
+  }, []);
+
+  // Fetch pending recharge orders
+  const fetchPendingOrders = useCallback(async (page = 1, search = '') => {
+    setPendingLoading(true);
+    try {
+      const res = await fetch(`/api/admin/recharge-orders?status=pending&page=${page}&pageSize=15&search=${encodeURIComponent(search)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPendingOrders(data.orders || []);
+        setPendingTotal(data.total || 0);
+        setPendingPage(data.page || 1);
+      }
+    } catch {
+      showToast('加载待确认充值单失败', 'error');
+    } finally {
+      setPendingLoading(false);
+    }
+  }, [showToast]);
+
+  // Fetch exceptions list
+  const fetchExceptions = useCallback(async (page = 1, status = 'active') => {
+    setExceptionsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/exceptions?page=${page}&pageSize=15&status=${status}`);
+      if (res.ok) {
+        const data = await res.json();
+        setExceptions(data.exceptions || []);
+        setExceptionsTotal(data.total || 0);
+        setExceptionsPage(data.page || 1);
+      }
+    } catch {
+      showToast('加载异常列表失败', 'error');
+    } finally {
+      setExceptionsLoading(false);
+    }
+  }, [showToast]);
+
+  // Fetch admin email & init dashboard data
   useEffect(() => {
     if (!mounted) return;
     fetch('/api/auth/me').then(r => r.json()).then(d => {
       if (d.email) setAdminEmail(d.email);
     }).catch(() => {});
+    
     const t = setTimeout(() => {
       fetchUsers(1, '');
+      fetchOverview();
+      fetchAuditLogs(1);
+      fetchPendingOrders(1, '');
+      fetchExceptions(1, 'active');
     }, 0);
     return () => clearTimeout(t);
-  }, [mounted, fetchUsers]);
+  }, [mounted, fetchUsers, fetchOverview, fetchAuditLogs, fetchPendingOrders, fetchExceptions]);
 
   // Fetch user detail
   const fetchDetail = useCallback(async (userId: string) => {
@@ -329,62 +440,15 @@ export default function AdminPage() {
     }
   }, [showToast]);
 
-  // Fetch global audit logs (with filters)
-  const fetchAuditLogs = useCallback(async (page = 1) => {
-    try {
-      const p = new URLSearchParams({ page: String(page), pageSize: '20' });
-      if (auditAction) p.set('action', auditAction);
-      if (auditAdminEmail.trim()) p.set('adminEmail', auditAdminEmail.trim());
-      if (auditFrom) p.set('from', new Date(auditFrom).toISOString());
-      if (auditTo) p.set('to', new Date(auditTo).toISOString());
-      const res = await fetch(`/api/admin/audit-logs?${p.toString()}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setAuditLogs(data.logs || []);
-      setAuditTotal(data.total || 0);
-      setAuditPage(data.page || 1);
-    } catch {}
-  }, [auditAction, auditAdminEmail, auditFrom, auditTo]);
-
-  // Fetch summary metrics + platform recharge status
-  const fetchOverview = useCallback(async () => {
-    try {
-      const [sRes, pRes] = await Promise.all([
-        fetch('/api/admin/summary'),
-        fetch('/api/admin/platform-recharge-status'),
-      ]);
-      if (sRes.ok) setSummary(await sRes.json());
-      if (pRes.ok) setPlatform(await pRes.json());
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (authState === 'ok') {
-      const t = setTimeout(() => {
-        fetchAuditLogs(1);
-        fetchOverview();
-      }, 0);
-      return () => clearTimeout(t);
-    }
-  }, [authState, fetchAuditLogs, fetchOverview]);
-
-  // Search handler
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchUsers(1, usersSearch);
-  };
-
   // Adjust balance
   const handleAdjustBalance = async () => {
     if (!detail) return;
     const delta = parseFloat(balanceDelta);
-    if (isNaN(delta)) { showToast('请输入有效的金额', 'error'); return; }
+    if (isNaN(delta) || delta === 0) { showToast('请输入有效的调整金额', 'error'); return; }
     if (!balanceReason.trim()) { showToast('请填写操作原因', 'error'); return; }
-    if (delta < 0) {
-      if (balanceConfirmEmail.trim().toLowerCase() !== detail.user.email.toLowerCase()) {
-        showToast('扣减余额需输入正确的目标用户邮箱确认', 'error'); return;
-      }
-      if (!confirm(`确定要扣减 ${Math.abs(delta)} 元余额吗？此操作不可撤销。`)) return;
+
+    if (delta < 0 && balanceConfirmEmail.trim().toLowerCase() !== detail.user.email.toLowerCase()) {
+      showToast('扣减余额需输入正确的目标用户邮箱确认', 'error'); return;
     }
 
     setFormLoading(true);
@@ -392,11 +456,11 @@ export default function AdminPage() {
       const res = await fetch(`/api/admin/users/${detail.user.id}/adjust-balance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ delta, reason: balanceReason.trim(), confirmEmail: balanceConfirmEmail.trim() }),
+        body: JSON.stringify({ amount: delta, reason: balanceReason.trim(), confirmEmail: balanceConfirmEmail.trim() }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || '操作失败', 'error'); return; }
-      showToast(`余额调整成功，当前余额: ¥${data.feeBalance.toFixed(2)}`, 'success');
+      showToast(`余额调整成功，当前余额: ${fmtMoney(data.feeBalance)}`, 'success');
       setBalanceDelta('');
       setBalanceReason('');
       setBalanceConfirmEmail('');
@@ -410,32 +474,62 @@ export default function AdminPage() {
     }
   };
 
-  // Manually confirm a recharge that the auto-matcher missed (e.g. RC96251105)
-  const handleManualConfirmRecharge = async (rechargeId: string, status: string) => {
-    if (!detail) return;
+  // Trigger custom premium confirmation modal
+  const handleManualConfirmRecharge = (rechargeId: string, status: string, email: string, amount: number, realAmount: number, payType: string, createdAt: string) => {
     if (status === 'success') { showToast('该充值单已入账', 'error'); return; }
-    const email = window.prompt(`人工确认充值到账将给用户余额入账并写审计日志。\n请输入目标用户邮箱确认：${detail.user.email}`);
-    if (email === null) return;
-    if (email.trim().toLowerCase() !== detail.user.email.toLowerCase()) {
-      showToast('邮箱不匹配，已取消人工确认', 'error'); return;
+    setConfirmModalData({
+      id: rechargeId,
+      email: email,
+      amount: amount,
+      realAmount: realAmount,
+      payType: payType,
+      createdAt: createdAt
+    });
+    setConfirmInputText('');
+    setConfirmRemark('');
+  };
+
+  // Execute manual confirm API request
+  const executeManualConfirm = async () => {
+    if (!confirmModalData) return;
+    const provided = confirmInputText.trim().toLowerCase();
+    const target = confirmModalData.email.toLowerCase();
+    const orderSuffix = confirmModalData.id.slice(-6).toLowerCase();
+    
+    // Safety check: match user email OR last 6 characters of the recharge ID
+    if (provided !== target && provided !== orderSuffix) {
+      showToast('验证输入不匹配，请重新输入目标邮箱或单号后6位', 'error');
+      return;
     }
-    setRechargeConfirmingId(rechargeId);
+
+    setFormLoading(true);
     try {
-      const res = await fetch(`/api/admin/recharge-orders/${rechargeId}/manual-confirm`, {
+      const res = await fetch(`/api/admin/recharge-orders/${confirmModalData.id}/manual-confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirmEmail: email.trim(), reason: '管理后台人工核对补入账' }),
+        body: JSON.stringify({
+          confirmEmail: target, // API expects user's exact email address
+          reason: confirmRemark.trim() || '管理后台人工核对补入账'
+        }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || '人工确认失败', 'error'); return; }
       showToast(`充值已入账，当前余额: ¥${Number(data.feeBalance).toFixed(2)}${data.promotion ? `（${data.promotion}）` : ''}`, 'success');
-      fetchDetail(detail.user.id);
+      setConfirmModalData(null);
+      setConfirmRemark('');
+      setConfirmInputText('');
+      
+      // Refresh UI data
+      if (detail) {
+        fetchDetail(detail.user.id);
+      }
+      fetchPendingOrders(pendingPage, pendingSearch);
       fetchAuditLogs(1);
       fetchOverview();
     } catch {
       showToast('网络请求失败', 'error');
     } finally {
-      setRechargeConfirmingId('');
+      setFormLoading(false);
     }
   };
 
@@ -447,7 +541,6 @@ export default function AdminPage() {
       showToast('付费套餐必须设置到期时间', 'error'); return;
     }
 
-    // Mirror backend: downgrade to free/trial or shortened expiry requires email confirm.
     const oldExpiry = detail.user.subscriptionExpiresAt ? new Date(detail.user.subscriptionExpiresAt).getTime() : null;
     const needsExpiry = subPkg === 'pro' || subPkg === 'max';
     const newExpiry = needsExpiry ? (subExpires ? new Date(subExpires).getTime() : null) : null;
@@ -577,7 +670,7 @@ export default function AdminPage() {
     }
   };
 
-  // CSV export — fetch with cookies, then trigger a download.
+  // CSV export
   const handleExport = async (type: 'users' | 'billing' | 'audit', userId?: string) => {
     try {
       const url = userId
@@ -602,12 +695,23 @@ export default function AdminPage() {
   };
 
   // Logout
-  const handleLogout = async () => {    if (!confirm('确定退出登录？')) return;
+  const handleLogout = async () => {
+    if (!confirm('确定退出登录？')) return;
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/');
   };
 
-  // ---- Render ----
+  // Search user handler
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchUsers(1, usersSearch);
+  };
+
+  // Search pending recharge handler
+  const handlePendingSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchPendingOrders(1, pendingSearch);
+  };
 
   if (!mounted) return <div className="min-h-screen bg-[#070A12]" />;
 
@@ -635,6 +739,8 @@ export default function AdminPage() {
 
   const totalPages = Math.ceil(usersTotal / 20);
   const auditTotalPages = Math.ceil(auditTotal / 20);
+  const pendingTotalPages = Math.ceil(pendingTotal / 15);
+  const exceptionsTotalPages = Math.ceil(exceptionsTotal / 15);
 
   const detailTabs = [
     { id: 'info', label: '基本信息', icon: <Users className="w-3.5 h-3.5" /> },
@@ -648,34 +754,34 @@ export default function AdminPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#070A12] text-slate-100" id="admin-root">
+    <div className="min-h-screen bg-[#070A12] text-slate-100 pb-16 md:pb-0" id="admin-root">
       {toast && <Toast text={toast.text} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* Top Bar */}
-      <header className="h-14 bg-[#0B1020] border-b border-white/5 px-6 flex items-center justify-between sticky top-0 z-50">
+      <header className="h-14 bg-[#0B1020] border-b border-white/5 px-4 md:px-6 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <span className="font-extrabold text-white text-base tracking-wider">
+          <span className="font-extrabold text-white text-sm md:text-base tracking-wider">
             CODER<span className="text-blue-500 font-mono">PAY</span>
           </span>
           <span className="px-2 py-0.5 bg-amber-500/15 text-amber-400 text-[10px] font-bold rounded-md border border-amber-500/20 uppercase tracking-wider">
             Admin
           </span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 md:gap-4">
           <span className="text-xs text-slate-400 hidden sm:block">{adminEmail}</span>
           <button onClick={() => router.push('/console')} className="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1">
-            <ArrowLeft className="w-3.5 h-3.5" /> 控制台
+            <ArrowLeft className="w-3.5 h-3.5" /> <span className="hidden xs:inline">控制台</span>
           </button>
           <button onClick={handleLogout} className="text-xs text-rose-400 hover:text-rose-300 transition-colors flex items-center gap-1">
-            <LogOut className="w-3.5 h-3.5" /> 退出
+            <LogOut className="w-3.5 h-3.5" /> <span className="hidden xs:inline">退出</span>
           </button>
         </div>
       </header>
 
-      <div className="flex min-h-[calc(100vh-56px)]">
+      {/* ----------------- DESKTOP SIDE-BY-SIDE VIEW ----------------- */}
+      <div className="hidden md:flex min-h-[calc(100vh-56px)]">
         {/* Left Panel — User List */}
         <aside className="w-80 lg:w-96 bg-[#0B1020] border-r border-white/5 flex flex-col shrink-0">
-          {/* Search */}
           <form onSubmit={handleSearch} className="p-4 border-b border-white/5">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -755,502 +861,12 @@ export default function AdminPage() {
           )}
         </aside>
 
-        {/* Right Panel — Detail */}
+        {/* Right Panel — Detail & Global Dashboard */}
         <main className="flex-1 min-w-0 overflow-y-auto">
           {!detail && !detailLoading ? (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-500">
-              <Users className="w-12 h-12 opacity-20" />
-              <p className="text-sm">选择左侧用户查看详情</p>
-            </div>
-          ) : detailLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-            </div>
-          ) : detail && (
-            <div className="p-6 max-w-5xl">
-              {/* User header */}
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-blue-950 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-sm">
-                  {detail.user.email[0].toUpperCase()}
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">{detail.user.email}</h2>
-                  <p className="text-[10px] text-slate-500 font-mono">ID: {detail.user.id}<CopyBtn value={detail.user.id} /></p>
-                </div>
-                <div className="ml-auto">
-                  <button onClick={() => fetchDetail(detail.user.id)} className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors">
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Tabs */}
-              <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
-                {detailTabs.map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setDetailTab(tab.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                      detailTab === tab.id
-                        ? 'bg-blue-500/10 text-blue-400'
-                        : 'text-slate-400 hover:bg-white/5 hover:text-white'
-                    }`}
-                  >
-                    {tab.icon}
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Tab Content */}
-              <div className="space-y-4">
-                {detailTab === 'info' && (
-                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
-                    <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><Users className="w-4 h-4 text-blue-400" /> 基本信息</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {[
-                        { label: '邮箱', value: detail.user.email },
-                        { label: '余额', value: fmtMoney(detail.user.feeBalance), cls: 'text-blue-400 font-mono font-bold' },
-                        { label: '套餐', value: pkgBadge(detail.user.packageType) },
-                        { label: '免费单已用', value: `${detail.user.freeOrderUsed} 单` },
-                        { label: '订阅到期', value: fmt(detail.user.subscriptionExpiresAt) },
-                        { label: '注册时间', value: fmt(detail.user.createdAt) },
-                      ].map((item, i) => (
-                        <div key={i} className="flex flex-col gap-1">
-                          <span className="text-[10px] text-slate-500 uppercase tracking-wider">{item.label}</span>
-                          {typeof item.value === 'string' ? (
-                            <span className={`text-xs ${item.cls || 'text-slate-200'}`}>{item.value}</span>
-                          ) : item.value}
-                        </div>
-                      ))}
-                    </div>
-                    {detail.user.adminNote && (
-                      <div className="mt-4 p-3 bg-amber-950/20 border border-amber-500/10 rounded-xl">
-                        <span className="text-[10px] text-amber-500 font-bold uppercase">运营备注</span>
-                        <p className="text-xs text-amber-200/70 mt-1">{detail.user.adminNote}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {detailTab === 'actions' && (
-                  <div className="space-y-4">
-                    {/* Balance Adjustment */}
-                    <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
-                      <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                        <DollarSign className="w-4 h-4 text-emerald-400" /> 余额调整
-                        <span className="text-[10px] text-slate-500 font-normal">当前: {fmtMoney(detail.user.feeBalance)}</span>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">调整金额（正数增加，负数扣减）</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={balanceDelta}
-                            onChange={e => setBalanceDelta(e.target.value)}
-                            placeholder="例如: 10.50 或 -5.00"
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">操作原因（必填）</label>
-                          <textarea
-                            value={balanceReason}
-                            onChange={e => setBalanceReason(e.target.value)}
-                            placeholder="请说明调整原因..."
-                            rows={2}
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none"
-                          />
-                        </div>
-                      </div>
-                      {balanceDelta && parseFloat(balanceDelta) < 0 && (
-                        <div className="mt-4">
-                          <label className="text-[10px] text-red-400 uppercase mb-1 block">扣减确认 — 输入目标用户邮箱</label>
-                          <input
-                            type="text"
-                            value={balanceConfirmEmail}
-                            onChange={e => setBalanceConfirmEmail(e.target.value)}
-                            placeholder={detail.user.email}
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-red-500/30 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500/60"
-                          />
-                        </div>
-                      )}
-                      <button
-                        onClick={handleAdjustBalance}
-                        disabled={formLoading}
-                        className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
-                      >
-                        {formLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <DollarSign className="w-3.5 h-3.5" />}
-                        确认调整余额
-                      </button>
-                      {balanceDelta && parseFloat(balanceDelta) < 0 && (
-                        <p className="mt-2 text-[10px] text-red-400 flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3" /> 负数金额将扣减用户余额，需输入用户邮箱确认
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Subscription Adjustment */}
-                    <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
-                      <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                        <Crown className="w-4 h-4 text-amber-400" /> 订阅调整
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">套餐类型</label>
-                          <select
-                            value={subPkg}
-                            onChange={e => setSubPkg(e.target.value)}
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/40"
-                          >
-                            <option value="free">免费版 (free)</option>
-                            <option value="trial">体验版 (trial)</option>
-                            <option value="pro">专业版 (pro)</option>
-                            <option value="max">高级版 (max)</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">到期时间</label>
-                          <input
-                            type="datetime-local"
-                            value={subExpires}
-                            onChange={e => setSubExpires(e.target.value)}
-                            disabled={subPkg === 'free' || subPkg === 'trial'}
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/40 disabled:opacity-40"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">操作原因（必填）</label>
-                          <textarea
-                            value={subReason}
-                            onChange={e => setSubReason(e.target.value)}
-                            placeholder="调整原因..."
-                            rows={2}
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none"
-                          />
-                        </div>
-                      </div>
-                      {(() => {
-                        const oldExp = detail.user.subscriptionExpiresAt ? new Date(detail.user.subscriptionExpiresAt).getTime() : null;
-                        const needsExpiry = subPkg === 'pro' || subPkg === 'max';
-                        const newExp = needsExpiry ? (subExpires ? new Date(subExpires).getTime() : null) : null;
-                        const downgrade = (subPkg === 'free' || subPkg === 'trial') && detail.user.packageType !== 'free' && detail.user.packageType !== 'trial';
-                        const shorten = needsExpiry && oldExp !== null && newExp !== null && newExp < oldExp;
-                        if (!downgrade && !shorten) return null;
-                        return (
-                          <div className="mt-4">
-                            <label className="text-[10px] text-red-400 uppercase mb-1 block">
-                              {downgrade ? '降级确认' : '缩短到期确认'} — 输入目标用户邮箱
-                            </label>
-                            <input
-                              type="text"
-                              value={subConfirmEmail}
-                              onChange={e => setSubConfirmEmail(e.target.value)}
-                              placeholder={detail.user.email}
-                              className="w-full px-3 py-2 bg-[#0B1020] border border-red-500/30 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500/60"
-                            />
-                          </div>
-                        );
-                      })()}
-                      <button
-                        onClick={handleAdjustSubscription}
-                        disabled={formLoading}
-                        className="mt-4 px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
-                      >
-                        {formLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Crown className="w-3.5 h-3.5" />}
-                        确认调整订阅
-                      </button>
-                    </div>
-
-                    {/* Note Update */}
-                    <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
-                      <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                        <StickyNote className="w-4 h-4 text-violet-400" /> 运营备注
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">备注内容（最多1000字）</label>
-                          <textarea
-                            value={noteText}
-                            onChange={e => setNoteText(e.target.value)}
-                            placeholder="输入运营备注..."
-                            rows={3}
-                            maxLength={1000}
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none"
-                          />
-                          <span className="text-[10px] text-slate-600 mt-1 block">{noteText.length}/1000</span>
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">修改原因（必填）</label>
-                          <textarea
-                            value={noteReason}
-                            onChange={e => setNoteReason(e.target.value)}
-                            placeholder="修改原因..."
-                            rows={3}
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none"
-                          />
-                        </div>
-                      </div>
-                      <button
-                        onClick={handleUpdateNote}
-                        disabled={formLoading}
-                        className="mt-4 px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
-                      >
-                        {formLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <StickyNote className="w-3.5 h-3.5" />}
-                        保存备注
-                      </button>
-                    </div>
-
-                    {/* Reset Password */}
-                    <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
-                      <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                        <KeyRound className="w-4 h-4 text-rose-400" /> 重置密码
-                        <span className="text-[10px] text-slate-500 font-normal">仅用于邮件不可用时人工处理</span>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">新密码（必填）</label>
-                          <input
-                            type="text"
-                            value={pwNew}
-                            onChange={e => setPwNew(e.target.value)}
-                            placeholder="输入新密码"
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">操作原因（必填）</label>
-                          <input
-                            type="text"
-                            value={pwReason}
-                            onChange={e => setPwReason(e.target.value)}
-                            placeholder="重置原因..."
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-rose-400 uppercase mb-1 block">邮箱确认（必填）</label>
-                          <input
-                            type="text"
-                            value={pwConfirmEmail}
-                            onChange={e => setPwConfirmEmail(e.target.value)}
-                            placeholder={detail.user.email}
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-rose-500/30 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-rose-500/60"
-                          />
-                        </div>
-                      </div>
-                      <button
-                        onClick={handleResetPassword}
-                        disabled={formLoading}
-                        className="mt-4 px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
-                      >
-                        {formLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
-                        重置密码
-                      </button>
-                      <p className="mt-2 text-[10px] text-slate-500">密码以哈希形式存储，不会被记录或返回。请通过可靠渠道告知用户。</p>
-                    </div>
-
-                    {/* Refund Note */}
-                    <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
-                      <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                        <Undo2 className="w-4 h-4 text-cyan-400" />
-                        退款备注
-                        <span className="text-[10px] text-slate-500 font-normal">仅记录，不触发实际资金操作</span>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div>
-                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">类型</label>
-                          <div className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200">
-                            退款备注
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">金额</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={opAmount}
-                            onChange={e => setOpAmount(e.target.value)}
-                            placeholder="例如: 10.00"
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">渠道</label>
-                          <input
-                            type="text"
-                            value={opChannel}
-                            onChange={e => setOpChannel(e.target.value)}
-                            placeholder="微信 / 支付宝 / 银行卡"
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">操作原因（必填）</label>
-                          <input
-                            type="text"
-                            value={opReason}
-                            onChange={e => setOpReason(e.target.value)}
-                            placeholder="原因..."
-                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
-                          />
-                        </div>
-                      </div>
-                      <div className="mt-4">
-                        <label className="text-[10px] text-slate-400 uppercase mb-1 block">说明（可选）</label>
-                        <textarea
-                          value={opNote}
-                          onChange={e => setOpNote(e.target.value)}
-                          placeholder="补充说明..."
-                          rows={2}
-                          className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none"
-                        />
-                      </div>
-                      <button
-                        onClick={handleOperationNote}
-                        disabled={formLoading}
-                        className="mt-4 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
-                      >
-                        {formLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                        记录备注
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {detailTab === 'billing' && (
-                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-bold text-white">最近账单（{detail.billingRecords.length}）</h3>
-                      <button
-                        onClick={() => handleExport('billing', detail.user.id)}
-                        className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/5"
-                      >
-                        <Download className="w-3 h-3" /> 导出 CSV
-                      </button>
-                    </div>
-                    <DataTable
-                      columns={[
-                        { key: 'type', label: '类型' },
-                        { key: 'amount', label: '金额', render: (v) => <span className={`font-mono ${Number(v) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtMoney(Number(v))}</span> },
-                        { key: 'balance', label: '余额', render: (v) => <span className="font-mono text-blue-400">{fmtMoney(Number(v))}</span> },
-                        { key: 'description', label: '说明' },
-                        { key: 'createdAt', label: '时间', render: (v) => fmt(String(v)) },
-                      ]}
-                      rows={detail.billingRecords}
-                    />
-                  </div>
-                )}
-
-                {detailTab === 'recharge' && (
-                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
-                    <h3 className="text-sm font-bold text-white mb-4">最近充值单（{detail.rechargeOrders.length}）</h3>
-                    <DataTable
-                      columns={[
-                        { key: 'id', label: '充值单号' },
-                        { key: 'amount', label: '金额', render: (v) => fmtMoney(Number(v)) },
-                        { key: 'realAmount', label: '实付', render: (v) => fmtMoney(Number(v)) },
-                        { key: 'payType', label: '方式' },
-                        { key: 'status', label: '状态' },
-                        { key: 'createdAt', label: '创建时间', render: (v) => fmt(String(v)) },
-                        { key: 'payTime', label: '支付时间', render: (v) => fmt(v as string) },
-                        { key: '__action', label: '操作', render: (_v, row) => (
-                          String(row.status) === 'success' ? (
-                            <span className="text-[10px] text-emerald-400 font-bold">已入账</span>
-                          ) : (
-                            <button
-                              onClick={() => handleManualConfirmRecharge(String(row.id), String(row.status))}
-                              disabled={rechargeConfirmingId === String(row.id)}
-                              className="px-2.5 py-1 rounded-lg bg-blue-950/40 border border-blue-500/30 text-blue-300 hover:bg-blue-900/50 text-[10px] font-bold disabled:opacity-50"
-                            >
-                              {rechargeConfirmingId === String(row.id) ? '处理中…' : '人工确认到账'}
-                            </button>
-                          )
-                        )},
-                      ]}
-                      rows={detail.rechargeOrders}
-                    />
-                  </div>
-                )}
-
-                {detailTab === 'orders' && (
-                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
-                    <h3 className="text-sm font-bold text-white mb-4">最近订单（{detail.orders.length}）</h3>
-                    <DataTable
-                      columns={[
-                        { key: 'id', label: '订单号', render: (v) => <span>{String(v).slice(0, 14)}…<CopyBtn value={String(v)} /></span> },
-                        { key: 'outOrderNo', label: '外部单号', render: (v) => <span>{String(v ?? '—')}{v ? <CopyBtn value={String(v)} /> : null}</span> },
-                        { key: 'title', label: '标题' },
-                        { key: 'amount', label: '金额', render: (v) => fmtMoney(Number(v)) },
-                        { key: 'status', label: '状态' },
-                        { key: 'payType', label: '方式' },
-                        { key: 'webhookStatus', label: 'Webhook' },
-                        { key: 'createdAt', label: '创建', render: (v) => fmt(String(v)) },
-                      ]}
-                      rows={detail.orders}
-                    />
-                  </div>
-                )}
-
-                {detailTab === 'devices' && (
-                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
-                    <h3 className="text-sm font-bold text-white mb-4">设备列表（{detail.devices.length}）</h3>
-                    <DataTable
-                      columns={[
-                        { key: 'name', label: '设备名' },
-                        { key: 'online', label: '在线', render: (v) => (
-                          <span className={`inline-block w-2 h-2 rounded-full ${v ? 'bg-emerald-500' : 'bg-slate-600'}`} />
-                        )},
-                        { key: 'lastHeartbeat', label: '最后心跳', render: (v) => fmt(v as string) },
-                        { key: 'status', label: '状态' },
-                      ]}
-                      rows={detail.devices}
-                    />
-                  </div>
-                )}
-
-                {detailTab === 'apps' && (
-                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
-                    <h3 className="text-sm font-bold text-white mb-4">应用列表（{detail.apps.length}）</h3>
-                    <DataTable
-                      columns={[
-                        { key: 'name', label: '应用名' },
-                        { key: 'appId', label: 'App ID', render: (v) => <span>{String(v)}<CopyBtn value={String(v)} /></span> },
-                        { key: 'notifyUrl', label: '通知地址' },
-                        { key: 'returnUrl', label: '回调地址' },
-                        { key: 'createdAt', label: '创建时间', render: (v) => fmt(String(v)) },
-                      ]}
-                      rows={detail.apps}
-                    />
-                  </div>
-                )}
-
-                {detailTab === 'audit' && (
-                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
-                    <h3 className="text-sm font-bold text-white mb-4">审计日志（{detail.auditLogs.length}）</h3>
-                    <DataTable
-                      columns={[
-                        { key: 'action', label: '操作', render: (v) => actionLabel(String(v)) },
-                        { key: 'adminEmail', label: '操作员' },
-                        { key: 'reason', label: '原因' },
-                        { key: 'beforeJson', label: '变更前', render: (v) => v ? String(v).slice(0, 50) : '—' },
-                        { key: 'afterJson', label: '变更后', render: (v) => v ? String(v).slice(0, 50) : '—' },
-                        { key: 'createdAt', label: '时间', render: (v) => fmt(String(v)) },
-                      ]}
-                      rows={detail.auditLogs}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Overview: summary cards + platform status + global audit logs */}
-          {!detail && authState === 'ok' && (
             <div className="p-6 space-y-6">
-              {/* Summary cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Summary metrics */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
                   { label: '总开发者数', value: summary ? String(summary.totalUsers) : '—', icon: <Users className="w-4 h-4 text-blue-400" /> },
                   { label: '今日新增用户', value: summary ? String(summary.todayNewUsers) : '—', icon: <UserPlus className="w-4 h-4 text-emerald-400" /> },
@@ -1271,7 +887,7 @@ export default function AdminPage() {
                 ))}
               </div>
 
-              {/* Platform recharge status */}
+              {/* Platform status info */}
               <div className={`bg-[#111827] border rounded-2xl p-6 ${platform ? (platform.ready ? 'border-emerald-500/30' : 'border-amber-500/30') : 'border-white/5'}`}>
                 <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
                   <CreditCard className="w-4 h-4 text-blue-400" /> 平台收款账号状态
@@ -1322,7 +938,7 @@ export default function AdminPage() {
                 )}
               </div>
 
-              {/* Global audit logs */}
+              {/* Global audit logs (Desktop) */}
               <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -1336,12 +952,11 @@ export default function AdminPage() {
                   </button>
                 </div>
 
-                {/* Filters */}
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mb-4">
                   <select
                     value={auditAction}
                     onChange={e => setAuditAction(e.target.value)}
-                    className="px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-blue-500/40"
+                    className="px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-blue-500/40 font-bold"
                   >
                     {AUDIT_ACTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
@@ -1404,19 +1019,1260 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
+          ) : detailLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+            </div>
+          ) : detail && (
+            <div className="p-6 max-w-5xl">
+              {/* User header */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-blue-950 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-sm">
+                  {detail.user.email[0].toUpperCase()}
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">{detail.user.email}</h2>
+                  <p className="text-[10px] text-slate-500 font-mono">ID: {detail.user.id}<CopyBtn value={detail.user.id} /></p>
+                </div>
+                <div className="ml-auto flex items-center gap-2">
+                  <button onClick={() => fetchDetail(detail.user.id)} className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors">
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Detail Tabs Selector */}
+              <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
+                {detailTabs.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setDetailTab(tab.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                      detailTab === tab.id
+                        ? 'bg-blue-500/10 text-blue-400'
+                        : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                    }`}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Selected User Tabs Content (Desktop View) */}
+              <div className="space-y-4">
+                {detailTab === 'info' && (
+                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
+                    <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><Users className="w-4 h-4 text-blue-400" /> 基本信息</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {[
+                        { label: '邮箱', value: detail.user.email },
+                        { label: '余额', value: fmtMoney(detail.user.feeBalance), cls: 'text-blue-400 font-mono font-bold' },
+                        { label: '套餐', value: pkgBadge(detail.user.packageType) },
+                        { label: '免费单已用', value: `${detail.user.freeOrderUsed} 单` },
+                        { label: '订阅到期', value: fmt(detail.user.subscriptionExpiresAt) },
+                        { label: '注册时间', value: fmt(detail.user.createdAt) },
+                      ].map((item, i) => (
+                        <div key={i} className="flex flex-col gap-1">
+                          <span className="text-[10px] text-slate-500 uppercase tracking-wider">{item.label}</span>
+                          {typeof item.value === 'string' ? (
+                            <span className={`text-xs ${item.cls || 'text-slate-200'}`}>{item.value}</span>
+                          ) : item.value}
+                        </div>
+                      ))}
+                    </div>
+                    {detail.user.adminNote && (
+                      <div className="mt-4 p-3 bg-amber-950/20 border border-amber-500/10 rounded-xl">
+                        <span className="text-[10px] text-amber-500 font-bold uppercase">运营备注</span>
+                        <p className="text-xs text-amber-200/70 mt-1">{detail.user.adminNote}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {detailTab === 'actions' && (
+                  <div className="space-y-4">
+                    {/* Balance adjustment form */}
+                    <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
+                      <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                        <DollarSign className="w-4 h-4 text-emerald-400" /> 余额调整
+                        <span className="text-[10px] text-slate-500 font-normal">当前: {fmtMoney(detail.user.feeBalance)}</span>
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">调整金额（正数增加，负数扣减）</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={balanceDelta}
+                            onChange={e => setBalanceDelta(e.target.value)}
+                            placeholder="例如: 10.50 或 -5.00"
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">操作原因（必填）</label>
+                          <textarea
+                            value={balanceReason}
+                            onChange={e => setBalanceReason(e.target.value)}
+                            placeholder="请说明调整原因..."
+                            rows={2}
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none"
+                          />
+                        </div>
+                      </div>
+                      {balanceDelta && parseFloat(balanceDelta) < 0 && (
+                        <div className="mt-4">
+                          <label className="text-[10px] text-red-400 uppercase mb-1 block">扣减确认 — 输入目标用户邮箱</label>
+                          <input
+                            type="text"
+                            value={balanceConfirmEmail}
+                            onChange={e => setBalanceConfirmEmail(e.target.value)}
+                            placeholder={detail.user.email}
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-red-500/30 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500/60"
+                          />
+                        </div>
+                      )}
+                      <button
+                        onClick={handleAdjustBalance}
+                        disabled={formLoading}
+                        className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
+                      >
+                        {formLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <DollarSign className="w-3.5 h-3.5" />}
+                        确认调整余额
+                      </button>
+                    </div>
+
+                    {/* Subscription adjust form */}
+                    <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
+                      <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                        <Crown className="w-4 h-4 text-amber-400" /> 订阅调整
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">套餐类型</label>
+                          <select
+                            value={subPkg}
+                            onChange={e => setSubPkg(e.target.value)}
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/40"
+                          >
+                            <option value="free">免费版</option>
+                            <option value="trial">体验版</option>
+                            <option value="pro">专业版</option>
+                            <option value="max">高级版</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">订阅到期时间 (限付费套餐)</label>
+                          <input
+                            type="datetime-local"
+                            value={subExpires}
+                            onChange={e => setSubExpires(e.target.value)}
+                            disabled={subPkg === 'free'}
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 disabled:opacity-40"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">操作原因（必填）</label>
+                          <input
+                            type="text"
+                            value={subReason}
+                            onChange={e => setSubReason(e.target.value)}
+                            placeholder="填写套餐变更原因..."
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleAdjustSubscription}
+                        disabled={formLoading}
+                        className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
+                      >
+                        {formLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Crown className="w-3.5 h-3.5" />}
+                        确认更新订阅
+                      </button>
+                    </div>
+
+                    {/* Reset password form */}
+                    <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
+                      <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                        <KeyRound className="w-4 h-4 text-rose-400" /> 重置用户密码
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">新密码</label>
+                          <input
+                            type="text"
+                            value={pwNew}
+                            onChange={e => setPwNew(e.target.value)}
+                            placeholder="请输入强密码"
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/40"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">操作原因（必填）</label>
+                          <input
+                            type="text"
+                            value={pwReason}
+                            onChange={e => setPwReason(e.target.value)}
+                            placeholder="如: 用户工单申请"
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/40"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-red-400 uppercase mb-1 block">确认邮箱</label>
+                          <input
+                            type="text"
+                            value={pwConfirmEmail}
+                            onChange={e => setPwConfirmEmail(e.target.value)}
+                            placeholder="输入用户邮箱"
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-red-500/30 rounded-lg text-sm text-slate-200 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleResetPassword}
+                        disabled={formLoading}
+                        className="mt-4 px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors"
+                      >
+                        执行重置密码
+                      </button>
+                    </div>
+
+                    {/* Refund operations form */}
+                    <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
+                      <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                        <Undo2 className="w-4 h-4 text-blue-400" /> 退款线下登记
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">登记金额</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={opAmount}
+                            onChange={e => setOpAmount(e.target.value)}
+                            placeholder="0.00"
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">退款渠道 (如: 微信/支付宝/银行卡)</label>
+                          <input
+                            type="text"
+                            value={opChannel}
+                            onChange={e => setOpChannel(e.target.value)}
+                            placeholder="例如: 支付宝"
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">流水号 / 账号</label>
+                          <input
+                            type="text"
+                            value={opNote}
+                            onChange={e => setOpNote(e.target.value)}
+                            placeholder="可选流水说明"
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">退款原因（必填）</label>
+                          <input
+                            type="text"
+                            value={opReason}
+                            onChange={e => setOpReason(e.target.value)}
+                            placeholder="退款审计备注"
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleOperationNote}
+                        disabled={formLoading}
+                        className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg"
+                      >
+                        记录退款备注
+                      </button>
+                    </div>
+
+                    {/* Admin note update */}
+                    <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
+                      <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                        <StickyNote className="w-4 h-4 text-amber-400" /> 内部运营备注
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">备注内容 (保存后在列表中可见)</label>
+                          <textarea
+                            value={noteText}
+                            onChange={e => setNoteText(e.target.value)}
+                            placeholder="填写该用户的运营评注..."
+                            rows={3}
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 resize-none focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">操作原因 (必填)</label>
+                          <textarea
+                            value={noteReason}
+                            onChange={e => setNoteReason(e.target.value)}
+                            placeholder="说明备注的添加 / 修改原因..."
+                            rows={3}
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 resize-none focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleUpdateNote}
+                        disabled={formLoading}
+                        className="mt-4 px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg"
+                      >
+                        确认更新运营备注
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {detailTab === 'billing' && (
+                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-bold text-white">最近账单（{detail.billingRecords.length}）</h3>
+                      <button onClick={() => handleExport('billing', detail.user.id)} className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 font-bold">
+                        <Download className="w-3 h-3" /> 导出 CSV
+                      </button>
+                    </div>
+                    <DataTable
+                      columns={[
+                        { key: 'type', label: '类型', render: (v) => <span className={v === 'charge' ? 'text-emerald-400 font-bold' : 'text-slate-400'}>{String(v)}</span> },
+                        { key: 'amount', label: '变动', render: (v) => <span className="font-mono">{fmtMoney(Number(v))}</span> },
+                        { key: 'balance', label: '余额', render: (v) => <span className="text-blue-400 font-mono font-bold">{fmtMoney(Number(v))}</span> },
+                        { key: 'description', label: '摘要' },
+                        { key: 'createdAt', label: '时间', render: (v) => fmt(String(v)) },
+                      ]}
+                      rows={detail.billingRecords as unknown as Array<Record<string, unknown>>}
+                    />
+                  </div>
+                )}
+
+                {detailTab === 'recharge' && (
+                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
+                    <h3 className="text-sm font-bold text-white mb-4">最近充值单（{detail.rechargeOrders.length}）</h3>
+                    <DataTable
+                      columns={[
+                        { key: 'id', label: '订单ID' },
+                        { key: 'amount', label: '金额', render: (v) => <span className="font-mono">{fmtMoney(Number(v))}</span> },
+                        { key: 'realAmount', label: '实付金额', render: (v) => <span className="text-emerald-400 font-mono font-bold">{fmtMoney(Number(v))}</span> },
+                        { key: 'payType', label: '方式' },
+                        {
+                          key: 'status', label: '状态', render: (v, row) => (
+                            <div className="flex items-center gap-2">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${v === 'success' ? 'bg-emerald-600/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'}`}>{String(v)}</span>
+                              {v === 'pending' && (
+                                <button
+                                  onClick={() => handleManualConfirmRecharge(String(row.id), String(v), detail.user.email, Number(row.amount), Number(row.realAmount), String(row.payType), String(row.createdAt))}
+                                  className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold rounded transition-colors"
+                                >
+                                  人工到账
+                                </button>
+                              )}
+                            </div>
+                          )
+                        },
+                        { key: 'createdAt', label: '创建时间', render: (v) => fmt(String(v)) },
+                      ]}
+                      rows={detail.rechargeOrders as unknown as Array<Record<string, unknown>>}
+                    />
+                  </div>
+                )}
+
+                {detailTab === 'orders' && (
+                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
+                    <h3 className="text-sm font-bold text-white mb-4">最近订单（{detail.orders.length}）</h3>
+                    <DataTable
+                      columns={[
+                        { key: 'id', label: '系统订单' },
+                        { key: 'outOrderNo', label: '商户单号' },
+                        { key: 'amount', label: '金额', render: (v) => <span className="font-mono">{fmtMoney(Number(v))}</span> },
+                        { key: 'realAmount', label: '实际付款', render: (v) => <span className="text-blue-400 font-mono font-bold">{fmtMoney(Number(v))}</span> },
+                        { key: 'status', label: '状态', render: (v) => <span className={v === 'success' ? 'text-emerald-400 font-bold' : 'text-slate-400'}>{String(v)}</span> },
+                        { key: 'payTime', label: '付款时间', render: (v) => fmt(String(v)) },
+                      ]}
+                      rows={detail.orders as unknown as Array<Record<string, unknown>>}
+                    />
+                  </div>
+                )}
+
+                {detailTab === 'devices' && (
+                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
+                    <h3 className="text-sm font-bold text-white mb-4">设备列表（{detail.devices.length}）</h3>
+                    <DataTable
+                      columns={[
+                        { key: 'name', label: '设备名' },
+                        { key: 'deviceCode', label: '识别码' },
+                        { key: 'online', label: '在线', render: (v) => <span className={v ? 'text-emerald-400 font-bold' : 'text-rose-400'}>{v ? '在线' : '离线'}</span> },
+                        { key: 'lastHeartbeat', label: '最后心跳', render: (v) => fmt(String(v)) },
+                      ]}
+                      rows={detail.devices as unknown as Array<Record<string, unknown>>}
+                    />
+                  </div>
+                )}
+
+                {detailTab === 'apps' && (
+                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
+                    <h3 className="text-sm font-bold text-white mb-4">应用列表（{detail.apps.length}）</h3>
+                    <DataTable
+                      columns={[
+                        { key: 'name', label: '应用名' },
+                        { key: 'appId', label: 'App ID' },
+                        { key: 'notifyUrl', label: '异步通知' },
+                      ]}
+                      rows={detail.apps as unknown as Array<Record<string, unknown>>}
+                    />
+                  </div>
+                )}
+
+                {detailTab === 'audit' && (
+                  <div className="bg-[#111827] border border-white/5 rounded-2xl p-6">
+                    <h3 className="text-sm font-bold text-white mb-4">审计日志（{detail.auditLogs.length}）</h3>
+                    <DataTable
+                      columns={[
+                        { key: 'action', label: '操作', render: (v) => actionLabel(String(v)) },
+                        { key: 'adminEmail', label: '操作管理员' },
+                        { key: 'reason', label: '缘由/说明' },
+                        { key: 'createdAt', label: '产生时间', render: (v) => fmt(String(v)) },
+                      ]}
+                      rows={detail.auditLogs as unknown as Array<Record<string, unknown>>}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </main>
       </div>
 
-      {/* Footer */}
-      <footer className="py-4 border-t border-white/[0.03] px-6 text-center text-[10px] text-slate-600 font-mono">
+      {/* ----------------- MOBILE PWA VIEW (TABBED NAV) ----------------- */}
+      <div className="block md:hidden min-h-[calc(100vh-56px)] px-3 py-4">
+        
+        {/* MOBILE TAB 1: PENDING RECHARGES */}
+        {mobileTab === 'pending' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-white flex items-center gap-1.5">
+                <CreditCard className="w-5 h-5 text-blue-400" />
+                待人工确认充值单 ({pendingTotal})
+              </h2>
+              <button onClick={() => fetchPendingOrders(1, pendingSearch)} className="p-1.5 bg-white/5 rounded-lg text-slate-400 hover:text-white transition-colors">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Search Box */}
+            <form onSubmit={handlePendingSearch} className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input
+                type="text"
+                value={pendingSearch}
+                onChange={e => setPendingSearch(e.target.value)}
+                placeholder="搜索单号或邮箱..."
+                className="w-full pl-10 pr-4 py-2 bg-[#111827] border border-white/5 rounded-xl text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
+              />
+            </form>
+
+            {/* Card List */}
+            {pendingLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+              </div>
+            ) : pendingOrders.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-12 bg-[#0B1020] rounded-xl border border-white/5">暂无待人工确认充值单</p>
+            ) : (
+              <div className="space-y-2.5">
+                {pendingOrders.map((item) => (
+                  <div key={item.id} className="bg-[#111827] border border-white/5 rounded-xl p-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono font-bold text-slate-200">{item.id}</span>
+                      <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 text-[10px] rounded border border-amber-500/20 font-bold uppercase">
+                        {item.payType}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-y-1 text-[11px] text-slate-400">
+                      <div>用户邮箱:</div>
+                      <div className="text-white font-medium truncate">{item.userEmail || '—'}</div>
+                      <div>应付金额:</div>
+                      <div className="text-white font-mono">{fmtMoney(item.amount)}</div>
+                      <div>实付金额:</div>
+                      <div className="text-emerald-400 font-mono font-bold">{fmtMoney(item.realAmount)}</div>
+                      <div>创建时间:</div>
+                      <div>{fmt(item.createdAt)}</div>
+                    </div>
+                    <div className="pt-2 border-t border-white/[0.04] flex justify-end">
+                      <button
+                        onClick={() => handleManualConfirmRecharge(item.id, item.status, item.userEmail, item.amount, item.realAmount, item.payType, item.createdAt)}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold rounded-lg shadow-md transition-colors"
+                      >
+                        确认人工到账
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Pagination */}
+            {pendingTotalPages > 1 && (
+              <div className="flex items-center justify-between bg-[#0B1020] border border-white/5 rounded-xl p-2">
+                <button
+                  disabled={pendingPage <= 1}
+                  onClick={() => fetchPendingOrders(pendingPage - 1, pendingSearch)}
+                  className="p-1 rounded bg-white/5 hover:bg-white/10 disabled:opacity-30"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-[11px] text-slate-500">{pendingPage} / {pendingTotalPages}</span>
+                <button
+                  disabled={pendingPage >= pendingTotalPages}
+                  onClick={() => fetchPendingOrders(pendingPage + 1, pendingSearch)}
+                  className="p-1 rounded bg-white/5 hover:bg-white/10 disabled:opacity-30"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MOBILE TAB 2: USER SEARCH / DETAILS */}
+        {mobileTab === 'users' && (
+          <div className="space-y-4">
+            {!detail ? (
+              // List mode
+              <>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base font-bold text-white flex items-center gap-1.5">
+                    <Users className="w-5 h-5 text-blue-400" />
+                    用户搜索与列表
+                  </h2>
+                  <button onClick={() => fetchUsers(1, usersSearch)} className="p-1.5 bg-white/5 rounded-lg text-slate-400 hover:text-white transition-colors">
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSearch} className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="text"
+                    value={usersSearch}
+                    onChange={e => setUsersSearch(e.target.value)}
+                    placeholder="输入用户邮箱搜索..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#111827] border border-white/5 rounded-xl text-xs text-slate-200 focus:outline-none"
+                  />
+                </form>
+
+                {usersLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                  </div>
+                ) : users.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-12 bg-[#0B1020] rounded-xl border border-white/5">暂无匹配用户</p>
+                ) : (
+                  <div className="space-y-2">
+                    {users.map(u => (
+                      <button
+                        key={u.id}
+                        onClick={() => fetchDetail(u.id)}
+                        className="w-full bg-[#111827] border border-white/5 rounded-xl p-3 text-left hover:border-blue-500/30 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-bold text-white truncate max-w-[200px]">{u.email}</span>
+                          {pkgBadge(u.packageType)}
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400">
+                          <span>余额: <span className="text-blue-400 font-mono font-bold">{fmtMoney(u.feeBalance)}</span></span>
+                          <span>注册: {fmt(u.createdAt).split(' ')[0]}</span>
+                        </div>
+                        {u.adminNote && (
+                          <p className="text-[10px] text-amber-500/60 mt-1 truncate">📝 {u.adminNote}</p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Users Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between bg-[#0B1020] border border-white/5 rounded-xl p-2">
+                    <button
+                      disabled={usersPage <= 1}
+                      onClick={() => fetchUsers(usersPage - 1, usersSearch)}
+                      className="p-1 rounded bg-white/5 disabled:opacity-30"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-[11px] text-slate-500">{usersPage} / {totalPages}</span>
+                    <button
+                      disabled={usersPage >= totalPages}
+                      onClick={() => fetchUsers(usersPage + 1, usersSearch)}
+                      className="p-1 rounded bg-white/5 disabled:opacity-30"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              // Details Mode
+              <div className="space-y-4">
+                <button
+                  onClick={() => setDetail(null)}
+                  className="flex items-center gap-1 text-xs text-blue-400 font-bold bg-[#111827] px-3 py-1.5 rounded-lg border border-white/5 self-start"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" /> 返回用户列表
+                </button>
+
+                <div className="bg-[#111827] border border-white/5 rounded-xl p-4 space-y-2">
+                  <h3 className="text-sm font-bold text-white truncate">{detail.user.email}</h3>
+                  <p className="text-[10px] text-slate-500 font-mono">ID: {detail.user.id}<CopyBtn value={detail.user.id} /></p>
+                </div>
+
+                {/* Sub-Tabs selector */}
+                <div className="flex gap-1 overflow-x-auto pb-1.5">
+                  {detailTabs.map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setDetailTab(tab.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${
+                        detailTab === tab.id
+                          ? 'bg-blue-500/10 text-blue-400'
+                          : 'text-slate-400 hover:bg-white/5'
+                      }`}
+                    >
+                      {tab.icon}
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Sub-Tab content responsive renderer */}
+                <div className="space-y-3">
+                  {detailTab === 'info' && (
+                    <div className="bg-[#111827] border border-white/5 rounded-xl p-4 space-y-3.5">
+                      {[
+                        { label: '邮箱', value: detail.user.email },
+                        { label: '余额', value: fmtMoney(detail.user.feeBalance), cls: 'text-blue-400 font-mono font-bold' },
+                        { label: '套餐', value: pkgBadge(detail.user.packageType) },
+                        { label: '免费单已用', value: `${detail.user.freeOrderUsed} 单` },
+                        { label: '订阅到期', value: fmt(detail.user.subscriptionExpiresAt) },
+                        { label: '注册时间', value: fmt(detail.user.createdAt) },
+                      ].map((item, i) => (
+                        <div key={i} className="flex justify-between items-center text-xs py-1 border-b border-white/[0.03]">
+                          <span className="text-slate-500">{item.label}</span>
+                          {typeof item.value === 'string' ? (
+                            <span className={item.cls || 'text-slate-200 font-medium'}>{item.value}</span>
+                          ) : item.value}
+                        </div>
+                      ))}
+                      {detail.user.adminNote && (
+                        <div className="p-3 bg-amber-950/20 border border-amber-500/10 rounded-lg text-xs">
+                          <span className="text-[10px] text-amber-400 font-bold uppercase">运营备注</span>
+                          <p className="text-slate-300 mt-1">{detail.user.adminNote}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {detailTab === 'actions' && (
+                    <div className="space-y-4">
+                      {/* Balance adjustment */}
+                      <div className="bg-[#111827] border border-white/5 rounded-xl p-4 space-y-3">
+                        <h4 className="text-xs font-bold text-white">余额调整 (当前 {fmtMoney(detail.user.feeBalance)})</h4>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={balanceDelta}
+                          onChange={e => setBalanceDelta(e.target.value)}
+                          placeholder="调整金额 (正加负减)"
+                          className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200"
+                        />
+                        <textarea
+                          value={balanceReason}
+                          onChange={e => setBalanceReason(e.target.value)}
+                          placeholder="说明原因 (必填)"
+                          rows={2}
+                          className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 resize-none"
+                        />
+                        {balanceDelta && parseFloat(balanceDelta) < 0 && (
+                          <input
+                            type="text"
+                            value={balanceConfirmEmail}
+                            onChange={e => setBalanceConfirmEmail(e.target.value)}
+                            placeholder="扣减验证：输入用户完整邮箱"
+                            className="w-full px-3 py-2 bg-[#0B1020] border border-red-500/30 rounded-lg text-xs text-slate-200"
+                          />
+                        )}
+                        <button
+                          onClick={handleAdjustBalance}
+                          disabled={formLoading}
+                          className="w-full py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg"
+                        >
+                          确认调整余额
+                        </button>
+                      </div>
+
+                      {/* Subscription adjust */}
+                      <div className="bg-[#111827] border border-white/5 rounded-xl p-4 space-y-3">
+                        <h4 className="text-xs font-bold text-white">订阅调整</h4>
+                        <select
+                          value={subPkg}
+                          onChange={e => setSubPkg(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200"
+                        >
+                          <option value="free">免费版</option>
+                          <option value="trial">体验版</option>
+                          <option value="pro">专业版</option>
+                          <option value="max">高级版</option>
+                        </select>
+                        <input
+                          type="datetime-local"
+                          value={subExpires}
+                          onChange={e => setSubExpires(e.target.value)}
+                          disabled={subPkg === 'free'}
+                          className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 disabled:opacity-40"
+                        />
+                        <input
+                          type="text"
+                          value={subReason}
+                          onChange={e => setSubReason(e.target.value)}
+                          placeholder="说明原因 (必填)"
+                          className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200"
+                        />
+                        <button
+                          onClick={handleAdjustSubscription}
+                          disabled={formLoading}
+                          className="w-full py-2 bg-blue-600 text-white text-xs font-bold rounded-lg"
+                        >
+                          确认更新订阅
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {detailTab === 'billing' && (
+                    <div className="space-y-2">
+                      {detail.billingRecords.length === 0 ? (
+                        <p className="text-xs text-slate-500 text-center py-4 bg-[#111827] rounded-xl border border-white/5">暂无账单数据</p>
+                      ) : (
+                        detail.billingRecords.map((r: any) => (
+                          <div key={r.id} className="bg-[#111827] border border-white/5 rounded-xl p-3 text-xs space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className={r.type === 'charge' ? 'text-emerald-400 font-bold' : 'text-slate-400'}>{r.type}</span>
+                              <span className="font-mono font-bold text-white">{fmtMoney(r.amount)}</span>
+                            </div>
+                            <p className="text-slate-300 text-[11px]">{r.description}</p>
+                            <p className="text-[10px] text-slate-500">{fmt(r.createdAt)}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {detailTab === 'recharge' && (
+                    <div className="space-y-2">
+                      {detail.rechargeOrders.length === 0 ? (
+                        <p className="text-xs text-slate-500 text-center py-4 bg-[#111827] rounded-xl border border-white/5">暂无充值单</p>
+                      ) : (
+                        detail.rechargeOrders.map((r: any) => (
+                          <div key={r.id} className="bg-[#111827] border border-white/5 rounded-xl p-3 text-xs space-y-1.5">
+                            <div className="flex justify-between items-center">
+                              <span className="font-mono text-[10px] text-slate-400">{r.id}</span>
+                              <span className="px-1.5 py-0.5 bg-blue-600/10 text-blue-400 rounded text-[9px] font-bold uppercase">{r.payType}</span>
+                            </div>
+                            <div className="flex justify-between text-[11px]">
+                              <span className="text-slate-400">应付 / 实付:</span>
+                              <span className="font-mono text-white">{fmtMoney(r.amount)} / <span className="text-emerald-400 font-bold">{fmtMoney(r.realAmount)}</span></span>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className={`px-1.5 py-0.5 rounded ${r.status === 'success' ? 'bg-emerald-600/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'}`}>{r.status}</span>
+                              {r.status === 'pending' && (
+                                <button
+                                  onClick={() => handleManualConfirmRecharge(r.id, r.status, detail.user.email, r.amount, r.realAmount, r.payType, r.createdAt)}
+                                  className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold"
+                                >
+                                  人工到账
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {/* For devices, apps, audit in details: display clean mini-cards */}
+                  {detailTab === 'devices' && (
+                    <div className="space-y-2">
+                      {detail.devices.length === 0 ? (
+                        <p className="text-xs text-slate-500 text-center py-4 bg-[#111827] rounded-xl border border-white/5">无设备关联</p>
+                      ) : (
+                        detail.devices.map((dev: any) => (
+                          <div key={dev.id} className="bg-[#111827] border border-white/5 rounded-xl p-3 text-xs">
+                            <div className="flex justify-between font-bold mb-1">
+                              <span>{dev.name}</span>
+                              <span className={dev.online ? 'text-emerald-400' : 'text-slate-500'}>{dev.online ? '在线' : '离线'}</span>
+                            </div>
+                            <p className="text-[10px] font-mono text-slate-500">{dev.deviceCode}</p>
+                            <p className="text-[10px] text-slate-400 mt-1">最后心跳: {fmt(dev.lastHeartbeat)}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {detailTab === 'apps' && (
+                    <div className="space-y-2">
+                      {detail.apps.length === 0 ? (
+                        <p className="text-xs text-slate-500 text-center py-4 bg-[#111827] rounded-xl border border-white/5">暂无关联应用</p>
+                      ) : (
+                        detail.apps.map((app: any) => (
+                          <div key={app.id} className="bg-[#111827] border border-white/5 rounded-xl p-3 text-xs space-y-1">
+                            <div className="font-bold text-white">{app.name}</div>
+                            <div className="text-[10px] font-mono text-slate-500">ID: {app.appId}</div>
+                            <div className="text-[10px] text-slate-400 truncate">通知地址: {app.notifyUrl}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {detailTab === 'audit' && (
+                    <div className="space-y-2">
+                      {detail.auditLogs.length === 0 ? (
+                        <p className="text-xs text-slate-500 text-center py-4 bg-[#111827] rounded-xl border border-white/5">暂无审计记录</p>
+                      ) : (
+                        detail.auditLogs.map((log: any) => (
+                          <div key={log.id} className="bg-[#111827] border border-white/5 rounded-xl p-3 text-xs space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className="px-1.5 py-0.5 bg-blue-600/10 text-blue-400 font-bold rounded text-[9px]">{actionLabel(log.action)}</span>
+                              <span className="text-[10px] text-slate-500">{fmt(log.createdAt)}</span>
+                            </div>
+                            <p className="text-slate-300 text-[11px] font-medium">操作员: {log.adminEmail}</p>
+                            <p className="text-slate-400 text-[11px]">原因: {log.reason || '—'}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MOBILE TAB 3: EXCEPTIONS LOG */}
+        {mobileTab === 'exceptions' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-white flex items-center gap-1.5">
+                <AlertTriangle className="w-5 h-5 text-rose-400" />
+                异常事件记录 ({exceptionsTotal})
+              </h2>
+              <div className="flex items-center gap-2">
+                <select
+                  value={exceptionsStatus}
+                  onChange={e => { setExceptionsStatus(e.target.value); fetchExceptions(1, e.target.value); }}
+                  className="px-2 py-1 bg-[#111827] border border-white/5 rounded-lg text-xs font-bold text-slate-200"
+                >
+                  <option value="active">活动事件</option>
+                  <option value="resolved">已解决</option>
+                </select>
+                <button onClick={() => fetchExceptions(1, exceptionsStatus)} className="p-1.5 bg-white/5 rounded-lg text-slate-400 hover:text-white transition-colors">
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* List */}
+            {exceptionsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+              </div>
+            ) : exceptions.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-12 bg-[#0B1020] rounded-xl border border-white/5">暂无异常事件</p>
+            ) : (
+              <div className="space-y-2.5">
+                {exceptions.map((ex) => (
+                  <div key={ex.id} className="bg-[#111827] border border-white/5 rounded-xl p-3.5 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <span className="px-1.5 py-0.5 bg-rose-600/20 text-rose-400 border border-rose-500/30 rounded text-[9px] font-bold uppercase tracking-wider">
+                        {ex.type}
+                      </span>
+                      <span className="text-[10px] text-slate-500">{fmt(ex.createdAt)}</span>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white mb-0.5">{ex.title}</h4>
+                      <p className="text-xs text-slate-400 font-light leading-relaxed">{ex.description}</p>
+                    </div>
+                    <div className="pt-2 border-t border-white/[0.04] text-[10px] text-slate-500 flex justify-between">
+                      <span>用户: {ex.userEmail || '—'}</span>
+                      <span className="font-mono">REF: {ex.refId.slice(0, 10)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Pagination */}
+            {exceptionsTotalPages > 1 && (
+              <div className="flex items-center justify-between bg-[#0B1020] border border-white/5 rounded-xl p-2">
+                <button
+                  disabled={exceptionsPage <= 1}
+                  onClick={() => fetchExceptions(exceptionsPage - 1, exceptionsStatus)}
+                  className="p-1 rounded bg-white/5 disabled:opacity-30"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-[11px] text-slate-500">{exceptionsPage} / {exceptionsTotalPages}</span>
+                <button
+                  disabled={exceptionsPage >= exceptionsTotalPages}
+                  onClick={() => fetchExceptions(exceptionsPage + 1, exceptionsStatus)}
+                  className="p-1 rounded bg-white/5 disabled:opacity-30"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MOBILE TAB 4: AUDIT LOGS */}
+        {mobileTab === 'audit' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-white flex items-center gap-1.5">
+                <ClipboardList className="w-5 h-5 text-blue-400" />
+                全局审计日志
+              </h2>
+              <button onClick={() => fetchAuditLogs(1)} className="p-1.5 bg-white/5 rounded-lg text-slate-400 hover:text-white transition-colors">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form list for quick filters */}
+            <div className="bg-[#111827] border border-white/5 rounded-xl p-3 space-y-2">
+              <select
+                value={auditAction}
+                onChange={e => setAuditAction(e.target.value)}
+                className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 font-bold"
+              >
+                {AUDIT_ACTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <input
+                type="text"
+                value={auditAdminEmail}
+                onChange={e => setAuditAdminEmail(e.target.value)}
+                placeholder="过滤操作员邮箱"
+                className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => fetchAuditLogs(1)}
+                  className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg"
+                >
+                  筛选
+                </button>
+                <button
+                  onClick={() => { setAuditAction(''); setAuditAdminEmail(''); setAuditFrom(''); setAuditTo(''); setTimeout(() => fetchAuditLogs(1), 0); }}
+                  className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 text-xs rounded-lg"
+                >
+                  重置
+                </button>
+              </div>
+            </div>
+
+            {/* Audit log list cards */}
+            {auditLogs.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-12 bg-[#0B1020] rounded-xl border border-white/5">暂无审计日志</p>
+            ) : (
+              <div className="space-y-2">
+                {auditLogs.map((log) => (
+                  <div key={log.id} className="bg-[#111827] border border-white/5 rounded-xl p-3.5 text-xs space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="px-1.5 py-0.5 bg-blue-600/10 text-blue-400 font-bold rounded text-[9px]">
+                        {actionLabel(log.action)}
+                      </span>
+                      <span className="text-[10px] text-slate-500">{fmt(log.createdAt)}</span>
+                    </div>
+                    <div className="text-slate-300 font-medium">{log.adminEmail}</div>
+                    <div className="text-slate-400 font-light mt-1 text-[11px] leading-relaxed">
+                      原因: {log.reason || '无备注原因'}
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-600">
+                      ID: {log.targetId.slice(0, 16)}…
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Pagination */}
+            {auditTotalPages > 1 && (
+              <div className="flex items-center justify-between bg-[#0B1020] border border-white/5 rounded-xl p-2">
+                <button
+                  disabled={auditPage <= 1}
+                  onClick={() => fetchAuditLogs(auditPage - 1)}
+                  className="p-1 rounded bg-white/5 disabled:opacity-30"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-[11px] text-slate-500">{auditPage} / {auditTotalPages}</span>
+                <button
+                  disabled={auditPage >= auditTotalPages}
+                  onClick={() => fetchAuditLogs(auditPage + 1)}
+                  className="p-1 rounded bg-white/5 disabled:opacity-30"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MOBILE TAB 5: SYSTEM OVERVIEW */}
+        {mobileTab === 'overview' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-white flex items-center gap-1.5">
+                <TrendingUp className="w-5 h-5 text-blue-400" />
+                系统指标与监控
+              </h2>
+              <button onClick={fetchOverview} className="p-1.5 bg-white/5 rounded-lg text-slate-400 hover:text-white transition-colors">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Grid metrics */}
+            <div className="grid grid-cols-2 gap-2.5">
+              {[
+                { label: '总开发者数', value: summary ? String(summary.totalUsers) : '—', icon: <Users className="w-4 h-4 text-blue-400" /> },
+                { label: '今日新增', value: summary ? String(summary.todayNewUsers) : '—', icon: <UserPlus className="w-4 h-4 text-emerald-400" /> },
+                { label: '今日成功订单额', value: summary ? fmtMoney(summary.todaySuccessOrderAmount) : '—', icon: <TrendingUp className="w-4 h-4 text-emerald-400" /> },
+                { label: '今日费率收入', value: summary ? fmtMoney(summary.todayFeeIncome) : '—', icon: <Wallet className="w-4 h-4 text-amber-400" /> },
+                { label: '在线监测设备', value: summary ? String(summary.onlineDevices) : '—', icon: <Wifi className="w-4 h-4 text-cyan-400" /> },
+                { label: '充值待核对', value: summary ? String(summary.rechargePending) : '—', icon: <CreditCard className="w-4 h-4 text-blue-400" />, warn: !!summary && summary.rechargePending > 0 },
+              ].map((card, i) => (
+                <div key={i} className={`bg-[#111827] border rounded-xl p-3.5 ${card.warn ? 'border-red-500/30' : 'border-white/5'}`}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] text-slate-500 uppercase tracking-wider">{card.label}</span>
+                    {card.icon}
+                  </div>
+                  <span className={`text-sm font-bold font-mono ${card.warn ? 'text-red-400' : 'text-white'}`}>{card.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Platform status status card (Mobile) */}
+            <div className={`bg-[#111827] border rounded-xl p-4 ${platform ? (platform.ready ? 'border-emerald-500/30' : 'border-amber-500/30') : 'border-white/5'}`}>
+              <h3 className="text-xs font-bold text-white mb-3 flex items-center justify-between">
+                <span>平台收款通道状态</span>
+                {platform && (
+                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${platform.ready ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-600/20 text-amber-400 border border-amber-500/30'}`}>
+                    {platform.ready ? 'READY' : 'NOT READY'}
+                  </span>
+                )}
+              </h3>
+              {!platform ? (
+                <p className="text-[11px] text-slate-500">加载中...</p>
+              ) : (
+                <div className="space-y-2 text-[11px] text-slate-400">
+                  <div className="flex justify-between border-b border-white/[0.03] pb-1">
+                    <span>收款管理员邮箱:</span>
+                    <span className="text-white truncate font-medium max-w-[150px]">{platform.email || '—'}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/[0.03] pb-1">
+                    <span>微信收款码:</span>
+                    <span className={platform.hasWechat ? 'text-emerald-400 font-bold' : 'text-red-400'}>{platform.hasWechat ? '可用' : '缺失'}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/[0.03] pb-1">
+                    <span>支付宝收款码:</span>
+                    <span className={platform.hasAlipay ? 'text-emerald-400 font-bold' : 'text-red-400'}>{platform.hasAlipay ? '可用' : '缺失'}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/[0.03] pb-1">
+                    <span>在线设备数:</span>
+                    <span className="text-white">{platform.onlineDevices} / {platform.boundDevices}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>最近心跳:</span>
+                    <span className="text-white">{fmt(platform.lastHeartbeat).split(' ')[1] || '—'}</span>
+                  </div>
+                  {!platform.ready && platform.gaps && platform.gaps.length > 0 && (
+                    <div className="mt-3 p-2 bg-amber-950/20 border border-amber-500/10 rounded-lg">
+                      <span className="text-[9px] text-amber-500 font-bold uppercase block mb-1">待修复项:</span>
+                      {platform.gaps.map((g, i) => <p key={i} className="text-[10px] text-amber-200/70">• {g}</p>)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* MOBILE BOTTOM NAVIGATION TAB BAR */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0B1020] border-t border-white/5 flex items-center justify-around z-40 px-2 shadow-2xl">
+        <button
+          onClick={() => { setMobileTab('pending'); setDetail(null); }}
+          className={`flex flex-col items-center gap-1 text-[10px] font-semibold transition-colors ${
+            mobileTab === 'pending' ? 'text-blue-500 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <CreditCard className="w-5 h-5" />
+          <span>待确认</span>
+        </button>
+        <button
+          onClick={() => setMobileTab('users')}
+          className={`flex flex-col items-center gap-1 text-[10px] font-semibold transition-colors ${
+            mobileTab === 'users' ? 'text-blue-500 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <Users className="w-5 h-5" />
+          <span>用户搜索</span>
+        </button>
+        <button
+          onClick={() => setMobileTab('exceptions')}
+          className={`flex flex-col items-center gap-1 text-[10px] font-semibold transition-colors ${
+            mobileTab === 'exceptions' ? 'text-blue-500 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <AlertTriangle className="w-5 h-5" />
+          <span>异常记录</span>
+        </button>
+        <button
+          onClick={() => setMobileTab('audit')}
+          className={`flex flex-col items-center gap-1 text-[10px] font-semibold transition-colors ${
+            mobileTab === 'audit' ? 'text-blue-500 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <ClipboardList className="w-5 h-5" />
+          <span>审计日志</span>
+        </button>
+        <button
+          onClick={() => setMobileTab('overview')}
+          className={`flex flex-col items-center gap-1 text-[10px] font-semibold transition-colors ${
+            mobileTab === 'overview' ? 'text-blue-500 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <TrendingUp className="w-5 h-5" />
+          <span>监控指标</span>
+        </button>
+      </div>
+
+      {/* Footer (Desktop Only) */}
+      <footer className="hidden md:block py-4 border-t border-white/[0.03] px-6 text-center text-[10px] text-slate-600 font-mono">
         © 2026 Coder Pay Admin Panel — All admin operations are logged
       </footer>
+
+      {/* PREMIUM MANUAL CONFIRMATION MODAL OVERLAY */}
+      {confirmModalData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-[#111827] border border-white/10 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Shield className="w-4 h-4 text-amber-500" />
+                人工确认充值到账
+              </h3>
+              <button
+                onClick={() => setConfirmModalData(null)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-[#0B1020] border border-white/5 rounded-xl p-3.5 space-y-2 text-xs text-slate-300">
+              <div className="flex justify-between">
+                <span>充值单 ID:</span>
+                <span className="font-mono text-white select-all">{confirmModalData.id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>目标用户:</span>
+                <span className="text-blue-400 font-semibold">{confirmModalData.email}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>应付金额:</span>
+                <span className="text-white font-mono">{fmtMoney(confirmModalData.amount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>实付金额:</span>
+                <span className="text-emerald-400 font-bold font-mono">{fmtMoney(confirmModalData.realAmount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>支付渠道:</span>
+                <span className="uppercase font-bold text-white">{confirmModalData.payType}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>创建时间:</span>
+                <span>{fmt(confirmModalData.createdAt)}</span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] text-red-400 font-bold uppercase mb-1 block">
+                  扣减/入账安全校验：输入邮箱或单号后6位 ( {confirmModalData.id.slice(-6)} )
+                </label>
+                <input
+                  type="text"
+                  value={confirmInputText}
+                  onChange={e => setConfirmInputText(e.target.value)}
+                  placeholder={confirmModalData.email}
+                  className="w-full px-3 py-2 bg-[#0B1020] border border-red-500/30 rounded-xl text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500/60"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] text-slate-400 uppercase mb-1 block">
+                  人工到账操作备注 (写入审计日志)
+                </label>
+                <textarea
+                  value={confirmRemark}
+                  onChange={e => setConfirmRemark(e.target.value)}
+                  placeholder="例如: 线下对账发现已支付，补人工录入入账"
+                  rows={2}
+                  className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-xl text-xs text-slate-200 resize-none focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setConfirmModalData(null)}
+                className="flex-1 py-2 bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold rounded-xl transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={executeManualConfirm}
+                disabled={formLoading}
+                className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5"
+              >
+                {formLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                确认无误，执行入账
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         @keyframes slideIn {
           from { opacity: 0; transform: translateX(20px); }
           to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
       `}</style>
     </div>

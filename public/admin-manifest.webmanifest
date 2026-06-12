@@ -1,0 +1,22 @@
+{
+  "name": "CoderPay Admin",
+  "short_name": "CP Admin",
+  "start_url": "/admin?source=pwa",
+  "display": "standalone",
+  "background_color": "#070A12",
+  "theme_color": "#070A12",
+  "description": "CoderPay Admin Control Center PWA",
+  "scope": "/admin",
+  "icons": [
+    {
+      "src": "/admin-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/admin-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

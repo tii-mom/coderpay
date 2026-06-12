@@ -137,6 +137,40 @@ const mockAll = vi.fn().mockImplementation(async function(this: any) {
       results: [filterBySqlFields(raw, sql)]
     };
   }
+  if (sql.includes("FROM RechargeOrder")) {
+    const raw = {
+      id: "RC96251105",
+      amount: 100,
+      realAmount: 100,
+      amountCents: 10000,
+      realAmountCents: 10000,
+      payType: "wechat",
+      status: "pending",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      expiresAt: "2026-01-01T00:05:00.000Z",
+      payTime: null,
+      confirmMode: "auto",
+      userEmail: "target@example.com"
+    };
+    return {
+      results: [filterBySqlFields(raw, sql)]
+    };
+  }
+  if (sql.includes("FROM ExceptionItem")) {
+    const raw = {
+      id: "ex-1",
+      type: "payment_unmatched",
+      title: "Unmatched payment",
+      description: "Payment details do not match",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      refId: "ref-1",
+      status: "active",
+      userEmail: "target@example.com"
+    };
+    return {
+      results: [filterBySqlFields(raw, sql)]
+    };
+  }
   return { results: [] };
 });
 
@@ -687,5 +721,64 @@ describe("Admin API — recharge manual-confirm", () => {
       (c: any[]) => typeof c[0] === "string" && c[0].includes("UPDATE RechargeOrder SET status = 'success'")
     );
     expect(claimWrite).toBe(true);
+  });
+});
+
+describe("Admin PWA API — GET /api/admin/recharge-orders", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSessionEmail = "admin@example.com";
+    mockAdminEmails = "admin@example.com";
+  });
+
+  it("returns 401 for unauthenticated user", async () => {
+    mockSessionEmail = null;
+    const { GET } = await import("@/app/api/admin/recharge-orders/route");
+    const res = await GET(makeRequest("http://localhost/api/admin/recharge-orders"));
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for non-admin user", async () => {
+    mockSessionEmail = "user@example.com";
+    const { GET } = await import("@/app/api/admin/recharge-orders/route");
+    const res = await GET(makeRequest("http://localhost/api/admin/recharge-orders"));
+    expect(res.status).toBe(403);
+  });
+
+  it("succeeds and filters with query params for admin user", async () => {
+    const { GET } = await import("@/app/api/admin/recharge-orders/route");
+    const res = await GET(makeRequest("http://localhost/api/admin/recharge-orders?status=pending&search=test"));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data).toHaveProperty("orders");
+    expect(data).toHaveProperty("page", 1);
+    expect(data).toHaveProperty("total");
+    expect(mockPrepare).toHaveBeenCalled();
+  });
+});
+
+describe("Admin PWA API — GET /api/admin/exceptions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSessionEmail = "admin@example.com";
+    mockAdminEmails = "admin@example.com";
+  });
+
+  it("returns 401 for unauthenticated user", async () => {
+    mockSessionEmail = null;
+    const { GET } = await import("@/app/api/admin/exceptions/route");
+    const res = await GET(makeRequest("http://localhost/api/admin/exceptions"));
+    expect(res.status).toBe(401);
+  });
+
+  it("succeeds and filters with query params for admin user", async () => {
+    const { GET } = await import("@/app/api/admin/exceptions/route");
+    const res = await GET(makeRequest("http://localhost/api/admin/exceptions?status=active"));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data).toHaveProperty("exceptions");
+    expect(data).toHaveProperty("page", 1);
+    expect(data).toHaveProperty("total");
+    expect(mockPrepare).toHaveBeenCalled();
   });
 });
