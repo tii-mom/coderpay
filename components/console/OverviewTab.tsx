@@ -31,9 +31,15 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
   const nowTime = new Date();
   const startOfTodayMs = new Date(nowTime.getFullYear(), nowTime.getMonth(), nowTime.getDate()).getTime();
 
+  // Helper to determine the relevant timestamp for an order, prioritizing payTime for success orders
+  const getOrderTime = (o: { status: string; payTime?: string | null; createdAt: string }) => {
+    const timeStr = (o.status === 'success' && o.payTime) ? o.payTime : o.createdAt;
+    return new Date(timeStr).getTime();
+  };
+
   const todayOrders = orders.filter(o => {
     try {
-      const t = new Date(o.createdAt).getTime();
+      const t = getOrderTime(o);
       return t >= startOfTodayMs;
     } catch {
       return false;
@@ -146,7 +152,7 @@ export function OverviewTab({ state, onSwitchTab }: OverviewTabProps) {
 
   todaySuccessOrders.forEach(o => {
     try {
-      const date = new Date(o.createdAt);
+      const date = new Date(o.payTime || o.createdAt);
       const hour = date.getHours();
       const slotIndex = Math.min(5, Math.floor(hour / 4));
       trendSlots[slotIndex].amount += o.amount;
