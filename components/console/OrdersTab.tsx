@@ -33,6 +33,8 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
   const [activeView, setActiveView] = useState<'list' | 'details'>('list');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [now] = useState(() => Date.now());
+  const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
+  const [manualOrderOverrides, setManualOrderOverrides] = useState<Record<string, Partial<Order>>>({});
 
   // Filters & State
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,7 +46,8 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
   const itemsPerPage = 8;
 
   // Selected Order
-  const selectedOrder = orders.find(o => o.id === selectedOrderId);
+  const effectiveOrders = orders.map(order => manualOrderOverrides[order.id] ? { ...order, ...manualOrderOverrides[order.id] } : order);
+  const selectedOrder = effectiveOrders.find(o => o.id === selectedOrderId);
   const formatExpiry = (order: Order) => order.expiresAt ? new Date(order.expiresAt).toLocaleString('zh-CN', { hour12: false }) : '未记录';
   const isExpiredByServer = (order: Order) => order.status === 'expired' || (!!order.expiresAt && new Date(order.expiresAt).getTime() <= now);
   const isManualPending = (order: Order) => order.confirmMode === 'manual' && order.status !== 'success' && order.status !== 'failed';
@@ -61,7 +64,7 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
   };
 
   // Filter computation
-  const filteredOrders = orders.filter(o => {
+  const filteredOrders = effectiveOrders.filter(o => {
     // Current app filter context
     const isAppMatch = db.getState().currentAppId === 'all' || o.appId === db.getState().currentAppId;
     if (!isAppMatch) return false;
@@ -95,27 +98,30 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
   };
 
   const handleManualMarkPaid = async (ord: Order) => {
-    const confirmed = confirm(
-      [
-        '请确认已实际收到该笔款项：',
-        `CP订单号：${ord.id}`,
-        `商户订单号：${ord.outOrderNo}`,
-        `支付方式：${ord.payType === 'wechat' ? '微信' : '支付宝'}`,
-        `订单金额：¥${ord.amount.toFixed(2)}`,
-        `实付金额：¥${ord.realAmount.toFixed(2)}`,
-        '',
-        '确认后系统会扣除技术服务费、标记订单成功并触发商户 Webhook。'
-      ].join('\n')
-    );
-    if (!confirmed) return;
+    if (confirmingOrderId) return;
 
-    const note = window.prompt('可选：填写人工确认备注，例如“已核对支付宝到账截图”', '') || '';
-    const result = await db.manuallyConfirmPaid(ord.id, note);
+    setConfirmingOrderId(ord.id);
+    const result = await db.manuallyConfirmPaid(ord.id, '');
+    setConfirmingOrderId(null);
+
     if (!result.ok) {
       onTriggerToast(result.error || '人工确认失败，请稍后重试', 'error');
       return;
     }
-    onTriggerToast(`订单 ${ord.id} 已人工确认成功，Webhook 已进入发送流程。`, 'success');
+
+    const confirmedAt = new Date().toISOString();
+    setManualOrderOverrides(prev => ({
+      ...prev,
+      [ord.id]: {
+        status: 'success',
+        confirmMode: 'manual',
+        payTime: confirmedAt,
+        manualConfirmedAt: confirmedAt,
+        manualConfirmedBy: '当前开发者',
+        webhookStatus: 'unsent',
+      },
+    }));
+    onTriggerToast(`已确认收款，订单 ${ord.id} 已完成，正在通知商户。`, 'success');
   };
 
   const handleForceRetryWebhook = async (ord: Order) => {
@@ -157,9 +163,10 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
               {selectedOrder.status !== 'success' && selectedOrder.status !== 'failed' && (
                 <button
                   onClick={() => handleManualMarkPaid(selectedOrder)}
+                  disabled={confirmingOrderId === selectedOrder.id}
                   className="px-3.5 py-1.5 bg-emerald-950/40 hover:bg-emerald-900/45 border border-emerald-500/20 text-emerald-400 text-xs font-semibold rounded-lg transition-all"
                 >
-                  我已收款，确认成功
+                  {confirmingOrderId === selectedOrder.id ? '确认中...' : '我已收款，确认成功'}
                 </button>
               )}
               {selectedOrder.status === 'success' && (
@@ -534,9 +541,10 @@ export function OrdersTab({ orders, apps, onTriggerToast, db }: OrdersTabProps) 
                               {ord.status !== 'success' && ord.status !== 'failed' && (
                                 <button
                                   onClick={() => handleManualMarkPaid(ord)}
-                                  className="px-2 py-1 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] hover:bg-[#151B2E] text-slate-300 hover:text-white rounded-lg text-[10px] transition-colors"
+                                  disabled={confirmingOrderId === ord.id}
+                                  className="px-2 py-1 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] hover:bg-[#151B2E] text-slate-300 hover:text-white rounded-lg text-[10px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                  标记支付
+                                  {confirmingOrderId === ord.id ? '确认中' : '标记支付'}
                                 </button>
                               )}
                               {ord.status === 'success' && (

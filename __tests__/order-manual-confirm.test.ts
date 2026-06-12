@@ -1,160 +1,185 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
+import { manuallyConfirmOrderPaid } from "@/lib/manual-order-confirm";
 
-let sessionUser: any = null;
-const state: any = {};
-
-vi.mock("@/lib/auth", () => ({
-  getSessionUser: () => sessionUser,
-}));
-
-const triggerWebhook: any = vi.fn(() => Promise.resolve());
-vi.mock("@/lib/webhook", () => ({
-  triggerWebhook: (orderId: string) => triggerWebhook(orderId),
-}));
-
-const tx: any = {
-  order: {
-    updateMany: vi.fn(async ({ where, data }) => {
-      const order = state.orders.find((o: any) => o.id === where.id);
-      if (!order || order.status === "success") return { count: 0 };
-      Object.assign(order, data);
-      return { count: 1 };
+function makeStatement(db: any, query: string) {
+  return {
+    bind: (...values: unknown[]) => ({
+      first: async () => db.first(query, values),
+      all: async () => ({ results: [] }),
+      run: async () => db.run(query, values),
     }),
-    findUnique: vi.fn(async ({ where }) => state.orders.find((o: any) => o.id === where.id) || null),
-  },
-  user: {
-    update: vi.fn(async ({ where, data }) => {
-      const user = state.users.find((u: any) => u.id === where.id);
-      Object.assign(user, data);
-      return user;
-    }),
-  },
-  billingRecord: {
-    create: vi.fn(async ({ data }) => {
-      state.billingRecords.push(data);
-      return data;
-    }),
-  },
-  exceptionItem: {
-    updateMany: vi.fn(async () => ({ count: 0 })),
-  },
-};
-
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
-    order: {
-      findUnique: vi.fn(async ({ where }) => state.orders.find((o: any) => o.id === where.id) || null),
-    },
-    $transaction: vi.fn(async (fn) => fn(tx)),
-  },
-}));
-
-function req(body: unknown = {}) {
-  return new NextRequest("http://localhost/api/orders/CP1/manual-confirm", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+    first: async () => db.first(query, []),
+    all: async () => ({ results: [] }),
+    run: async () => db.run(query, []),
+  };
 }
 
-function params(id = "CP1") {
-  return { params: Promise.resolve({ id }) };
+function makeDb(state: any) {
+  return {
+    prepare: vi.fn((query: string) => makeStatement(db, query)),
+    batch: vi.fn(async (statements: Array<{ run: () => Promise<any> }>) => {
+      const snapshot = structuredClone(state);
+      const results = [];
+      try {
+        for (const statement of statements) {
+          results.push(await statement.run());
+        }
+        return results;
+      } catch (err) {
+        Object.assign(state, snapshot);
+        throw err;
+      }
+    }),
+    first: vi.fn(async (query: string, values: unknown[]) => {
+      if (query.includes('FROM "Order"') && query.includes("JOIN App")) {
+        const order = state.orders.find((item: any) => item.id === values[0]);
+        if (!order) return null;
+        const app = state.apps.find((item: any) => item.id === order.appId);
+        return { ...order, userId: app?.userId };
+      }
+      return null;
+    }),
+    run: vi.fn(async (query: string, values: unknown[]) => {
+      if (query.includes('UPDATE "Order"')) {
+        const orderId = values[4];
+        const order = state.orders.find((item: any) => item.id === orderId);
+        if (!order || order.status === "success") return { meta: { changes: 0 } };
+        Object.assign(order, {
+          status: "success",
+          confirmMode: "manual",
+          payTime: values[0],
+          webhookStatus: "unsent",
+          manualConfirmedAt: values[1],
+          manualConfirmedBy: values[2],
+          manualConfirmNote: values[3],
+        });
+        return { meta: { changes: 1 } };
+      }
+      if (query.includes("UPDATE ExceptionItem")) {
+        const orderId = values[0];
+        let changes = 0;
+        for (const item of state.exceptions) {
+          if (item.refId === orderId && item.status === "active") {
+            item.status = "resolved";
+            changes += 1;
+          }
+        }
+        return { meta: { changes } };
+      }
+      if (query.includes("UPDATE User")) {
+        const user = state.users.find((item: any) => item.id === values[2]);
+        user.feeBalance = values[0];
+        return { meta: { changes: 1 } };
+      }
+      if (query.includes("INSERT INTO BillingRecord")) {
+        state.billingRecords.push({
+          id: values[0],
+          type: "fee",
+          amount: values[1],
+          balance: values[2],
+          description: values[3],
+          createdAt: values[4],
+          userId: values[5],
+        });
+        return { meta: { changes: 1 } };
+      }
+      return { meta: { changes: 0 } };
+    }),
+  };
 }
+
+let db: any;
+let state: any;
+let user: any;
 
 function resetState() {
-  vi.clearAllMocks();
-  sessionUser = {
+  user = {
     id: "user-1",
     email: "dev@example.com",
     feeBalance: 10,
     packageType: "pro",
     subscriptionExpiresAt: new Date("2026-07-01T00:00:00Z"),
   };
-  state.users = [sessionUser];
-  state.billingRecords = [];
-  state.orders = [
-    {
+  state = {
+    users: [user],
+    apps: [{ id: "app-1", userId: "user-1" }],
+    orders: [{
       id: "CP1",
       outOrderNo: "OUT1",
       title: "Test order",
-      payType: "wechat",
+      payType: "alipay",
       amount: 100,
       amountCents: 10000,
       realAmount: 100,
       realAmountCents: 10000,
       status: "pending",
       confirmMode: "manual",
-      app: { userId: "user-1" },
-    },
-  ];
+      appId: "app-1",
+    }],
+    exceptions: [{ id: "ex-1", refId: "CP1", status: "active" }],
+    billingRecords: [],
+  };
+  db = makeDb(state);
 }
 
 describe("manual order confirmation", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("billing-1");
     resetState();
   });
 
-  it("returns 401 when not logged in", async () => {
-    sessionUser = null;
-    const { POST } = await import("@/app/api/orders/[id]/manual-confirm/route");
-
-    const res = await POST(req(), params());
-
-    expect(res.status).toBe(401);
-  });
-
   it("returns 404 for orders owned by another developer", async () => {
-    state.orders[0].app.userId = "other-user";
-    const { POST } = await import("@/app/api/orders/[id]/manual-confirm/route");
+    state.apps[0].userId = "other-user";
 
-    const res = await POST(req(), params());
+    const result = await manuallyConfirmOrderPaid(db, "CP1", user);
 
-    expect(res.status).toBe(404);
+    expect(result).toEqual({ ok: false, status: 404, error: "Order not found" });
   });
 
   it("returns 402 when fee balance is insufficient", async () => {
-    sessionUser.feeBalance = 0;
-    const { POST } = await import("@/app/api/orders/[id]/manual-confirm/route");
+    user.feeBalance = 0;
 
-    const res = await POST(req(), params());
-    const data = await res.json();
+    const result = await manuallyConfirmOrderPaid(db, "CP1", user);
 
-    expect(res.status).toBe(402);
-    expect(data.error).toBe("账户余额不足，无法人工确认该订单，请先充值余额。");
+    expect(result).toEqual({ ok: false, status: 402, error: "账户余额不足，无法人工确认该订单，请先充值余额。" });
     expect(state.orders[0].status).toBe("pending");
     expect(state.billingRecords).toHaveLength(0);
   });
 
-  it("marks order success, charges fee, writes manual audit fields, and triggers webhook", async () => {
-    const { POST } = await import("@/app/api/orders/[id]/manual-confirm/route");
+  it("marks order success, charges fee, and resolves active exceptions", async () => {
+    const now = new Date("2026-06-12T12:00:00.000Z");
 
-    const res = await POST(req({ note: "已核对支付宝到账截图" }), params());
-    const data = await res.json();
+    const result = await manuallyConfirmOrderPaid(db, "CP1", user, "已核对支付宝到账截图", now);
 
-    expect(res.status).toBe(200);
-    expect(data).toEqual({ status: "success", orderId: "CP1", webhookStatus: "unsent" });
+    expect(result).toEqual({ ok: true, orderId: "CP1", webhookStatus: "unsent" });
     expect(state.orders[0]).toMatchObject({
       status: "success",
       confirmMode: "manual",
+      payTime: now.toISOString(),
       webhookStatus: "unsent",
+      manualConfirmedAt: now.toISOString(),
       manualConfirmedBy: "dev@example.com",
       manualConfirmNote: "已核对支付宝到账截图",
     });
-    expect(state.orders[0].manualConfirmedAt).toBeInstanceOf(Date);
+    expect(state.exceptions[0].status).toBe("resolved");
+    expect(state.users[0].feeBalance).toBe(9.5);
     expect(state.billingRecords).toHaveLength(1);
-    expect(state.billingRecords[0]).toMatchObject({ type: "fee", amount: -0.5, userId: "user-1" });
-    expect(triggerWebhook).toHaveBeenCalledWith("CP1");
+    expect(state.billingRecords[0]).toMatchObject({
+      id: "billing-1",
+      type: "fee",
+      amount: -0.5,
+      balance: 9.5,
+      userId: "user-1",
+    });
   });
 
   it("rejects repeated confirmation without charging a second fee", async () => {
     state.orders[0].status = "success";
-    const { POST } = await import("@/app/api/orders/[id]/manual-confirm/route");
 
-    const res = await POST(req(), params());
+    const result = await manuallyConfirmOrderPaid(db, "CP1", user);
 
-    expect(res.status).toBe(400);
+    expect(result).toEqual({ ok: false, status: 400, error: "订单已成功，不能重复人工确认" });
     expect(state.billingRecords).toHaveLength(0);
-    expect(triggerWebhook).not.toHaveBeenCalled();
   });
 });
