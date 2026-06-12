@@ -146,7 +146,10 @@ data class HeartbeatRequest(
     val notificationPermission: Boolean,
     val batteryOptimization: String, // "optimized" or "ignored"
     val timestamp: Long,
-    val sign: String? = null
+    val sign: String? = null,
+    val androidVersion: String? = null,
+    val appVersion: String? = null,
+    val deviceFingerprint: String? = null
 )
 
 data class HeartbeatResponse(

@@ -18,6 +18,7 @@ import cn.coderpay.watcher.R
 import cn.coderpay.watcher.MainActivity
 import cn.coderpay.watcher.api.HeartbeatRequest
 import cn.coderpay.watcher.api.RetrofitClient
+import cn.coderpay.watcher.utils.DeviceIdentity
 import cn.coderpay.watcher.utils.LogTracker
 import cn.coderpay.watcher.service.NotificationService
 import cn.coderpay.watcher.utils.SettingsManager
@@ -116,7 +117,10 @@ class ForegroundKeepAliveService : Service() {
                 notificationPermission = isNotificationGranted,
                 batteryOptimization = batteryOptimization,
                 timestamp = timestamp,
-                sign = sign
+                sign = sign,
+                androidVersion = DeviceIdentity.androidVersion(),
+                appVersion = DeviceIdentity.appVersion(applicationContext),
+                deviceFingerprint = DeviceIdentity.fingerprint(applicationContext)
             )
 
             val apiService = RetrofitClient.getService(applicationContext)

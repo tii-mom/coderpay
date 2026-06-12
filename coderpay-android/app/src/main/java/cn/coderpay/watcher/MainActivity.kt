@@ -42,6 +42,7 @@ import cn.coderpay.watcher.data.AppDatabase
 import cn.coderpay.watcher.data.LocalEvent
 import cn.coderpay.watcher.service.ForegroundKeepAliveService
 import cn.coderpay.watcher.service.NotificationService
+import cn.coderpay.watcher.utils.DeviceIdentity
 import cn.coderpay.watcher.utils.LogTracker
 import cn.coderpay.watcher.utils.SettingsManager
 import cn.coderpay.watcher.worker.EventSyncer
@@ -221,18 +222,32 @@ class MainActivity : ComponentActivity() {
 
                                         val timestamp = System.currentTimeMillis()
                                         val secret = settings.deviceSecret
+                                        val wechatListener = "running"
+                                        val alipayListener = "running"
+                                        val notificationPermission = isNotificationServiceEnabled()
+                                        val batteryOptimization = if (isBatteryOptimizationIgnored()) "ignored" else "optimized"
                                         val sign = if (secret.isNotEmpty()) {
-                                            cn.coderpay.watcher.utils.SignatureHelper.calculateSignature(deviceCode, timestamp, secret)
+                                            val payload = cn.coderpay.watcher.utils.SignatureHelper.heartbeatPayload(
+                                                deviceCode,
+                                                wechatListener,
+                                                alipayListener,
+                                                notificationPermission,
+                                                batteryOptimization
+                                            )
+                                            cn.coderpay.watcher.utils.SignatureHelper.calculateSignature(deviceCode, timestamp, secret, payload)
                                         } else null
 
                                         val request = HeartbeatRequest(
                                             deviceCode = deviceCode,
-                                            wechatListener = "running",
-                                            alipayListener = "running",
-                                            notificationPermission = isNotificationServiceEnabled(),
-                                            batteryOptimization = if (isBatteryOptimizationIgnored()) "ignored" else "optimized",
+                                            wechatListener = wechatListener,
+                                            alipayListener = alipayListener,
+                                            notificationPermission = notificationPermission,
+                                            batteryOptimization = batteryOptimization,
                                             timestamp = timestamp,
-                                            sign = sign
+                                            sign = sign,
+                                            androidVersion = DeviceIdentity.androidVersion(),
+                                            appVersion = DeviceIdentity.appVersion(this@MainActivity),
+                                            deviceFingerprint = DeviceIdentity.fingerprint(this@MainActivity)
                                         )
 
                                         val response = RetrofitClient.getService(this@MainActivity).sendHeartbeat(request)
@@ -260,6 +275,9 @@ class MainActivity : ComponentActivity() {
                                             val friendlyError = when {
                                                 errorText.contains("Authentication credentials", ignoreCase = true) ->
                                                     "该设备码在云端仍绑定旧设备密钥。本机若仍保持登录，请先点“解绑后退出”；如果本机已清空或要换新手机，请在网页控制台点击“重置设备密钥”，复制新的 dev_ 绑定码后再连接。"
+                                                errorText.contains("already bound", ignoreCase = true) ||
+                                                    errorText.contains("another device", ignoreCase = true) ->
+                                                    "该设备码已绑定到另一台设备。请在网页控制台点击“重置设备密钥”，复制新的 dev_ 绑定码后再连接。"
                                                 errorText.contains("expired", ignoreCase = true) ->
                                                     "设备绑定码已过期。请在网页控制台重新添加安卓设备或重置设备密钥后再连接。"
                                                 errorText.contains("Device not registered", ignoreCase = true) ||

@@ -617,7 +617,7 @@ export default function HomePage() {
             <a href="https://t.me/coderpay3" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 text-blue-500 font-medium">售后商务 Telegram</a>
             <a href="#product-flow" className="hover:text-slate-400">服务条款</a>
             <a href="#product-features" className="hover:text-slate-400">隐私声明</a>
-            <span className="text-blue-500 font-mono">CoderPay Android v1.0.6</span>
+            <span className="text-blue-500 font-mono">CoderPay Android v1.0.7</span>
           </div>
         </div>
       </footer>

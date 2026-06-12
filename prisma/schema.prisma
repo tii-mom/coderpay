@@ -90,6 +90,7 @@ model Device {
   lastHeartbeat          DateTime?
   androidVersion         String?
   appVersion             String?
+  deviceFingerprint      String?
   wechatListener         String?       @default("stopped")
   alipayListener         String?       @default("stopped")
   notificationPermission Boolean       @default(false)
