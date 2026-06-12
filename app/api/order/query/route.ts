@@ -28,8 +28,8 @@ export async function POST(req: NextRequest) {
     
     let order = null;
     if (order_id) {
-      order = await prisma.order.findUnique({
-        where: { id: order_id }
+      order = await prisma.order.findFirst({
+        where: { id: order_id, appId: app.id }
       });
     } else if (out_order_no) {
       order = await prisma.order.findFirst({

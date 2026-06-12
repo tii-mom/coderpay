@@ -46,10 +46,26 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@17 PATH=/opt/homebrew/opt/openjdk@17/bin:$PA
 
 ## 生产部署
 
-本项目已开启 Next.js `standalone` 独立输出，适合容器化部署：
+生产环境使用 Cloudflare Pages + D1。上线前按顺序执行：
 
 ```bash
-npm run build
+npm run verify
+npm run pages:build
+npm run check:prod
+npm run db:backup
+npm run d1:migrate:remote
+node scripts/setup-platform-recharge.mjs --check --remote
+node scripts/deploy-pages.mjs --dry-run
+npm run pages:deploy
 ```
 
-编译后将生成 `.next/standalone` 目录。
+Cloudflare 边缘限流规则必须按 `docs/cloudflare-rate-limits.md` 配置。代码内存限流只作为轻量兜底，不能替代 Cloudflare WAF / Rate Limiting。
+
+上线后 smoke test：
+
+1. 登录控制台并创建应用。
+2. 上传真实收款码，确认设备心跳、通知监听、通知权限、电池豁免均正常。
+3. 创建一笔商户订单，打开扫码页并完成小额到账测试。
+4. 确认到账事件匹配订单，商户 Webhook 返回 `success`。
+5. 发起一笔余额充值，确认平台充值订单入账。
+6. Android App 冷启动、重启后自启动、锁屏保活均正常。

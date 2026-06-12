@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
         var isPairing by remember { mutableStateOf(false) }
         var pairingMessage by remember {
             mutableStateOf<String?>(
-                if (missingLocalSecret) "本机设备密钥丢失。请在网页控制台设备详情中点击“重置设备密钥”，复制新的 dev_ 绑定码后重新连接。"
+                if (missingLocalSecret) "本机设备密钥丢失。旧绑定码不能再次接管设备。请在网页控制台设备详情中点击“重置设备密钥”，复制新的 dev_ 绑定码后重新连接。"
                 else null
             )
         }
@@ -258,7 +258,7 @@ class MainActivity : ComponentActivity() {
                                             val errorText = response.errorBody()?.string() ?: "授权码无效或已过期"
                                             val friendlyError = when {
                                                 errorText.contains("Authentication credentials", ignoreCase = true) ->
-                                                    "该设备码已经绑定过旧设备密钥。请在网页控制台的设备详情中点击“重置设备密钥”，复制新的 dev_ 绑定码后再连接。"
+                                                    "该设备码已经绑定过旧设备密钥，不能直接重新绑定。请在网页控制台的设备详情中点击“重置设备密钥”，复制新的 dev_ 绑定码后再连接。"
                                                 errorText.contains("expired", ignoreCase = true) ->
                                                     "设备绑定码已过期。请在网页控制台重新添加安卓设备或重置设备密钥后再连接。"
                                                 errorText.contains("Device not registered", ignoreCase = true) ||

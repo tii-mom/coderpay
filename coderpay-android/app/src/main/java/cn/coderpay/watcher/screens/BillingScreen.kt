@@ -106,6 +106,7 @@ fun BillingScreen(
                         totalCount = body.total
                         page = body.page
                         hasMore = body.hasMore
+                        if (isRefresh) onRefresh()
                     } else {
                         errorMsg = ApiErrorHelper.formatApiError(response, "加载失败")
                     }

@@ -118,7 +118,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
   };
 
   const handleResetDeviceSecret = async (dev: Device) => {
-    if (!confirm(`确定重置设备 [${dev.name}] 的连接密钥吗？重置后，请在 Android App 中重新点击“保存并连接”。`)) {
+    if (!confirm(`确定重置设备 [${dev.name}] 的连接密钥吗？旧绑定码会立即失效，系统会生成新的 dev_ 绑定码。`)) {
       return;
     }
 
@@ -129,7 +129,17 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
         onTriggerToast(result?.error || '设备密钥重置失败。', 'error');
         return;
       }
-      onTriggerToast(`设备 [${dev.name}] 密钥已重置，请在手机端重新连接。`, 'success');
+      const nextCode = result.device?.deviceCode;
+      if (nextCode) {
+        try {
+          await navigator.clipboard.writeText(nextCode);
+          onTriggerToast(`设备 [${dev.name}] 已生成新绑定码：${nextCode}，已复制。请在 Android App 中使用新码连接。`, 'success');
+        } catch {
+          onTriggerToast(`设备 [${dev.name}] 已生成新绑定码：${nextCode}。请复制到 Android App 中连接。`, 'success');
+        }
+      } else {
+        onTriggerToast(`设备 [${dev.name}] 密钥已重置，请复制新的设备绑定码到 Android App 中连接。`, 'success');
+      }
     } catch (err: any) {
       onTriggerToast(err.message || '设备密钥重置失败。', 'error');
     } finally {
@@ -334,7 +344,7 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
                   },
                   {
                     title: '没有反应时',
-                    desc: '请安装最新版 Android App，服务地址填写 https://www.3api.shop，绑定码完整复制 dev_ 开头的字符串。'
+                    desc: '请安装最新版 Android App，服务地址填写 https://www.3api.shop，绑定码完整复制 dev_ 开头的字符串。若重装 App 后提示旧设备密钥，请点击“重置设备密钥”并使用新绑定码。'
                   }
                 ].map(item => (
                   <div key={item.title} className="p-3.5 rounded-xl bg-[#0B1020]/35 border border-[rgba(255,255,255,0.05)]">

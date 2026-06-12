@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({
       status: "success",
       device: omitDeviceSecret(updated),
-      message: "Device secret reset. Use the new device code to reconnect this device from the Android app.",
+      message: `Device secret reset. The old device code is invalid. Use the new device code ${updated.deviceCode} to reconnect this device from the Android app.`,
     });
   } catch (err) {
     console.error("Device secret reset failed:", err);

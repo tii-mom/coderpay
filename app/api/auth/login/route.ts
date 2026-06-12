@@ -2,7 +2,7 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { createSessionToken } from "@/lib/session";
 import { getSessionCookieOptions } from "@/lib/session-cookie";
-import { hashPassword, verifyPassword } from "@/lib/password";
+import { verifyPassword } from "@/lib/password";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { getAuthD1 } from "@/lib/auth-d1";
 
@@ -34,13 +34,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Account not found" }, { status: 401 });
     }
 
-    if (user.passwordHash === "password_hash") {
-      const passwordHash = await hashPassword(password);
-      await db.prepare(`UPDATE User SET passwordHash = ?, updatedAt = ? WHERE id = ?`)
-        .bind(passwordHash, new Date().toISOString(), user.id)
-        .run();
-      user = { ...user, passwordHash };
-    } else if (!(await verifyPassword(password, user.passwordHash))) {
+    if (!(await verifyPassword(password, user.passwordHash))) {
       return NextResponse.json({ error: "Invalid password" }, { status: 401 });
     }
 
