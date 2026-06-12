@@ -49,6 +49,7 @@ if (!process.argv.includes('--skip-verify')) {
 
 // 2. Always rebuild the Pages output from current source.
 run('npx', ['@cloudflare/next-on-pages'], 'Rebuild Pages output (@cloudflare/next-on-pages)')
+run('node', ['scripts/fix-pages-routes.mjs'], 'Patch Pages static download routes')
 
 // 3. Freshness: the worker bundle must have been written during THIS run.
 const workerEntry = path.join(STATIC_DIR, '_worker.js', 'index.js')
