@@ -2,10 +2,12 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { hashPassword } from "@/lib/password";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { getAuthD1 } from "@/lib/auth-d1";
+import { getAuthD1, runAuthAtomic } from "@/lib/auth-d1";
 import { addMinutes, createRawToken, hashAuthToken } from "@/lib/auth-tokens";
 import { assertEmailConfigured, buildVerificationEmail, sendEmail } from "@/lib/email";
 import { createUniqueInviteCode, normalizeInviteCode } from "@/lib/referrals";
+
+const INVITE_SIGNUP_BONUS_CENTS = 1000;
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -60,28 +62,51 @@ export async function POST(req: NextRequest) {
       id: crypto.randomUUID(),
       email: normalizedEmail,
       passwordHash: await hashPassword(rawPassword),
-      feeBalance: 0,
+      feeBalance: referrer ? INVITE_SIGNUP_BONUS_CENTS / 100 : 0,
     };
     const now = new Date().toISOString();
     const userInviteCode = await createUniqueInviteCode(db);
+    const packageType = "trial";
 
-    await db.prepare(`
+    const writes = [
+      db.prepare(`
       INSERT INTO User (
         id, email, passwordHash, emailVerifyTokenHash, emailVerifyExpiresAt, feeBalance, packageType,
         freeOrderUsed, firstProDiscountUsed, firstMaxDiscountUsed, inviteCode, referredByUserId, referredAt, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, 0, 'free', 0, 0, 0, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?)
     `).bind(
       user.id,
       user.email,
       user.passwordHash,
       await hashAuthToken(token),
       addMinutes(new Date(), 24 * 60).toISOString(),
+      user.feeBalance,
+      packageType,
       userInviteCode,
       referrer?.id ?? null,
       referrer ? now : null,
       now,
       now
-    ).run();
+    ),
+    ];
+
+    if (referrer) {
+      writes.push(
+        db.prepare(`
+          INSERT INTO BillingRecord (id, type, amount, balance, description, createdAt, userId)
+          VALUES (?, 'invite_bonus', ?, ?, ?, ?, ?)
+        `).bind(
+          crypto.randomUUID(),
+          user.feeBalance,
+          user.feeBalance,
+          `填写邀请码注册赠送: 邀请人 ${referrer.id}`,
+          now,
+          user.id
+        )
+      );
+    }
+
+    await runAuthAtomic(db, writes);
 
     await sendEmail({ to: user.email, ...buildVerificationEmail(user.email, token) });
 
@@ -92,6 +117,7 @@ export async function POST(req: NextRequest) {
         id: user.id,
         email: user.email,
         feeBalance: user.feeBalance,
+        packageType,
         inviteCode: userInviteCode,
       },
     });

@@ -89,24 +89,6 @@ export default function HomePage() {
 
   const plans = [
     {
-      id: 'free',
-      name: '免费调试版',
-      price: '0',
-      period: ' / 调试',
-      desc: '适合个人开发者测试收款流程和真实 API 联调。',
-      techFee: '前10次创建订单免费，覆盖真实API与控制台沙箱',
-      features: [
-        '独立接入应用上限 1 个',
-        '支持挂载 1 台安卓 CoderPay 设备',
-        '微信/支付宝任一款个人收款码配置',
-        '标准动态随机微调尾数匹配',
-        '支持真实 API 创建订单联调',
-        '超出10次后需切换体验版或开通订阅'
-      ],
-      cta: '开始接入',
-      primary: false
-    },
-    {
       id: 'trial',
       name: '体验版',
       price: '0',
@@ -114,7 +96,7 @@ export default function HomePage() {
       desc: '免订阅费，适合低门槛真实运营，按成功订单扣费。',
       techFee: '交易手续费 1.98%，每笔最低 ¥0.10',
       features: [
-        '不受免费调试 10 笔额度限制',
+        '无需订阅，按成功订单扣技术服务费',
         '余额大于0即可持续创建订单',
         '支持真实用户付款与 Webhook 回调',
         '微信/支付宝个人收款码自动匹配',

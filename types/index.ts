@@ -120,7 +120,7 @@ export interface Plan {
 
 export interface BillingRecord {
   id: string;
-  type: 'charge' | 'fee' | 'subscription' | 'refund' | 'promotion' | 'referral_reward' | 'admin_adjust' | 'admin_subscription';
+  type: 'charge' | 'fee' | 'subscription' | 'refund' | 'promotion' | 'invite_bonus' | 'referral_reward' | 'admin_adjust' | 'admin_subscription';
   amount: number;
   balance: number;
   description: string;
@@ -134,12 +134,26 @@ export interface ReferralSummary {
   tier: 'level1' | 'level2' | 'level3' | 'level4';
   directRateBps: number;
   indirectRateBps: number;
+  tierRules: Array<{
+    tier: 'level1' | 'level2' | 'level3' | 'level4';
+    label: string;
+    threshold: number;
+    directRateBps: number;
+    indirectRateBps: number;
+  }>;
+  nextTier: {
+    tier: string;
+    label: string;
+    threshold: number;
+    remaining: number;
+  } | null;
   totalRewardCents: number;
   rewardCount: number;
   recentRewards: Array<{
     id: string;
     rechargeOrderId: string;
     invitedUserId: string;
+    invitedUserEmail?: string | null;
     depth: number;
     tier: string;
     rateBps: number;
@@ -148,6 +162,14 @@ export interface ReferralSummary {
     status: string;
     createdAt: string;
     creditedAt: string | null;
+  }>;
+  directInvites: Array<{
+    id: string;
+    email: string;
+    createdAt: string;
+    totalRechargeCents: number;
+    isEffective: number | boolean;
+    contributedRewardCents: number;
   }>;
 }
 

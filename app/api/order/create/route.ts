@@ -1,7 +1,7 @@
 export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { amountFromCents, centsFromAmount, formatAmount, getDirectD1, randomOrderId, verifyMerchantSign } from "@/lib/d1-direct";
-import { FREE_ORDER_LIMIT, LOW_BALANCE_WARNING_YUAN, getEffectivePackageType, BILLING_PLANS, assertOrderAmountWithinPlanLimit } from "@/lib/billing-plans";
+import { LOW_BALANCE_WARNING_YUAN, getEffectivePackageType, BILLING_PLANS, assertOrderAmountWithinPlanLimit } from "@/lib/billing-plans";
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,16 +39,10 @@ export async function POST(req: NextRequest) {
     if (Number(app.feeBalance) <= 0) {
       return NextResponse.json({ error: "账户余额已低于或等于 0 元，请充值后继续使用 CoderPay 服务" }, { status: 402 });
     }
-    // Effective package falls back to "free" when a paid subscription has expired,
-    // so expired users are correctly subject to the free debug quota again.
     const effectivePackageType = getEffectivePackageType({
       packageType: app.packageType,
       subscriptionExpiresAt: app.subscriptionExpiresAt
     });
-    const isFreeTier = effectivePackageType === "free";
-    if (isFreeTier && Number(app.freeOrderUsed || 0) >= FREE_ORDER_LIMIT) {
-      return NextResponse.json({ error: "免费调试额度已用完，请开通订阅后继续创建订单" }, { status: 403 });
-    }
 
     // Strict input validation
     if (pay_type !== "wechat" && pay_type !== "alipay") {
@@ -157,12 +151,6 @@ export async function POST(req: NextRequest) {
       throw insertErr;
     }
 
-    if (isFreeTier) {
-      await db.prepare(`UPDATE User SET freeOrderUsed = COALESCE(freeOrderUsed, 0) + 1, updatedAt = ? WHERE id = ?`)
-        .bind(new Date().toISOString(), app.userId)
-        .run();
-    }
-    
     // Dynamic fallback for APP URL to avoid broken links
     let origin = process.env.NEXT_PUBLIC_APP_URL;
     if (!origin) {
@@ -189,7 +177,7 @@ export async function POST(req: NextRequest) {
         confirm_mode: confirmMode,
         channel_online: channelOnline,
         manual_confirm_required: confirmMode === "manual",
-        free_order_remaining: isFreeTier ? Math.max(0, FREE_ORDER_LIMIT - Number(app.freeOrderUsed || 0) - 1) : null,
+        free_order_remaining: null,
         low_balance_warning: Number(app.feeBalance) <= LOW_BALANCE_WARNING_YUAN
       }
     });

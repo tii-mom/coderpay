@@ -272,7 +272,7 @@ private fun packageLabel(value: String): String = when (value) {
     "trial" -> "体验版"
     "pro" -> "专业版"
     "max" -> "高级版"
-    else -> "免费调试版"
+    else -> "体验版"
 }
 
 @Composable

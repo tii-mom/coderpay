@@ -14,7 +14,7 @@ vi.mock("@/lib/mobile-auth", () => ({
       user: {
         email: "platform@example.com",
         feeBalance: 0,
-        packageType: "free",
+        packageType: "trial",
         freeOrderUsed: 0,
         subscriptionExpiresAt: null,
       },

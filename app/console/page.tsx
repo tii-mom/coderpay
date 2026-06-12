@@ -16,6 +16,7 @@ const ExceptionsTab = React.lazy(() => import('@/components/console/ExceptionsTa
 const WebhooksTab = React.lazy(() => import('@/components/console/WebhooksTab').then(m => ({ default: m.WebhooksTab })));
 const DocsTab = React.lazy(() => import('@/components/console/DocsTab').then(m => ({ default: m.DocsTab })));
 const BillingTab = React.lazy(() => import('@/components/console/BillingTab').then(m => ({ default: m.BillingTab })));
+const ReferralTab = React.lazy(() => import('@/components/console/ReferralTab').then(m => ({ default: m.ReferralTab })));
 const AccountTab = React.lazy(() => import('@/components/console/AccountTab').then(m => ({ default: m.AccountTab })));
 
 import { 
@@ -59,6 +60,7 @@ const VALID_CONSOLE_TABS = new Set([
   'webhooks',
   'docs',
   'billing',
+  'referrals',
   'account'
 ]);
 
@@ -216,13 +218,13 @@ export default function ConsolePage() {
         element = <DocsTab apps={state.apps} onTriggerToast={triggerToast} db={db} />;
         break;
       case 'billing': {
-        const packageType = state.packageType === 'max' ? 'max' : state.packageType === 'pro' ? 'pro' : state.packageType === 'trial' ? 'trial' : 'free';
+        const packageType = state.packageType === 'max' ? 'max' : state.packageType === 'pro' ? 'pro' : 'trial';
         const computedPlan = {
           id: packageType,
-          name: packageType === 'max' ? '高级版' : packageType === 'pro' ? '专业版' : packageType === 'trial' ? '体验版' : '免费调试版',
+          name: packageType === 'max' ? '高级版' : packageType === 'pro' ? '专业版' : '体验版',
           price: packageType === 'max' ? 199 : packageType === 'pro' ? 69 : 0,
           duration: '月',
-          techServiceRate: packageType === 'max' ? 0.002 : packageType === 'pro' ? 0.005 : packageType === 'trial' ? 0.0198 : 0,
+          techServiceRate: packageType === 'max' ? 0.002 : packageType === 'pro' ? 0.005 : 0.0198,
           features: [],
           balance: state.feeBalance,
           subscriptionExpiresAt: state.subscriptionExpiresAt,
@@ -230,9 +232,12 @@ export default function ConsolePage() {
           firstProDiscountUsed: state.firstProDiscountUsed,
           firstMaxDiscountUsed: state.firstMaxDiscountUsed
         };
-        element = <BillingTab plan={computedPlan} billingRecords={state.billingRecords} rechargeOrders={state.rechargeOrders || []} referralSummary={state.referralSummary} onTriggerToast={triggerToast} db={db} />;
+        element = <BillingTab plan={computedPlan} billingRecords={state.billingRecords} rechargeOrders={state.rechargeOrders || []} onTriggerToast={triggerToast} db={db} />;
         break;
       }
+      case 'referrals':
+        element = <ReferralTab referralSummary={state.referralSummary} onTriggerToast={triggerToast} />;
+        break;
       case 'account':
         element = <AccountTab state={state} onTriggerToast={triggerToast} db={db} />;
         break;
@@ -265,6 +270,7 @@ export default function ConsolePage() {
     { id: 'codes', label: '收款码', icon: <QrCode className="w-4 h-4" /> },
     { id: 'orders', label: '订单管理', icon: <FileText className="w-4 h-4" /> },
     { id: 'billing', label: '订阅充值', icon: <Coins className="w-4 h-4" /> },
+    { id: 'referrals', label: '邀请奖励', icon: <Award className="w-4 h-4" /> },
     { id: 'exceptions', label: '异常处理', icon: <AlertOctagon className="w-4 h-4" />, badge: state.exceptions.filter(e => e.status === 'active').length },
     { id: 'webhooks', label: '回调日志', icon: <RotateCcw className="w-4 h-4" /> },
     { id: 'events', label: '到账记录', icon: <ListTodo className="w-4 h-4" /> },
@@ -432,7 +438,7 @@ export default function ConsolePage() {
               {/* Account Level */}
               <div className="flex items-center gap-1.5 bg-[#111827] border border-white/5 px-3 py-1 rounded-xl text-xs font-semibold text-slate-300">
                 <Award className="w-4 h-4 text-amber-500" />
-                {state.packageType === 'max' ? '高级版' : state.packageType === 'pro' ? '专业版' : state.packageType === 'trial' ? '体验版' : '免费调试版'}
+                {state.packageType === 'max' ? '高级版' : state.packageType === 'pro' ? '专业版' : '体验版'}
               </div>
 
               {/* Balance brief top container */}

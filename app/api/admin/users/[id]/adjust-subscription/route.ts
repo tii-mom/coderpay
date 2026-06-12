@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { requireAdminUser, adminJson } from "@/lib/admin-auth";
 import { getAuthD1, runAuthAtomic } from "@/lib/auth-d1";
 
-const VALID_PACKAGE_TYPES = ["free", "trial", "pro", "max"];
+const VALID_PACKAGE_TYPES = ["trial", "pro", "max"];
 
 export async function POST(
   req: NextRequest,
@@ -81,9 +81,9 @@ export async function POST(
       return adminJson({ error: "User not found" }, { status: 404 });
     }
 
-    // P0-2: downgrading (to free, or shortening the expiry of a paid plan) is
+    // P0-2: downgrading (to trial, or shortening the expiry of a paid plan) is
     // destructive, so require the admin to type the target user's email.
-    const isDowngradeToFree = (packageType === "free" || packageType === "trial") && user.packageType !== "free" && user.packageType !== "trial";
+    const isDowngradeToTrial = packageType === "trial" && user.packageType !== "free" && user.packageType !== "trial";
     const oldExpiry = user.subscriptionExpiresAt ? new Date(user.subscriptionExpiresAt).getTime() : null;
     const newExpiry = expiresAt ? new Date(expiresAt).getTime() : null;
     const isShortenExpiry =
@@ -91,7 +91,7 @@ export async function POST(
       oldExpiry !== null &&
       newExpiry !== null &&
       newExpiry < oldExpiry;
-    const requiresConfirm = isDowngradeToFree || isShortenExpiry;
+    const requiresConfirm = isDowngradeToTrial || isShortenExpiry;
 
     if (requiresConfirm) {
       const provided = typeof confirmEmail === "string" ? confirmEmail.trim().toLowerCase() : "";
@@ -113,13 +113,11 @@ export async function POST(
       subscriptionExpiresAt: user.subscriptionExpiresAt,
     });
 
-    // For trial/pro/max, set subscriptionStartedAt to now if upgrading from free
+    // For trial/pro/max, set subscriptionStartedAt to now if upgrading from historical free
     const subscriptionStartedAt =
       packageType === "trial"
         ? now
-        : packageType !== "free"
-        ? user.subscriptionStartedAt ?? now
-        : null;
+        : user.subscriptionStartedAt ?? now;
 
     const afterJson = JSON.stringify({
       packageType,

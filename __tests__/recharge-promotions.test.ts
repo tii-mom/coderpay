@@ -17,7 +17,7 @@ describe("recharge promotions", () => {
     const now = new Date("2026-06-10T10:00:00Z");
     const promotion = getRechargePromotion(50000);
 
-    const update = getRechargePromotionUpdate({ packageType: "free", subscriptionExpiresAt: null }, promotion!, now);
+    const update = getRechargePromotionUpdate({ packageType: "trial", subscriptionExpiresAt: null }, promotion!, now);
 
     expect(update?.packageType).toBe("pro");
     expect(update?.subscriptionExpiresAt.toISOString()).toBe("2026-07-10T10:00:00.000Z");

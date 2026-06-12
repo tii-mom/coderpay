@@ -216,7 +216,7 @@ export default function LoginPage() {
 
             {!isLogin && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-slate-300">邀请码（选填）</label>
+                <label className="text-xs font-semibold text-slate-300">邀请码（选填，填写即获 ¥10 技术服务余额）</label>
                 <div className="relative">
                   <Gift className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-amber-400" />
                   <input
@@ -245,6 +245,9 @@ export default function LoginPage() {
                     </button>
                   )}
                 </div>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  使用有效邀请码注册后默认进入体验版，赠送余额仅用于套餐和交易手续费。
+                </p>
               </div>
             )}
 

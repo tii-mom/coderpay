@@ -3,12 +3,15 @@ import { calculateFeeCents, getSubscriptionChargeCents, assertOrderAmountWithinP
 import { assertCanCreateOrder } from "@/lib/order-access";
 
 describe("billing plans", () => {
-  it("allows exactly 10 free order creations while balance is positive", () => {
+  it("treats historical free users as trial when balance is positive", () => {
     expect(assertCanCreateOrder({ id: "u1", feeBalance: 1, freeOrderUsed: 9, packageType: "free" })).toEqual({
-      mode: "free",
-      shouldIncrementFreeOrder: true,
+      mode: "trial",
+      shouldIncrementFreeOrder: false,
     });
-    expect(() => assertCanCreateOrder({ id: "u1", feeBalance: 1, freeOrderUsed: 10, packageType: "free" })).toThrow(/免费调试额度/);
+    expect(assertCanCreateOrder({ id: "u1", feeBalance: 1, freeOrderUsed: 10, packageType: "free" })).toEqual({
+      mode: "trial",
+      shouldIncrementFreeOrder: false,
+    });
   });
 
   it("blocks order creation when balance is zero even before checking plan", () => {
@@ -35,14 +38,14 @@ describe("billing plans", () => {
     // Minimum fee tests
     expect(calculateFeeCents(1, activePro)).toBe(1);
     expect(calculateFeeCents(1, activeMax)).toBe(1);
-    expect(calculateFeeCents(1, { packageType: "free" })).toBe(0);
+    expect(calculateFeeCents(1, { packageType: "free" })).toBe(10);
   });
 
   it("supports a subscription-free trial plan with 1.98% fee and 0.10 minimum", () => {
     expect(calculateFeeCents(100, { packageType: "trial" })).toBe(10);
     expect(calculateFeeCents(10000, { packageType: "trial" })).toBe(198);
     expect(assertCanCreateOrder({ id: "u1", feeBalance: 1, freeOrderUsed: 10, packageType: "trial" })).toEqual({
-      mode: "subscription",
+      mode: "trial",
       shouldIncrementFreeOrder: false,
     });
   });
@@ -55,7 +58,7 @@ describe("billing plans", () => {
     // Max limit is unlimited
     expect(() => assertOrderAmountWithinPlanLimit(1000000000, "max")).not.toThrow();
 
-    // Free limit is not enforced here
+    // Historical free values are normalized to trial.
     expect(() => assertOrderAmountWithinPlanLimit(1000000000, "free")).not.toThrow();
   });
 });

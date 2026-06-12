@@ -100,12 +100,12 @@ function fmtMoney(v: number | null | undefined) {
 
 function pkgBadge(pkg: string) {
   const map: Record<string, { label: string; cls: string }> = {
-    free: { label: '免费版', cls: 'bg-slate-700 text-slate-300' },
+    free: { label: '体验版', cls: 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30' },
     trial: { label: '体验版', cls: 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30' },
     pro: { label: '专业版', cls: 'bg-blue-600/20 text-blue-400 border border-blue-500/30' },
     max: { label: '高级版', cls: 'bg-amber-600/20 text-amber-400 border border-amber-500/30' },
   };
-  const info = map[pkg] || map.free;
+  const info = map[pkg] || map.trial;
   return <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-bold ${info.cls}`}>{info.label}</span>;
 }
 
@@ -418,7 +418,7 @@ export default function AdminPage() {
       const data = await res.json();
       setDetail(data);
       setNoteText(data.user?.adminNote || '');
-      setSubPkg(data.user?.packageType || 'free');
+      setSubPkg(data.user?.packageType === 'free' ? 'trial' : data.user?.packageType || 'trial');
       setSubExpires(data.user?.subscriptionExpiresAt ? data.user.subscriptionExpiresAt.slice(0, 16) : '');
       setBalanceDelta('');
       setBalanceReason('');
@@ -544,9 +544,9 @@ export default function AdminPage() {
     const oldExpiry = detail.user.subscriptionExpiresAt ? new Date(detail.user.subscriptionExpiresAt).getTime() : null;
     const needsExpiry = subPkg === 'pro' || subPkg === 'max';
     const newExpiry = needsExpiry ? (subExpires ? new Date(subExpires).getTime() : null) : null;
-    const isDowngradeToFree = (subPkg === 'free' || subPkg === 'trial') && detail.user.packageType !== 'free' && detail.user.packageType !== 'trial';
+    const isDowngradeToTrial = subPkg === 'trial' && detail.user.packageType !== 'free' && detail.user.packageType !== 'trial';
     const isShorten = needsExpiry && oldExpiry !== null && newExpiry !== null && newExpiry < oldExpiry;
-    const requiresConfirm = isDowngradeToFree || isShorten;
+    const requiresConfirm = isDowngradeToTrial || isShorten;
     if (requiresConfirm && subConfirmEmail.trim().toLowerCase() !== detail.user.email.toLowerCase()) {
       showToast('降级或缩短到期时间需输入正确的目标用户邮箱确认', 'error'); return;
     }
@@ -1069,7 +1069,6 @@ export default function AdminPage() {
                         { label: '邮箱', value: detail.user.email },
                         { label: '余额', value: fmtMoney(detail.user.feeBalance), cls: 'text-blue-400 font-mono font-bold' },
                         { label: '套餐', value: pkgBadge(detail.user.packageType) },
-                        { label: '免费单已用', value: `${detail.user.freeOrderUsed} 单` },
                         { label: '订阅到期', value: fmt(detail.user.subscriptionExpiresAt) },
                         { label: '注册时间', value: fmt(detail.user.createdAt) },
                       ].map((item, i) => (
@@ -1156,7 +1155,6 @@ export default function AdminPage() {
                             onChange={e => setSubPkg(e.target.value)}
                             className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/40"
                           >
-                            <option value="free">免费版</option>
                             <option value="trial">体验版</option>
                             <option value="pro">专业版</option>
                             <option value="max">高级版</option>
@@ -1168,7 +1166,7 @@ export default function AdminPage() {
                             type="datetime-local"
                             value={subExpires}
                             onChange={e => setSubExpires(e.target.value)}
-                            disabled={subPkg === 'free'}
+                            disabled={subPkg === 'trial'}
                             className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 disabled:opacity-40"
                           />
                         </div>
@@ -1662,7 +1660,6 @@ export default function AdminPage() {
                         { label: '邮箱', value: detail.user.email },
                         { label: '余额', value: fmtMoney(detail.user.feeBalance), cls: 'text-blue-400 font-mono font-bold' },
                         { label: '套餐', value: pkgBadge(detail.user.packageType) },
-                        { label: '免费单已用', value: `${detail.user.freeOrderUsed} 单` },
                         { label: '订阅到期', value: fmt(detail.user.subscriptionExpiresAt) },
                         { label: '注册时间', value: fmt(detail.user.createdAt) },
                       ].map((item, i) => (
@@ -1728,7 +1725,6 @@ export default function AdminPage() {
                           onChange={e => setSubPkg(e.target.value)}
                           className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200"
                         >
-                          <option value="free">免费版</option>
                           <option value="trial">体验版</option>
                           <option value="pro">专业版</option>
                           <option value="max">高级版</option>
@@ -1737,7 +1733,7 @@ export default function AdminPage() {
                           type="datetime-local"
                           value={subExpires}
                           onChange={e => setSubExpires(e.target.value)}
-                          disabled={subPkg === 'free'}
+                          disabled={subPkg === 'trial'}
                           className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 disabled:opacity-40"
                         />
                         <input

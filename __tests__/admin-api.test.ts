@@ -452,22 +452,7 @@ describe("Admin API — confirmEmail enforcement", () => {
     expect(res.status).toBe(200);
   });
 
-  it("subscription downgrade to free returns 400 when confirmEmail does not match", async () => {
-    const { POST } = await import(
-      "@/app/api/admin/users/[id]/adjust-subscription/route"
-    );
-    const res = await POST(
-      makeRequest(
-        "http://localhost/api/admin/users/target-1/adjust-subscription",
-        "POST",
-        { packageType: "free", reason: "downgrade", confirmEmail: "wrong@example.com" }
-      ),
-      { params: Promise.resolve({ id: "target-1" }) }
-    );
-    expect(res.status).toBe(400);
-  });
-
-  it("subscription downgrade to free succeeds when confirmEmail matches", async () => {
+  it("subscription downgrade rejects removed free package type", async () => {
     const { POST } = await import(
       "@/app/api/admin/users/[id]/adjust-subscription/route"
     );
@@ -476,6 +461,21 @@ describe("Admin API — confirmEmail enforcement", () => {
         "http://localhost/api/admin/users/target-1/adjust-subscription",
         "POST",
         { packageType: "free", reason: "downgrade", confirmEmail: "target@example.com" }
+      ),
+      { params: Promise.resolve({ id: "target-1" }) }
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("subscription downgrade to trial succeeds when confirmEmail matches", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/users/[id]/adjust-subscription/route"
+    );
+    const res = await POST(
+      makeRequest(
+        "http://localhost/api/admin/users/target-1/adjust-subscription",
+        "POST",
+        { packageType: "trial", reason: "downgrade", confirmEmail: "target@example.com" }
       ),
       { params: Promise.resolve({ id: "target-1" }) }
     );

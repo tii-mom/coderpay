@@ -52,6 +52,26 @@ export function getReferralTier(activeDirectCount: number) {
   return { tier: "level4", directRateBps: 500, indirectRateBps: 100 };
 }
 
+export const REFERRAL_TIER_RULES = [
+  { tier: "level1", label: "1级推广", threshold: 100, directRateBps: 2500, indirectRateBps: 1000 },
+  { tier: "level2", label: "2级推广", threshold: 50, directRateBps: 1500, indirectRateBps: 500 },
+  { tier: "level3", label: "3级推广", threshold: 10, directRateBps: 1000, indirectRateBps: 300 },
+  { tier: "level4", label: "4级推广", threshold: 0, directRateBps: 500, indirectRateBps: 100 },
+] as const;
+
+export function getNextReferralTier(activeDirectCount: number) {
+  const next = [...REFERRAL_TIER_RULES]
+    .reverse()
+    .find(rule => activeDirectCount < rule.threshold);
+  if (!next) return null;
+  return {
+    tier: next.tier,
+    label: next.label,
+    threshold: next.threshold,
+    remaining: Math.max(0, next.threshold - activeDirectCount),
+  };
+}
+
 export function getReferralRateBps(activeDirectCount: number, depth: 1 | 2) {
   const tier = getReferralTier(activeDirectCount);
   return {

@@ -1,8 +1,7 @@
-export const FREE_ORDER_LIMIT = 10;
 export const LOW_BALANCE_WARNING_YUAN = 10;
 
 export type PaidPackageType = "pro" | "max";
-export type PackageType = "free" | "trial" | PaidPackageType;
+export type PackageType = "trial" | PaidPackageType;
 
 export type BillingUser = {
   packageType?: string | null;
@@ -48,35 +47,32 @@ export const TRIAL_PLAN = {
 export function normalizePackageType(value?: string | null): PackageType {
   if (value === "starter" || value === "plan-elite") return "pro";
   if (value === "plan-premium") return "max";
-  if (value === "trial") return "trial";
+  if (value === "free" || value === "trial") return "trial";
   if (value === "pro" || value === "max") return value;
-  return "free";
+  return "trial";
 }
 
 export function isSubscriptionActive(user: BillingUser, now = new Date()) {
   const packageType = normalizePackageType(user.packageType);
-  if (packageType === "free" || packageType === "trial") return false;
+  if (packageType === "trial") return false;
   if (!user.subscriptionExpiresAt) return false;
   return new Date(user.subscriptionExpiresAt).getTime() > now.getTime();
 }
 
 export function getEffectivePackageType(user: BillingUser, now = new Date()): PackageType {
   const packageType = normalizePackageType(user.packageType);
-  if (packageType === "free") return "free";
   if (packageType === "trial") return "trial";
-  return isSubscriptionActive(user, now) ? packageType : "free";
+  return isSubscriptionActive(user, now) ? packageType : "trial";
 }
 
 export function getFeeRate(user: BillingUser, now = new Date()) {
   const packageType = getEffectivePackageType(user, now);
-  if (packageType === "free") return 0;
   if (packageType === "trial") return TRIAL_PLAN.feeRate;
   return BILLING_PLANS[packageType].feeRate;
 }
 
 export function calculateFeeCents(amountCents: number, user: BillingUser, now = new Date()) {
   const packageType = getEffectivePackageType(user, now);
-  if (packageType === "free") return 0;
   const plan = packageType === "trial" ? TRIAL_PLAN : BILLING_PLANS[packageType];
   return Math.max(plan.minFeeCents, Math.ceil(Math.round(amountCents * plan.feeRate * 1e6) / 1e6));
 }
@@ -97,7 +93,7 @@ export function getNextSubscriptionExpiresAt(currentExpiresAt?: Date | string | 
 
 export function assertOrderAmountWithinPlanLimit(amountCents: number, packageType: string) {
   const normalized = normalizePackageType(packageType);
-  if (normalized !== "free" && normalized !== "trial") {
+  if (normalized !== "trial") {
     const plan = BILLING_PLANS[normalized];
     if (plan && plan.maxOrderAmountCents && amountCents > plan.maxOrderAmountCents) {
       throw new Error("订单金额超过当前套餐单笔上限");
