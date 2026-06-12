@@ -25,6 +25,7 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
   const [loadingReal, setLoadingReal] = useState(true);
 
   const order = realOrder;
+  const checkoutReturnUrl = order?.returnUrl || order?.app?.returnUrl || '';
 
   const [userSelectedChannel, setUserSelectedChannel] = useState<'wechat' | 'alipay' | null>(null);
   const activeChannel = userSelectedChannel || (order ? order.payType : 'wechat');
@@ -76,6 +77,7 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
                 manualConfirmedBy: data.manualConfirmedBy,
                 manualConfirmNote: data.manualConfirmNote,
                 realAmount: data.realAmount,
+                returnUrl: data.returnUrl,
                 app: {
                   ...prev.app,
                   ...data.app
@@ -123,7 +125,8 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
   useEffect(() => {
     if (!order || order.status !== 'success') return;
 
-    const returnUrl = order.app?.returnUrl || '/';
+    const returnUrl = order.returnUrl || order.app?.returnUrl || '';
+    if (!returnUrl) return;
     const timer = window.setTimeout(() => {
       window.location.href = returnUrl;
     }, 1500);
@@ -280,18 +283,22 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
                   : '您的款项已直达开发者个人账户。免签心跳探针已成功激发到账上报。'}
             </p>
             <p className="text-[11px] text-emerald-700 mt-2 font-semibold">
-              {isRechargeOrder ? '正在自动返回控制台...' : '正在自动返回商家网站...'}
+              {isRechargeOrder ? '正在自动返回控制台...' : checkoutReturnUrl ? '正在自动返回商家网站...' : '支付已完成，可关闭此页面。'}
             </p>
 
             {/* Action complete row */}
             <div className="mt-5 flex flex-col gap-2.5 w-full">
               <button
                 onClick={() => {
-                  window.location.href = order.app?.returnUrl || '/';
+                  if (checkoutReturnUrl) {
+                    window.location.href = checkoutReturnUrl;
+                  } else {
+                    window.close();
+                  }
                 }}
                 className="w-full py-2.5 bg-slate-950 text-white rounded-xl text-xs font-bold shadow-sm hover:bg-slate-800 hover:scale-[1.01] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                {isRechargeOrder ? '返回控制台' : '返回商家网站'} <ExternalLink className="w-4 h-4" />
+                {isRechargeOrder ? '返回控制台' : checkoutReturnUrl ? '返回商家网站' : '关闭页面'} <ExternalLink className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -306,11 +313,15 @@ export default function PayCheckout({ orderId: providedOrderId }: { orderId?: st
             </p>
             <button
               onClick={() => {
-                window.location.href = order.app?.returnUrl || '/';
+                if (checkoutReturnUrl) {
+                  window.location.href = checkoutReturnUrl;
+                } else {
+                  window.close();
+                }
               }}
               className="mt-8 w-full py-3 border border-slate-300 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all"
             >
-              {isRechargeOrder ? '返回控制台重新发起充值' : '返回商户网站重试'}
+              {isRechargeOrder ? '返回控制台重新发起充值' : checkoutReturnUrl ? '返回商户网站重试' : '关闭页面'}
             </button>
           </div>
         ) : (

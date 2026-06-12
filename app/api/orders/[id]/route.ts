@@ -105,6 +105,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       manualConfirmedAt: order.manualConfirmedAt,
       manualConfirmedBy: order.manualConfirmedBy,
       manualConfirmNote: order.manualConfirmNote,
+      returnUrl: order.returnUrl || order.app?.returnUrl || "",
       app: order.app,
       paymentCode: order.paymentCode,
       orderType: "order",

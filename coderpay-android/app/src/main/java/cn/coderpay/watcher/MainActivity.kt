@@ -102,6 +102,7 @@ class MainActivity : ComponentActivity() {
             )
         }
         var sandboxMessage by remember { mutableStateOf<String?>(null) }
+        var isUnbinding by remember { mutableStateOf(false) }
         
         var isNotificationPermissionGranted by remember { mutableStateOf(isNotificationServiceEnabled()) }
         var isListenerBound by remember { mutableStateOf(NotificationService.isListenerConnected) }
@@ -258,7 +259,7 @@ class MainActivity : ComponentActivity() {
                                             val errorText = response.errorBody()?.string() ?: "授权码无效或已过期"
                                             val friendlyError = when {
                                                 errorText.contains("Authentication credentials", ignoreCase = true) ->
-                                                    "该设备码已经绑定过旧设备密钥，不能直接重新绑定。请在网页控制台的设备详情中点击“重置设备密钥”，复制新的 dev_ 绑定码后再连接。"
+                                                    "该设备码在云端仍绑定旧设备密钥。本机若仍保持登录，请先点“解绑后退出”；如果本机已清空或要换新手机，请在网页控制台点击“重置设备密钥”，复制新的 dev_ 绑定码后再连接。"
                                                 errorText.contains("expired", ignoreCase = true) ->
                                                     "设备绑定码已过期。请在网页控制台重新添加安卓设备或重置设备密钥后再连接。"
                                                 errorText.contains("Device not registered", ignoreCase = true) ||
@@ -266,7 +267,6 @@ class MainActivity : ComponentActivity() {
                                                     "设备绑定码不存在。请从网页控制台复制最新的 dev_ 绑定码。"
                                                 else -> errorText
                                             }
-                                            settings.clearBinding()
                                             withContext(Dispatchers.Main) {
                                                 isPairing = false
                                                 pairingMessage = "绑定失败：$friendlyError"
@@ -274,7 +274,6 @@ class MainActivity : ComponentActivity() {
                                             LogTracker.log("绑定失败：云端响应拒绝 - $friendlyError")
                                         }
                                     } catch (e: Exception) {
-                                        settings.clearBinding()
                                         withContext(Dispatchers.Main) {
                                             isPairing = false
                                             pairingMessage = "连接失败：请检查服务地址和网络。${e.message ?: ""}"
@@ -293,24 +292,59 @@ class MainActivity : ComponentActivity() {
                         ) {
                             Text(if (isPairing) "正在连接..." else "保存并连接")
                         }
-                    } else {
-                        Button(
-                            onClick = {
-                                settings.clearBinding()
-                                isBound = false
-                                pairingMessage = "设备已解除绑定。"
-                                ForegroundKeepAliveService.stopService(this@MainActivity)
-                                LogTracker.log("已主动解除设备绑定。前台守护服务终止。")
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(
+                        } else {
+                            Button(
+                                onClick = {
+                                    if (isUnbinding) return@Button
+                                    val currentDeviceCode = settings.deviceCode
+                                    val currentSecret = settings.deviceSecret
+                                    if (currentDeviceCode.isBlank() || currentSecret.isBlank()) {
+                                        pairingMessage = "本机缺少云端密钥，无法安全解绑。请在网页控制台点击“重置设备密钥”后使用新的 dev_ 绑定码。"
+                                        return@Button
+                                    }
+                                    isUnbinding = true
+                                    pairingMessage = "正在通知云端解除绑定..."
+                                    scope.launch(Dispatchers.IO) {
+                                        try {
+                                            val timestamp = System.currentTimeMillis()
+                                            val sign = cn.coderpay.watcher.utils.SignatureHelper.calculateSignature(currentDeviceCode, timestamp, currentSecret)
+                                            val response = RetrofitClient.getService(this@MainActivity).unbindMobileDevice(currentDeviceCode, timestamp.toString(), sign)
+                                            if (response.isSuccessful) {
+                                                settings.clearBinding()
+                                                withContext(Dispatchers.Main) {
+                                                    isBound = false
+                                                    isUnbinding = false
+                                                    pairingMessage = "设备已在云端解除绑定，可重新输入该 dev_ 绑定码连接。"
+                                                    ForegroundKeepAliveService.stopService(this@MainActivity)
+                                                }
+                                                LogTracker.log("已主动解除云端设备绑定。前台守护服务终止。")
+                                            } else {
+                                                val errorText = response.errorBody()?.string() ?: "云端拒绝解绑请求"
+                                                withContext(Dispatchers.Main) {
+                                                    isUnbinding = false
+                                                    pairingMessage = "解绑失败：$errorText。请保持当前绑定，或在网页控制台重置设备密钥。"
+                                                }
+                                                LogTracker.log("解绑失败：$errorText")
+                                            }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) {
+                                                isUnbinding = false
+                                                pairingMessage = "解绑失败：请检查网络后重试。${e.message ?: ""}"
+                                            }
+                                            LogTracker.log("解绑异常：${e.message ?: "unknown"}")
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !isUnbinding,
+                                colors = ButtonDefaults.buttonColors(
                                 containerColor = CpRed,
                                 contentColor = Color.White
                             ),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Text("解除设备绑定")
-                        }
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Text(if (isUnbinding) "正在解绑..." else "解绑后退出")
+                            }
                     }
                 }
             }

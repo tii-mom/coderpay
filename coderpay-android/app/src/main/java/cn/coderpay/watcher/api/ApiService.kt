@@ -87,6 +87,13 @@ interface ApiService {
         @Header("x-coderpay-sign") sign: String
     ): Response<MobileResetSecretResponse>
 
+    @POST("api/mobile/devices/unbind")
+    suspend fun unbindMobileDevice(
+        @Header("x-coderpay-device") deviceCode: String,
+        @Header("x-coderpay-timestamp") timestamp: String,
+        @Header("x-coderpay-sign") sign: String
+    ): Response<MobileActionResponse>
+
     @GET("api/mobile/orders")
     suspend fun getMobileOrders(
         @Header("x-coderpay-device") deviceCode: String,

@@ -120,6 +120,7 @@ model Order {
   manualConfirmedAt DateTime?
   manualConfirmedBy String?
   manualConfirmNote String?
+  returnUrl     String        @default("")
   webhookStatus String        @default("unsent") // unsent / success / failed
   appId         String
   app           App           @relation(fields: [appId], references: [id], onDelete: Cascade)

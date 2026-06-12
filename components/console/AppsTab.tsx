@@ -211,13 +211,13 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
                   required
                 />
               </div>
-              <p className="text-[10px] text-slate-500">当 CP 匹配成功资金到账瞬间，将立即发起含有不可伪造签名的 POST 网络请求通知您的网站</p>
+              <p className="text-[10px] text-slate-500">服务端异步通知地址。订单成功后，CoderPay 会向这里 POST 到账结果和签名，供您的后端入账。</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-slate-300">同步支付完成返还端 (return_url)</label>
+                <label className="text-xs font-semibold text-slate-300">用户支付完成跳转地址 (return_url)</label>
                 <input
                   type="url"
                   placeholder="https://your-website.com/pay-success-landing"
@@ -225,6 +225,7 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
                   onChange={(e) => setReturnUrl(e.target.value)}
                   className="px-4 py-2.5 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
                 />
+                <p className="text-[10px] text-slate-500">浏览器同步跳转地址。用户在收银台看到支付成功后会返回这里；也可在创建订单时传 return_url 覆盖。</p>
               </div>
 
               <div className="flex flex-col gap-1.5">

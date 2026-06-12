@@ -1,0 +1,1 @@
+ALTER TABLE "Order" ADD COLUMN "returnUrl" TEXT NOT NULL DEFAULT '';

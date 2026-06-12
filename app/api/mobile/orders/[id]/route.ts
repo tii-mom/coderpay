@@ -60,7 +60,7 @@ export async function GET(
       appId: order.app.appId,
       appName: order.app.name,
       notifyUrl: order.app.notifyUrl,
-      returnUrl: order.app.returnUrl,
+      returnUrl: order.returnUrl || order.app.returnUrl,
       paymentCode: order.paymentCode ? {
         id: order.paymentCode.id,
         type: order.paymentCode.type,

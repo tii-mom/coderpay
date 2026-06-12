@@ -4,17 +4,25 @@ import { amountFromCents, centsFromAmount, formatAmount, getDirectD1, randomOrde
 import { LOW_BALANCE_WARNING_YUAN, getEffectivePackageType, BILLING_PLANS, assertOrderAmountWithinPlanLimit } from "@/lib/billing-plans";
 import { providerSupportsChannel } from "@/lib/provider-payments";
 
+function isHttpsUrl(value: string) {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { app_id, out_order_no, title, amount, pay_type, sign } = body;
+    const { app_id, out_order_no, title, amount, pay_type, sign, return_url } = body;
     
     if (!app_id || !out_order_no || !title || !amount || !pay_type || !sign) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
     const db = getDirectD1();
     const app = await db.prepare(`
-      SELECT App.id, App.appId, App.appSecret, App.signType, App.expireMinutes, App.userId,
+      SELECT App.id, App.appId, App.appSecret, App.signType, App.expireMinutes, App.userId, App.returnUrl,
              User.feeBalance, User.packageType, User.freeOrderUsed, User.subscriptionExpiresAt
       FROM App
       JOIN User ON User.id = App.userId
@@ -50,6 +58,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid pay_type. Must be 'wechat' or 'alipay'" }, { status: 400 });
     }
 
+    const requestReturnUrl = typeof return_url === "string" ? return_url.trim() : "";
+    if (requestReturnUrl && !isHttpsUrl(requestReturnUrl)) {
+      return NextResponse.json({ error: "return_url must be a valid https URL" }, { status: 400 });
+    }
+    const orderReturnUrl = requestReturnUrl || app.returnUrl || "";
+
     let amountCents: number;
     try {
       amountCents = centsFromAmount(amount);
@@ -77,8 +91,8 @@ export async function POST(req: NextRequest) {
       const expiresAt = new Date(Date.now() + app.expireMinutes * 60 * 1000);
       try {
         await db.prepare(`
-          INSERT INTO "Order" (id, outOrderNo, title, payType, amount, realAmount, amountCents, realAmountCents, status, confirmMode, createdAt, expiresAt, webhookStatus, appId, paymentCodeId)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'provider', ?, ?, 'unsent', ?, NULL)
+          INSERT INTO "Order" (id, outOrderNo, title, payType, amount, realAmount, amountCents, realAmountCents, status, confirmMode, createdAt, expiresAt, returnUrl, webhookStatus, appId, paymentCodeId)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'provider', ?, ?, ?, 'unsent', ?, NULL)
         `).bind(
           orderId,
           out_order_no,
@@ -90,6 +104,7 @@ export async function POST(req: NextRequest) {
           amountCents,
           now.toISOString(),
           expiresAt.toISOString(),
+          orderReturnUrl,
           app.id
         ).run();
       } catch (insertErr: any) {
@@ -192,8 +207,8 @@ export async function POST(req: NextRequest) {
     const expiresAt = new Date(Date.now() + app.expireMinutes * 60 * 1000);
     try {
       await db.prepare(`
-        INSERT INTO "Order" (id, outOrderNo, title, payType, amount, realAmount, amountCents, realAmountCents, status, confirmMode, createdAt, expiresAt, webhookStatus, appId, paymentCodeId)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, 'unsent', ?, ?)
+        INSERT INTO "Order" (id, outOrderNo, title, payType, amount, realAmount, amountCents, realAmountCents, status, confirmMode, createdAt, expiresAt, returnUrl, webhookStatus, appId, paymentCodeId)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, 'unsent', ?, ?)
       `).bind(
         orderId,
         out_order_no,
@@ -206,6 +221,7 @@ export async function POST(req: NextRequest) {
         confirmMode,
         now.toISOString(),
         expiresAt.toISOString(),
+        orderReturnUrl,
         app.id,
         selectedCode.id
       ).run();

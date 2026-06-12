@@ -20,6 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         manualConfirmedAt: true,
         manualConfirmedBy: true,
         manualConfirmNote: true,
+        returnUrl: true,
         realAmount: true,
         realAmountCents: true,
         expiresAt: true,
@@ -83,6 +84,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       status: expired ? "expired" : order.status,
       expiresAt: getOrderExpiresAt(order),
       realAmount: centsToAmount(getOrderRealAmountCents(order)),
+      returnUrl: order.returnUrl || order.app?.returnUrl || "",
       orderType: "order"
     });
   } catch (err) {
