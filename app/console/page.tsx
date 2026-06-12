@@ -87,6 +87,61 @@ function getConsoleTabUrl(tabName: string) {
   return query ? `${path}?${query}` : path;
 }
 
+function SystemNoticeBar({
+  notice,
+  onDismiss,
+}: {
+  notice: NonNullable<ReturnType<typeof usePaymentState>["state"]["systemNotice"]>;
+  onDismiss: () => void;
+}) {
+  const styleMap = {
+    info: {
+      wrap: "border-blue-500/25 bg-blue-950/25 text-blue-100",
+      icon: "text-blue-400",
+      label: "系统通知",
+    },
+    warning: {
+      wrap: "border-amber-500/25 bg-amber-950/25 text-amber-100",
+      icon: "text-amber-400",
+      label: "重要提醒",
+    },
+    critical: {
+      wrap: "border-red-500/30 bg-red-950/25 text-red-100",
+      icon: "text-red-400",
+      label: "紧急通知",
+    },
+    success: {
+      wrap: "border-emerald-500/25 bg-emerald-950/25 text-emerald-100",
+      icon: "text-emerald-400",
+      label: "运营通知",
+    },
+  } as const;
+  const styles = styleMap[notice.level] || styleMap.info;
+
+  return (
+    <div className={`mb-5 rounded-2xl border px-4 py-3 ${styles.wrap}`}>
+      <div className="flex items-start gap-3">
+        <Bell className={`w-4 h-4 mt-0.5 shrink-0 ${styles.icon}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{styles.label}</span>
+            <h2 className="text-sm font-bold text-white leading-snug">{notice.title}</h2>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed whitespace-pre-line break-words">{notice.content}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+          aria-label="关闭通知"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ConsolePage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -121,6 +176,7 @@ export default function ConsolePage() {
 
   // Slide open mobile sidebar
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [dismissedNoticeKey, setDismissedNoticeKey] = useState<string | null>(null);
 
   // Custom Toast state
   const [toasts, setToasts] = useState<Array<{ id: string; text: string; type: 'success' | 'warning' | 'error' }>>([]);
@@ -280,6 +336,8 @@ export default function ConsolePage() {
 
   // Selected App name for top drop-down preview
   const currentSelectedApp = state.apps.find(a => a.appId === state.currentAppId);
+  const noticeKey = state.systemNotice ? `${state.systemNotice.id}:${state.systemNotice.updatedAt}` : null;
+  const activeNotice = state.systemNotice && noticeKey !== dismissedNoticeKey ? state.systemNotice : null;
 
   return (
     <div className="min-h-screen w-full bg-[#070A12] text-slate-100 flex flex-col relative" id="console-root" suppressHydrationWarning>
@@ -465,6 +523,12 @@ export default function ConsolePage() {
 
           {/* Current Active view container wrapper */}
           <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto w-full max-w-7xl mx-auto">
+            {activeNotice && noticeKey && (
+              <SystemNoticeBar
+                notice={activeNotice}
+                onDismiss={() => setDismissedNoticeKey(noticeKey)}
+              />
+            )}
             
             <div className="flex flex-col gap-1 text-left mb-6">
               <h1 className="text-xl sm:text-2xl font-black text-white font-sans uppercase tracking-wide leading-none">

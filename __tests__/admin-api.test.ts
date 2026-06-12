@@ -10,6 +10,7 @@ let targetUserPackage = "free";
 let targetUserSubscriptionExpiresAt: string | null = null;
 let targetUserAdminNote: string | null = "test note";
 let rechargeStatus = "pending";
+let systemNoticeEnabled = 1;
 
 // ----- Mocks -----
 
@@ -73,11 +74,29 @@ const mockFirst = vi.fn().mockImplementation(async function(this: any) {
   if (sql.includes("LOWER(email) =")) {
     return { id: "platform-1", email: "platform@example.com" };
   }
+  if (sql.includes("FROM SystemNotice")) {
+    if (sql.includes("enabled = 1") && !systemNoticeEnabled) return null;
+    result = {
+      id: "global",
+      title: "维护通知",
+      content: "今晚进行系统维护",
+      level: "warning",
+      enabled: systemNoticeEnabled,
+      startsAt: null,
+      endsAt: null,
+      createdBy: "admin@example.com",
+      updatedBy: "admin@example.com",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+  }
 
   // 1. Admin lookup by email
-  if (sql.includes("FROM User WHERE email =")) {
+  if (!result && sql.includes("FROM User WHERE email =")) {
     if (mockSessionEmail === "admin@example.com") {
       result = { id: "admin-1", email: "admin@example.com" };
+    } else if (mockSessionEmail === "user@example.com") {
+      result = { id: "user-1", email: "user@example.com", feeBalance: 10, packageType: "trial" };
     }
   }
   // RechargeOrder lookup for manual-confirm
@@ -780,5 +799,97 @@ describe("Admin PWA API — GET /api/admin/exceptions", () => {
     expect(data).toHaveProperty("page", 1);
     expect(data).toHaveProperty("total");
     expect(mockPrepare).toHaveBeenCalled();
+  });
+});
+
+describe("System notice APIs", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSessionEmail = "admin@example.com";
+    mockAdminEmails = "admin@example.com";
+    systemNoticeEnabled = 1;
+  });
+
+  it("GET /api/admin/system-notice returns 401 for unauthenticated user", async () => {
+    mockSessionEmail = null;
+    const { GET } = await import("@/app/api/admin/system-notice/route");
+    const res = await GET(makeRequest("http://localhost/api/admin/system-notice"));
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /api/admin/system-notice returns current editable notice for admin", async () => {
+    const { GET } = await import("@/app/api/admin/system-notice/route");
+    const res = await GET(makeRequest("http://localhost/api/admin/system-notice"));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.notice).toHaveProperty("id", "global");
+    expect(data.notice).toHaveProperty("enabled", true);
+  });
+
+  it("PUT /api/admin/system-notice rejects non-admin user", async () => {
+    mockSessionEmail = "user@example.com";
+    const { PUT } = await import("@/app/api/admin/system-notice/route");
+    const res = await PUT(
+      makeRequest("http://localhost/api/admin/system-notice", "PUT", {
+        title: "通知",
+        content: "内容",
+        level: "info",
+        enabled: true,
+      })
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("PUT /api/admin/system-notice validates enabled notice content", async () => {
+    const { PUT } = await import("@/app/api/admin/system-notice/route");
+    const res = await PUT(
+      makeRequest("http://localhost/api/admin/system-notice", "PUT", {
+        title: "",
+        content: "",
+        level: "info",
+        enabled: true,
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("PUT /api/admin/system-notice saves notice and writes audit log", async () => {
+    const { PUT } = await import("@/app/api/admin/system-notice/route");
+    const res = await PUT(
+      makeRequest("http://localhost/api/admin/system-notice", "PUT", {
+        title: "维护通知",
+        content: "今晚 23:00 维护",
+        level: "warning",
+        enabled: true,
+      })
+    );
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.notice.title).toBe("维护通知");
+    const noticeWrite = mockPrepare.mock.calls.some(
+      (c: any[]) => typeof c[0] === "string" && c[0].includes("INSERT INTO SystemNotice")
+    );
+    const auditWrite = mockPrepare.mock.calls.some(
+      (c: any[]) => typeof c[0] === "string" && c[0].includes("AdminAuditLog")
+    );
+    expect(noticeWrite).toBe(true);
+    expect(auditWrite).toBe(true);
+  });
+
+  it("GET /api/notices/active requires login", async () => {
+    mockSessionEmail = null;
+    const { GET } = await import("@/app/api/notices/active/route");
+    const res = await GET(makeRequest("http://localhost/api/notices/active"));
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /api/notices/active returns active notice for logged-in user", async () => {
+    mockSessionEmail = "user@example.com";
+    const { GET } = await import("@/app/api/notices/active/route");
+    const res = await GET(makeRequest("http://localhost/api/notices/active"));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.notice.title).toBe("维护通知");
+    expect(data.notice.enabled).toBe(true);
   });
 });

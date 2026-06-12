@@ -23,6 +23,7 @@ export function usePaymentState() {
     firstProDiscountUsed: false,
     firstMaxDiscountUsed: false,
     referralSummary: null,
+    systemNotice: null,
     isLoggedIn: false,
     isAuthChecked: false,
     userEmail: '',
@@ -110,6 +111,7 @@ export function usePaymentState() {
           firstProDiscountUsed: false,
           firstMaxDiscountUsed: false,
           referralSummary: null,
+          systemNotice: null,
           isLoggedIn: false,
           isAuthChecked: true,
           userEmail: ''
@@ -118,7 +120,7 @@ export function usePaymentState() {
       }
       const me = await meRes.json();
 
-      const [apps, codes, devices, orders, events, exceptions, webhookLogs, billingData, referralSummary] = await Promise.all([
+      const [apps, codes, devices, orders, events, exceptions, webhookLogs, billingData, referralSummary, noticeData] = await Promise.all([
         fetchJsonSafely("/api/apps", []),
         fetchJsonSafely("/api/codes", []),
         fetchJsonSafely("/api/devices", []),
@@ -127,7 +129,8 @@ export function usePaymentState() {
         fetchJsonSafely("/api/exceptions", []),
         fetchJsonSafely("/api/webhook/logs", []),
         fetchJsonSafely("/api/billing", { records: [], rechargeOrders: [], feeBalance: 0, packageType: 'trial' }),
-        fetchJsonSafely("/api/referrals", null)
+        fetchJsonSafely("/api/referrals", null),
+        fetchJsonSafely("/api/notices/active", { notice: null })
       ]);
 
       setState(prev => ({
@@ -147,6 +150,7 @@ export function usePaymentState() {
         firstProDiscountUsed: Boolean(billingData.firstProDiscountUsed),
         firstMaxDiscountUsed: Boolean(billingData.firstMaxDiscountUsed),
         referralSummary,
+        systemNotice: noticeData?.notice || null,
         currentAppId: prev.currentAppId,
         currentPlanId: billingData.packageType || me.packageType || 'trial',
         isLoggedIn: me.isLoggedIn,

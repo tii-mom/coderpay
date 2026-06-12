@@ -186,6 +186,17 @@ export interface RechargeOrder {
   payTime: string | null;
 }
 
+export interface SystemNotice {
+  id: string;
+  title: string;
+  content: string;
+  level: 'info' | 'warning' | 'critical' | 'success';
+  enabled: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  updatedAt: string;
+}
+
 export interface CoderPayState {
   apps: App[];
   paymentCodes: PaymentCode[];
@@ -205,6 +216,7 @@ export interface CoderPayState {
   firstProDiscountUsed: boolean;
   firstMaxDiscountUsed: boolean;
   referralSummary: ReferralSummary | null;
+  systemNotice: SystemNotice | null;
   isLoggedIn: boolean;
   isAuthChecked: boolean;
   userEmail: string;

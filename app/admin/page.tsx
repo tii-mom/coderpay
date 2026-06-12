@@ -106,6 +106,17 @@ interface ExceptionItem {
   userEmail?: string;
 }
 
+interface SystemNotice {
+  id: string;
+  title: string;
+  content: string;
+  level: 'info' | 'warning' | 'critical' | 'success';
+  enabled: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  updatedAt: string | null;
+}
+
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
@@ -166,6 +177,7 @@ function actionLabel(action: string) {
     refund_note: '退款备注',
     password_reset: '密码重置',
     recharge_manual_confirm: '充值人工确认',
+    system_notice_update: '顶部通知栏',
   };
   return map[action] || action;
 }
@@ -178,7 +190,23 @@ const AUDIT_ACTION_OPTIONS = [
   { value: 'refund_note', label: '退款备注' },
   { value: 'password_reset', label: '密码重置' },
   { value: 'recharge_manual_confirm', label: '充值人工确认' },
+  { value: 'system_notice_update', label: '顶部通知栏' },
 ];
+
+const NOTICE_LEVEL_OPTIONS: Array<{ value: SystemNotice['level']; label: string }> = [
+  { value: 'info', label: '普通通知' },
+  { value: 'success', label: '运营通知' },
+  { value: 'warning', label: '重要提醒' },
+  { value: 'critical', label: '紧急通知' },
+];
+
+function toDatetimeLocal(value: string | null | undefined) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
 
 // Copy-to-clipboard button for long fields (IDs, order numbers, etc.).
 function CopyBtn({ value }: { value: string }) {
@@ -419,6 +447,14 @@ export default function AdminPage() {
   // Summary + platform status
   const [summary, setSummary] = useState<Summary | null>(null);
   const [platform, setPlatform] = useState<PlatformStatus | null>(null);
+  const [systemNotice, setSystemNotice] = useState<SystemNotice | null>(null);
+  const [noticeTitle, setNoticeTitle] = useState('');
+  const [noticeContent, setNoticeContent] = useState('');
+  const [noticeLevel, setNoticeLevel] = useState<SystemNotice['level']>('info');
+  const [noticeEnabled, setNoticeEnabled] = useState(false);
+  const [noticeStartsAt, setNoticeStartsAt] = useState('');
+  const [noticeEndsAt, setNoticeEndsAt] = useState('');
+  const [noticeSaving, setNoticeSaving] = useState(false);
 
   // Audit logs
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -560,14 +596,63 @@ export default function AdminPage() {
   // Fetch summary metrics + platform recharge status
   const fetchOverview = useCallback(async () => {
     try {
-      const [sRes, pRes] = await Promise.all([
+      const [sRes, pRes, nRes] = await Promise.all([
         fetch('/api/admin/summary'),
         fetch('/api/admin/platform-recharge-status'),
+        fetch('/api/admin/system-notice'),
       ]);
       if (sRes.ok) setSummary(await sRes.json());
       if (pRes.ok) setPlatform(await pRes.json());
+      if (nRes.ok) {
+        const data = await nRes.json();
+        const notice = data.notice as SystemNotice;
+        setSystemNotice(notice);
+        setNoticeTitle(notice.title || '');
+        setNoticeContent(notice.content || '');
+        setNoticeLevel(notice.level || 'info');
+        setNoticeEnabled(Boolean(notice.enabled));
+        setNoticeStartsAt(toDatetimeLocal(notice.startsAt));
+        setNoticeEndsAt(toDatetimeLocal(notice.endsAt));
+      }
     } catch {}
   }, []);
+
+  const handleSaveSystemNotice = async () => {
+    setNoticeSaving(true);
+    try {
+      const res = await fetch('/api/admin/system-notice', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: noticeTitle,
+          content: noticeContent,
+          level: noticeLevel,
+          enabled: noticeEnabled,
+          startsAt: noticeStartsAt ? new Date(noticeStartsAt).toISOString() : null,
+          endsAt: noticeEndsAt ? new Date(noticeEndsAt).toISOString() : null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || '保存通知失败', 'error');
+        return;
+      }
+      const notice = data.notice as SystemNotice;
+      setSystemNotice(notice);
+      setNoticeTitle(notice.title || '');
+      setNoticeContent(notice.content || '');
+      setNoticeLevel(notice.level || 'info');
+      setNoticeEnabled(Boolean(notice.enabled));
+      setNoticeStartsAt(toDatetimeLocal(notice.startsAt));
+      setNoticeEndsAt(toDatetimeLocal(notice.endsAt));
+      fetchAuditLogs(1);
+      showToast('顶部通知栏已保存', 'success');
+    } catch {
+      showToast('网络请求失败', 'error');
+    } finally {
+      setNoticeSaving(false);
+    }
+  };
 
   // Fetch pending recharge orders
   const fetchPendingOrders = useCallback(async (page = 1, search = '') => {
@@ -1141,6 +1226,82 @@ export default function AdminPage() {
                   </div>
                 </div>
               )}
+
+              {/* Developer console notice editor */}
+              <div className={`bg-[#111827] border rounded-2xl p-6 ${noticeEnabled ? 'border-blue-500/30' : 'border-white/5'}`}>
+                <div className="flex items-start justify-between gap-4 mb-5">
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <StickyNote className="w-4 h-4 text-blue-400" /> 开发者顶部通知栏
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      保存后会在所有已登录开发者控制台顶部展示，内容仅按纯文本渲染。
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={noticeEnabled}
+                      onChange={(e) => setNoticeEnabled(e.target.checked)}
+                      className="h-4 w-4 accent-blue-600"
+                    />
+                    启用
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+                  <select
+                    value={noticeLevel}
+                    onChange={(e) => setNoticeLevel(e.target.value as SystemNotice['level'])}
+                    className="px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-blue-500/40"
+                  >
+                    {NOTICE_LEVEL_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    value={noticeTitle}
+                    onChange={(e) => setNoticeTitle(e.target.value)}
+                    maxLength={80}
+                    placeholder="通知标题"
+                    className="lg:col-span-3 px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
+                  />
+                  <textarea
+                    value={noticeContent}
+                    onChange={(e) => setNoticeContent(e.target.value)}
+                    maxLength={500}
+                    rows={4}
+                    placeholder="通知内容，例如：今晚 23:00-23:30 将进行短暂维护，订单创建不受影响。"
+                    className="lg:col-span-4 px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
+                  />
+                  <input
+                    type="datetime-local"
+                    value={noticeStartsAt}
+                    onChange={(e) => setNoticeStartsAt(e.target.value)}
+                    className="lg:col-span-2 px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-blue-500/40"
+                  />
+                  <input
+                    type="datetime-local"
+                    value={noticeEndsAt}
+                    onChange={(e) => setNoticeEndsAt(e.target.value)}
+                    className="lg:col-span-2 px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-blue-500/40"
+                  />
+                </div>
+
+                <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <span className="text-[10px] text-slate-500">
+                    当前状态：{noticeEnabled ? '已启用' : '未启用'}{systemNotice?.updatedAt ? ` · 最近更新 ${fmt(systemNotice.updatedAt)}` : ''}
+                  </span>
+                  <button
+                    onClick={handleSaveSystemNotice}
+                    disabled={noticeSaving}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    {noticeSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                    保存通知
+                  </button>
+                </div>
+              </div>
 
               {/* Platform status info */}
               <div className={`bg-[#111827] border rounded-2xl p-6 ${platform ? (platform.ready ? 'border-emerald-500/30' : 'border-amber-500/30') : 'border-white/5'}`}>
@@ -2344,6 +2505,73 @@ export default function AdminPage() {
                 </div>
               </>
             )}
+
+            <div className={`bg-[#111827] border rounded-xl p-4 ${noticeEnabled ? 'border-blue-500/30' : 'border-white/5'}`}>
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <StickyNote className="w-4 h-4 text-blue-400" />
+                    开发者顶部通知栏
+                  </h3>
+                  <p className="mt-1 text-[10px] text-slate-500 leading-relaxed">面向全部开发者控制台展示。</p>
+                </div>
+                <label className="flex items-center gap-1.5 text-[11px] text-slate-300 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={noticeEnabled}
+                    onChange={(e) => setNoticeEnabled(e.target.checked)}
+                    className="h-4 w-4 accent-blue-600"
+                  />
+                  启用
+                </label>
+              </div>
+              <div className="space-y-2">
+                <select
+                  value={noticeLevel}
+                  onChange={(e) => setNoticeLevel(e.target.value as SystemNotice['level'])}
+                  className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-blue-500/40"
+                >
+                  {NOTICE_LEVEL_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <input
+                  value={noticeTitle}
+                  onChange={(e) => setNoticeTitle(e.target.value)}
+                  maxLength={80}
+                  placeholder="通知标题"
+                  className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
+                />
+                <textarea
+                  value={noticeContent}
+                  onChange={(e) => setNoticeContent(e.target.value)}
+                  maxLength={500}
+                  rows={4}
+                  placeholder="通知内容"
+                  className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
+                />
+                <input
+                  type="datetime-local"
+                  value={noticeStartsAt}
+                  onChange={(e) => setNoticeStartsAt(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-blue-500/40"
+                />
+                <input
+                  type="datetime-local"
+                  value={noticeEndsAt}
+                  onChange={(e) => setNoticeEndsAt(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0B1020] border border-white/5 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-blue-500/40"
+                />
+                <button
+                  onClick={handleSaveSystemNotice}
+                  disabled={noticeSaving}
+                  className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  {noticeSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                  保存通知
+                </button>
+              </div>
+            </div>
 
             {/* Platform status status card (Mobile) */}
             <div className={`bg-[#111827] border rounded-xl p-4 ${platform ? (platform.ready ? 'border-emerald-500/30' : 'border-amber-500/30') : 'border-white/5'}`}>

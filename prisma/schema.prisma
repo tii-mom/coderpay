@@ -231,3 +231,19 @@ model AdminAuditLog {
   reason      String?
   createdAt   DateTime @default(now())
 }
+
+model SystemNotice {
+  id          String   @id
+  title       String
+  content     String
+  level       String   @default("info")
+  enabled     Boolean  @default(false)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdBy   String?
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([enabled, startsAt, endsAt])
+}
