@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
         id: true,
         name: true,
         appId: true,
+        appSecret: true,
         notifyUrl: true,
         returnUrl: true,
         feedbackUrl: true,
@@ -35,7 +36,18 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" }
     });
     
-    return NextResponse.json(apps);
+    const maskedApps = apps.map((app) => {
+      const secret = app.appSecret || "";
+      const appSecretMasked = secret.length >= 8 
+        ? `${secret.slice(0, 4)}...${secret.slice(-4)}` 
+        : secret;
+      return {
+        ...app,
+        appSecret: appSecretMasked,
+      };
+    });
+    
+    return NextResponse.json(maskedApps);
   } catch (err) {
     console.error("API request failed:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

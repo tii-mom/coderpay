@@ -13,7 +13,8 @@ import {
   Check, 
   Code,
   Lock,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle
 } from 'lucide-react';
 
 interface AppsTabProps {
@@ -36,10 +37,17 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
   // Selected edit app object
   const [editingAppId, setEditingAppId] = useState<string | null>(null);
 
+  // Modal state for showing generated secrets securely in-app instead of native alert
+  const [showSecretModal, setShowSecretModal] = useState(false);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalAppName, setModalAppName] = useState('');
+  const [modalSecretValue, setModalSecretValue] = useState('');
+
   // Copy helper
   const handleCopyText = (text: string, desc: string) => {
+    if (!text) return;
     navigator.clipboard.writeText(text);
-    onTriggerToast(`成功复制 ${desc} 剪切板！`, 'success');
+    onTriggerToast(`成功复制 ${desc} 到剪切板！`, 'success');
   };
 
   const handleCreateApp = async (e: React.FormEvent) => {
@@ -63,7 +71,12 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
     }
 
     onTriggerToast(`成功创建应用 [${name}] ！`, 'success');
-    alert(`【通道应用创建成功】\n您的 App Secret (安全密钥) 为：\n${newApp.appSecret}\n\n重要提示：出于安全考虑，安全密钥仅在创建时完整展示一次。请立即复制并妥善保存。刷新后将隐藏，若遗失只能进行重置密钥操作。`);
+    
+    // Show premium modal
+    setModalTitle('通道应用创建成功');
+    setModalAppName(name);
+    setModalSecretValue(newApp.appSecret);
+    setShowSecretModal(true);
     
     // Reset
     setName('');
@@ -84,7 +97,12 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
         return;
       }
       onTriggerToast(`成功重置 [${app.name}] 的接口密钥凭证！`, 'success');
-      alert(`【密钥重置成功】\n您为应用 [${app.name}] 新生成的 App Secret (安全密钥) 为：\n${newSecret}\n\n重要提示：出于安全考虑，安全密钥仅在此展示一次。请立即复制并妥善保存。`);
+      
+      // Show premium modal
+      setModalTitle('安全密钥重置成功');
+      setModalAppName(app.name);
+      setModalSecretValue(newSecret);
+      setShowSecretModal(true);
     }
   };
 
@@ -350,9 +368,11 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
                               <RefreshCw className="w-2.5 h-2.5" /> 重置密钥
                             </button>
                           </div>
-                          <div className="flex items-center justify-between bg-cp-card border border-[rgba(255,255,255,0.06)] rounded-lg px-2.5 py-1.5 mt-0.5 text-slate-400 text-[11px] font-sans">
-                            <span>已托管在服务端（安全脱敏）</span>
-                            <span className="text-[9px] text-slate-600 bg-slate-900 border border-[rgba(255,255,255,0.04)] px-1.5 py-0.5 rounded">不可逆读取</span>
+                          <div className="flex items-center justify-between bg-cp-card border border-[rgba(255,255,255,0.06)] rounded-lg px-2.5 py-1.5 mt-0.5 text-slate-200 text-[11px] font-mono">
+                            <span className="select-all">{app.appSecret || '—'}</span>
+                            <button onClick={() => handleCopyText(app.appSecret || '', 'App Secret (安全密钥)')} className="text-slate-500 hover:text-slate-300 shrink-0">
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
 
@@ -424,6 +444,58 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Premium Secret Modal Overlay */}
+      {showSecretModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-[#111827] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Lock className="w-4 h-4 text-emerald-400" />
+                {modalTitle}
+              </h3>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-slate-400">
+                您为应用 <strong className="text-white font-semibold">[{modalAppName}]</strong> 生成的 App Secret (安全密钥) 如下：
+              </p>
+              
+              <div className="flex items-center justify-between bg-[#0B1020] border border-white/10 rounded-xl px-3.5 py-3 font-mono text-xs text-emerald-400 select-all">
+                <span className="break-all pr-2">{modalSecretValue}</span>
+                <button
+                  onClick={() => handleCopyText(modalSecretValue, 'App Secret (安全密钥)')}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-450 hover:text-white transition-colors shrink-0"
+                  title="复制密钥"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-3 bg-rose-950/20 border border-rose-500/10 rounded-xl">
+                <p className="text-[10px] text-rose-455 font-bold uppercase flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> 重要安全提示
+                </p>
+                <p className="text-[10px] text-rose-300/80 mt-1 leading-normal">
+                  出于安全考虑，安全密钥**仅在此完整展示一次**。请立即复制并妥善保存。刷新或关闭此窗口后将不再可见，若遗失只能再次进行重置操作。
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={() => {
+                  setShowSecretModal(false);
+                  setModalSecretValue('');
+                }}
+                className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all"
+              >
+                我已复制并安全保存
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
