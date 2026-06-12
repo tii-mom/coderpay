@@ -26,26 +26,25 @@ export async function POST(req: NextRequest) {
 
     if (planId === "trial") {
       const now = new Date();
-      const updatedUser = await prisma.$transaction(async (tx) => {
-        const updated = await tx.user.update({
+      const [updatedUser] = await prisma.$transaction([
+        prisma.user.update({
           where: { id: user.id },
           data: {
             packageType: "trial",
             subscriptionStartedAt: now,
             subscriptionExpiresAt: null,
           },
-        });
-        await tx.billingRecord.create({
+        }),
+        prisma.billingRecord.create({
           data: {
             type: "subscription",
             amount: 0,
-            balance: updated.feeBalance,
+            balance: user.feeBalance,
             description: `切换到${TRIAL_PLAN.name}: 免订阅费，技术服务费 1.98%/笔，最低 ¥0.10`,
             userId: user.id,
           },
-        });
-        return updated;
-      });
+        }),
+      ]);
 
       return NextResponse.json({
         status: "success",
@@ -65,8 +64,8 @@ export async function POST(req: NextRequest) {
     const now = new Date();
     const expiresAt = getNextSubscriptionExpiresAt(user.subscriptionExpiresAt, now);
     const newBalance = Number((user.feeBalance - charge).toFixed(2));
-    const updatedUser = await prisma.$transaction(async (tx) => {
-      const updated = await tx.user.update({
+    const [updatedUser] = await prisma.$transaction([
+      prisma.user.update({
         where: { id: user.id },
         data: {
           packageType: planId,
@@ -76,8 +75,8 @@ export async function POST(req: NextRequest) {
           firstProDiscountUsed: planId === "pro" ? true : user.firstProDiscountUsed,
           firstMaxDiscountUsed: planId === "max" ? true : user.firstMaxDiscountUsed,
         },
-      });
-      await tx.billingRecord.create({
+      }),
+      prisma.billingRecord.create({
         data: {
           type: "subscription",
           amount: -charge,
@@ -85,9 +84,8 @@ export async function POST(req: NextRequest) {
           description: `${firstDiscountUsed ? "续费" : "首次优惠订阅"} ${BILLING_PLANS[planId].name}: ¥${charge.toFixed(2)}`,
           userId: user.id,
         },
-      });
-      return updated;
-    });
+      }),
+    ]);
 
     return NextResponse.json({
       status: "success",
