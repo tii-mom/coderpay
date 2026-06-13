@@ -378,6 +378,12 @@ export default function ConsolePage() {
 
       {/* Outer Layout container */}
       <div className="flex-1 flex w-full relative">
+        {mobileSidebarOpen && (
+          <div 
+            onClick={() => setMobileSidebarOpen(false)}
+            className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300"
+          />
+        )}
         
         {/* Left Sidebar desktop */}
         <aside className={`lg:flex flex-col justify-between w-56 bg-[#0B1020] border-r border-white/5 shrink-0 z-50 fixed lg:static inset-y-0 left-0 transform ${

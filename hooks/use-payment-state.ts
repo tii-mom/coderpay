@@ -122,41 +122,33 @@ export function usePaymentState() {
       }
       const me = await meRes.json();
 
-      const [apps, codes, providers, devices, orders, events, exceptions, webhookLogs, billingData, referralSummary, noticeData] = await Promise.all([
-        fetchJsonSafely("/api/apps", []),
-        fetchJsonSafely("/api/codes", []),
-        fetchJsonSafely("/api/payment-providers", []),
-        fetchJsonSafely("/api/devices", []),
-        fetchJsonSafely("/api/orders", []),
-        fetchJsonSafely("/api/events", []),
-        fetchJsonSafely("/api/exceptions", []),
-        fetchJsonSafely("/api/webhook/logs", []),
-        fetchJsonSafely("/api/billing", { records: [], rechargeOrders: [], feeBalance: 0, packageType: 'trial' }),
-        fetchJsonSafely("/api/referrals", null),
-        fetchJsonSafely("/api/notices/active", { notice: null })
-      ]);
+      const profile = await fetchJsonSafely("/api/console/profile", null);
+      if (!profile) {
+        setState(prev => ({ ...prev, isAuthChecked: true }));
+        return;
+      }
 
       setState(prev => ({
-        apps,
-        paymentCodes: codes,
-        paymentProviders: providers,
-        devices,
-        orders,
-        events,
-        webhookLogs,
-        exceptions,
-        billingRecords: billingData.records || [],
-        rechargeOrders: billingData.rechargeOrders || [],
-        feeBalance: billingData.feeBalance || 0,
-        packageType: billingData.packageType || me.packageType || 'trial',
-        freeOrderUsed: billingData.freeOrderUsed || 0,
-        subscriptionExpiresAt: billingData.subscriptionExpiresAt || null,
-        firstProDiscountUsed: Boolean(billingData.firstProDiscountUsed),
-        firstMaxDiscountUsed: Boolean(billingData.firstMaxDiscountUsed),
-        referralSummary,
-        systemNotice: noticeData?.notice || null,
+        apps: profile.apps || [],
+        paymentCodes: profile.paymentCodes || [],
+        paymentProviders: profile.paymentProviders || [],
+        devices: profile.devices || [],
+        orders: profile.orders || [],
+        events: profile.events || [],
+        webhookLogs: profile.webhookLogs || [],
+        exceptions: profile.exceptions || [],
+        billingRecords: profile.billing?.records || [],
+        rechargeOrders: profile.billing?.rechargeOrders || [],
+        feeBalance: profile.billing?.feeBalance || 0,
+        packageType: profile.billing?.packageType || me.packageType || 'trial',
+        freeOrderUsed: profile.billing?.freeOrderUsed || 0,
+        subscriptionExpiresAt: profile.billing?.subscriptionExpiresAt || null,
+        firstProDiscountUsed: Boolean(profile.billing?.firstProDiscountUsed),
+        firstMaxDiscountUsed: Boolean(profile.billing?.firstMaxDiscountUsed),
+        referralSummary: profile.referrals || null,
+        systemNotice: profile.notice || null,
         currentAppId: prev.currentAppId,
-        currentPlanId: billingData.packageType || me.packageType || 'trial',
+        currentPlanId: profile.billing?.packageType || me.packageType || 'trial',
         isLoggedIn: me.isLoggedIn,
         isAuthChecked: true,
         userEmail: me.email

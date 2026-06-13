@@ -1,4 +1,4 @@
-const ITERATIONS = 100_000;
+const ITERATIONS = 10_000;
 const HASH_ALGORITHM = "SHA-256";
 
 function toBase64(bytes: Uint8Array) {
@@ -18,7 +18,7 @@ function fromBase64(value: string) {
   return bytes;
 }
 
-async function derive(password: string, salt: Uint8Array) {
+async function derive(password: string, salt: Uint8Array, iterations = ITERATIONS) {
   const saltBuffer = salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength) as ArrayBuffer;
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
@@ -32,7 +32,7 @@ async function derive(password: string, salt: Uint8Array) {
       name: "PBKDF2",
       hash: HASH_ALGORITHM,
       salt: saltBuffer,
-      iterations: ITERATIONS
+      iterations: iterations
     },
     keyMaterial,
     256
@@ -57,12 +57,17 @@ export async function hashPassword(password: string) {
 
 export async function verifyPassword(password: string, storedHash: string) {
   const [scheme, iterations, saltValue, hashValue] = storedHash.split(":");
-  if (scheme !== "pbkdf2-sha256" || Number(iterations) !== ITERATIONS || !saltValue || !hashValue) {
+  if (scheme !== "pbkdf2-sha256" || !saltValue || !hashValue) {
+    return false;
+  }
+
+  const iterNum = Number(iterations);
+  if (isNaN(iterNum) || iterNum <= 0) {
     return false;
   }
 
   const salt = fromBase64(saltValue);
   const expected = fromBase64(hashValue);
-  const actual = await derive(password, salt);
+  const actual = await derive(password, salt, iterNum);
   return timingSafeEqual(actual, expected);
 }
