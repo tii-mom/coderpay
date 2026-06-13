@@ -128,8 +128,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
 
       if (decodedPayload) {
         setQrPayload(decodedPayload);
-        if (detectedAmount != null) {
-          setCodeType('fixed');
+        if (codeType === 'fixed' && detectedAmount != null) {
           setAmount(detectedAmount.toString());
         }
 
@@ -156,26 +155,42 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
         }, 'mobile');
 
         const channelError = getPaymentPayloadChannelError(type, decodedPayload);
-        setQrAnalysis(
-          channelError
-            ? channelError
-            : `${capability.label}${detectedAmount != null ? ` · 已识别固定金额 ¥${detectedAmount.toFixed(2)}，请确认后保存。` : ' · 未识别固定金额。如果这是固定金额码，请手动选择固定金额并填写金额。'}`
-        );
-        onTriggerToast(
-          channelError
-            ? channelError
-            : type === 'alipay'
-            ? detectedAmount != null
-              ? `已解析支付宝收款码，并识别固定金额 ¥${detectedAmount.toFixed(2)}。`
-              : '已解析支付宝收款码。若补充支付宝 PID，买家可直接打开转账页并自动带入金额。'
-            : detectedAmount != null
-              ? `已解析微信收款码，并识别固定金额 ¥${detectedAmount.toFixed(2)}。`
-              : '已解析微信收款码内容，但未识别固定金额。如这是固定金额码，请手动填写金额。',
-          channelError ? 'error' : 'success'
-        );
+        let analysisMsg = '';
+        if (channelError) {
+          analysisMsg = channelError;
+        } else {
+          analysisMsg = capability.label;
+          if (codeType === 'fixed') {
+            if (detectedAmount != null) {
+              analysisMsg += ` · 已识别固定金额 ¥${detectedAmount.toFixed(2)}，请确认后保存。`;
+            } else {
+              analysisMsg += ' · 未识别固定金额。如果这是固定金额码，请手动填写金额。';
+            }
+          }
+        }
+        setQrAnalysis(analysisMsg);
+
+        let toastMsg = '';
+        if (channelError) {
+          toastMsg = channelError;
+        } else {
+          if (type === 'alipay') {
+            if (codeType === 'fixed' && detectedAmount != null) {
+              toastMsg = `已解析支付宝收款码，并识别固定金额 ¥${detectedAmount.toFixed(2)}。`;
+            } else {
+              toastMsg = '已解析支付宝收款码。若补充支付宝 PID，买家可直接打开转账页并自动带入金额。';
+            }
+          } else {
+            if (codeType === 'fixed' && detectedAmount != null) {
+              toastMsg = `已解析微信收款码，并识别固定金额 ¥${detectedAmount.toFixed(2)}。`;
+            } else {
+              toastMsg = '已解析微信收款码。';
+            }
+          }
+        }
+        onTriggerToast(toastMsg, channelError ? 'error' : 'success');
       } else {
-        if (detectedAmount != null) {
-          setCodeType('fixed');
+        if (codeType === 'fixed' && detectedAmount != null) {
           setAmount(detectedAmount.toString());
           setQrAnalysis(`未能解析二维码内容，但从文件名 [${file.name}] 中提取并预填了固定金额 ¥${detectedAmount.toFixed(2)}。请确认后保存。`);
           onTriggerToast(`未能解析二维码内容，但从文件名中识别出固定金额 ¥${detectedAmount.toFixed(2)}。`, 'success');
