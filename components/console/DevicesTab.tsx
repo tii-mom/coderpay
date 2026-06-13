@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Device, PaymentCode } from '@/types';
+import { customConfirm } from '@/components/ConfirmModal';
 import { 
   Plus, 
   Smartphone, 
@@ -102,7 +103,11 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
   };
 
   const handleDeleteDevice = async (dev: Device) => {
-    if (confirm(`警告：确定要永久解绑设备 [${dev.name}] 吗？解绑后，该手机将无法上传任何扫码付款流水通知，且配套码流水也会失效。`)) {
+    if (await customConfirm({
+      title: '解绑设备',
+      message: `警告：确定要永久解绑设备 [${dev.name}] 吗？解绑后，该手机将无法上传任何扫码付款流水通知，且配套码流水也会失效。`,
+      level: 'danger'
+    })) {
       setIsLoadingOperation(true);
       const result = await db.deleteDevice(dev.id);
       setIsLoadingOperation(false);
@@ -118,7 +123,11 @@ export function DevicesTab({ devices, paymentCodes, onTriggerToast, db }: Device
   };
 
   const handleResetDeviceSecret = async (dev: Device) => {
-    if (!confirm(`确定重置设备 [${dev.name}] 的连接密钥吗？旧绑定码会立即失效，系统会生成新的 dev_ 绑定码。`)) {
+    if (!(await customConfirm({
+      title: '重置密钥',
+      message: `确定重置设备 [${dev.name}] 的连接密钥吗？旧绑定码会立即失效，系统会生成新的 dev_ 绑定码。`,
+      level: 'warning'
+    }))) {
       return;
     }
 

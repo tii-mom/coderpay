@@ -16,6 +16,7 @@ import {
   ChevronRight,
   AlertTriangle
 } from 'lucide-react';
+import { customConfirm } from '@/components/ConfirmModal';
 
 interface AppsTabProps {
   apps: App[];
@@ -88,9 +89,12 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
     setActiveTab('list');
   };
 
-  // Reset API key credentials
   const handleResetAppSecret = async (app: App) => {
-    if (confirm(`您确定要重置应用 [${app.name}] 的 App Secret 密钥吗？重置后，原有接入参数将立刻失效！`)) {
+    if (await customConfirm({
+      title: '重置应用密钥',
+      message: `您确定要重置应用 [${app.name}] 的 App Secret 密钥吗？重置后，原有接入参数将立刻失效！`,
+      level: 'warning'
+    })) {
       const newSecret = await db.resetAppSecret(app.id);
       if (!newSecret) {
         onTriggerToast('密钥重置失败，请稍后重试。', 'error');
@@ -106,9 +110,12 @@ export function AppsTab({ apps, onTriggerToast, db }: AppsTabProps) {
     }
   };
 
-  // Delete App
   const handleDeleteApp = async (app: App) => {
-    if (confirm(`警告：您确定要永久删除应用 [${app.name}] 吗？相匹配的订单记录将失去系统校验！`)) {
+    if (await customConfirm({
+      title: '删除应用',
+      message: `警告：您确定要永久删除应用 [${app.name}] 吗？相匹配的订单记录将失去系统校验！`,
+      level: 'danger'
+    })) {
       const result = await db.deleteApp(app.id);
       if (!result.ok) {
         onTriggerToast(result.error || `删除应用 [${app.name}] 失败`, 'error');

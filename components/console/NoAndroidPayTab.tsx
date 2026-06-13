@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { PaymentProvider } from '@/types';
+import { customConfirm } from '@/components/ConfirmModal';
 import { Check, Clipboard, Link2, Plus, Power, Trash2, Webhook } from 'lucide-react';
 
 interface NoAndroidPayTabProps {
@@ -57,7 +58,11 @@ export function NoAndroidPayTab({ providers, onTriggerToast, db }: NoAndroidPayT
   };
 
   const deleteProvider = async (provider: PaymentProvider) => {
-    if (!confirm(`确定删除无安卓支付通道「${provider.name}」吗？已产生的订单记录不会删除。`)) return;
+    if (!(await customConfirm({
+      title: '删除通道',
+      message: `确定删除无安卓支付通道「${provider.name}」吗？已产生的订单记录不会删除。`,
+      level: 'danger'
+    }))) return;
     const result = await db.deletePaymentProvider(provider.id);
     if (!result.ok) {
       onTriggerToast(result.error || '删除通道失败。', 'error');

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePaymentState } from '@/hooks/use-payment-state';
 import { ToastContainer } from '@/components/Toast';
+import { customConfirm } from '@/components/ConfirmModal';
 
 // Modular components loaded dynamically with lazy-splitting
 const OverviewTab = React.lazy(() => import('@/components/console/OverviewTab').then(m => ({ default: m.OverviewTab })));
@@ -208,7 +209,11 @@ export default function ConsolePage() {
 
 
   const handleLogout = async () => {
-    if (confirm('您确定要安全退出 Coder Pay 控制台吗？')) {
+    if (await customConfirm({
+      title: '安全退出控制台',
+      message: '您确定要安全退出 Coder Pay 控制台吗？',
+      level: 'info'
+    })) {
       triggerToast('正在退出，祝您生活愉快！', 'warning');
       await db.logout();
       setTimeout(() => {

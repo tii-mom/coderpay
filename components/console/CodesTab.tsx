@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 
 import jsQR from 'jsqr';
+import { customConfirm } from '@/components/ConfirmModal';
 
 interface CodesTabProps {
   paymentCodes: PaymentCode[];
@@ -271,7 +272,11 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
   };
 
   const handleDeleteCode = async (code: PaymentCode) => {
-    if (confirm(`您确定要删除此笔收款码吗？此操作不可撤销，且会解除绑定设备。`)) {
+    if (await customConfirm({
+      title: '删除确认',
+      message: '您确定要删除此笔收款码吗？此操作不可撤销，且会解除绑定设备。',
+      level: 'danger'
+    })) {
       setIsLoadingCodeOperation(true);
       const result = await db.deletePaymentCode(code.id);
       setIsLoadingCodeOperation(false);

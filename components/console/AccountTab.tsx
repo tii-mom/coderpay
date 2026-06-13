@@ -11,6 +11,7 @@ import {
   Coins,
   Award
 } from 'lucide-react';
+import { customConfirm } from '@/components/ConfirmModal';
 
 interface AccountTabProps {
   state: any;
@@ -60,7 +61,11 @@ export function AccountTab({ state, onTriggerToast, db }: AccountTabProps) {
   };
 
   const handleLogout = async () => {
-    if (confirm('您确定要安全退出 Coder Pay 控制台吗？')) {
+    if (await customConfirm({
+      title: '安全退出控制台',
+      message: '您确定要安全退出 Coder Pay 控制台吗？',
+      level: 'info'
+    })) {
       onTriggerToast('正在安全退出...', 'warning');
       await db.logout();
       window.location.href = '/';

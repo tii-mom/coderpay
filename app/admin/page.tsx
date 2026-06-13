@@ -10,6 +10,7 @@ import {
   KeyRound, Undo2, Download, Copy, TrendingUp,
   UserPlus, Wallet, Wifi, Webhook, Filter
 } from 'lucide-react';
+import { customConfirm } from '@/components/ConfirmModal';
 
 // ---- Types ----
 
@@ -884,7 +885,11 @@ export default function AdminPage() {
     if (pwConfirmEmail.trim().toLowerCase() !== detail.user.email.toLowerCase()) {
       showToast('重置密码需输入正确的目标用户邮箱确认', 'error'); return;
     }
-    if (!confirm('确定要重置该用户密码？请确保已通过可靠渠道告知用户新密码。')) return;
+    if (!await customConfirm({
+      title: '确认重置密码',
+      message: '确定要重置该用户密码？请确保已通过可靠渠道告知用户新密码。',
+      level: 'danger'
+    })) return;
 
     setFormLoading(true);
     try {
@@ -993,9 +998,12 @@ export default function AdminPage() {
     }
   };
 
-  // Logout
   const handleLogout = async () => {
-    if (!confirm('确定退出登录？')) return;
+    if (!await customConfirm({
+      title: '安全退出',
+      message: '确定退出登录？',
+      level: 'info'
+    })) return;
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/');
   };
