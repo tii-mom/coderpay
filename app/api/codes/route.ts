@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { amountToCents, centsToAmount } from "@/lib/money";
 import { getDirectD1 } from "@/lib/d1-direct";
 import { readSessionEmail } from "@/lib/session";
-import { normalizeDirectPayFields } from "@/lib/direct-pay";
+import { getPaymentPayloadChannelError, normalizeDirectPayFields } from "@/lib/direct-pay";
 
 async function getDirectSessionUser(req: NextRequest) {
   const email = await readSessionEmail(req.cookies.get("session_email")?.value);
@@ -45,12 +45,19 @@ export async function POST(req: NextRequest) {
     if (codeType !== "fixed" && codeType !== "any") {
       return NextResponse.json({ error: "Invalid payment code mode" }, { status: 400 });
     }
+    const qrPayload = body.qrPayload || body.qr_payload;
+    const directPayUrl = body.directPayUrl || body.direct_pay_url;
+    const channelError = getPaymentPayloadChannelError(type, qrPayload) || getPaymentPayloadChannelError(type, directPayUrl);
+    if (channelError) {
+      return NextResponse.json({ error: channelError }, { status: 400 });
+    }
+
     let normalizedAmount = 0;
     if (codeType === "fixed") {
       try {
         normalizedAmount = centsToAmount(amountToCents(amount));
       } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 400 });
+        return NextResponse.json({ error: "固定金额模式必须填写有效金额，最多保留两位小数" }, { status: 400 });
       }
     }
     const db = getDirectD1();
@@ -68,10 +75,10 @@ export async function POST(req: NextRequest) {
     const alipayUserId = type === "alipay" ? String(body.alipayUserId || body.alipay_user_id || "").trim() || null : null;
     const directPay = normalizeDirectPayFields({
       type,
-      amount: codeType === "fixed" ? normalizedAmount : amount || 0,
+      amount: codeType === "fixed" ? normalizedAmount : 0,
       alipayUserId,
-      qrPayload: body.qrPayload || body.qr_payload,
-      directPayUrl: body.directPayUrl || body.direct_pay_url,
+      qrPayload,
+      directPayUrl,
     });
     await db.prepare(`
       INSERT INTO PaymentCode (id, type, codeType, amount, imageUrl, alipayUserId, qrPayload, directPayUrl, directPayMode, status, createdAt, updatedAt, userId, deviceId)

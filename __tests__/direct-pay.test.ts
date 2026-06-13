@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildAlipayQrScheme,
+  detectPaymentPayloadChannel,
   extractAmountFromQrPayload,
+  getPaymentPayloadChannelError,
   getPaymentCodeCapability,
   normalizeDirectPayFields,
   resolveCheckoutDirectPayUrl,
@@ -52,8 +54,18 @@ describe("direct pay helpers", () => {
   it("extracts fixed amounts from common QR payload parameters", () => {
     expect(extractAmountFromQrPayload("https://example.com/pay?amount=12.34")).toBe(12.34);
     expect(extractAmountFromQrPayload("https://example.com/pay?total_amount=8.8")).toBe(8.8);
+    expect(extractAmountFromQrPayload("https://example.com/pay?total_fee=9.90")).toBe(9.9);
     expect(extractAmountFromQrPayload("money=6.66&memo=test")).toBe(6.66);
+    expect(extractAmountFromQrPayload("wxp://f2f19znpGT_GUWyKmetwimkzE9rZc4TIdrwJ-yMbjssZjl8OZOOB3H2UvimU9JRnLki7")).toBeNull();
     expect(extractAmountFromQrPayload("https://qr.alipay.com/fkx12345")).toBeNull();
+  });
+
+  it("detects QR payload channels and rejects mismatched payment code type", () => {
+    expect(detectPaymentPayloadChannel("wxp://f2f19znp")).toBe("wechat");
+    expect(detectPaymentPayloadChannel("https://qr.alipay.com/fkx12345")).toBe("alipay");
+    expect(getPaymentPayloadChannelError("wechat", "https://qr.alipay.com/fkx12345")).toMatch("二维码渠道与选择渠道不一致");
+    expect(getPaymentPayloadChannelError("alipay", "wxp://f2f19znp")).toMatch("二维码渠道与选择渠道不一致");
+    expect(getPaymentPayloadChannelError("wechat", "wxp://f2f19znp")).toBeNull();
   });
 
   it("describes desktop Alipay QR payloads as scan-oriented instead of direct transfer", () => {

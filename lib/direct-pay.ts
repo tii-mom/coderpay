@@ -25,6 +25,8 @@ export type PaymentCodeCapability = {
   label: string;
 };
 
+export type PaymentPayloadChannel = DirectPayType | "unknown";
+
 function normalizeOptional(value: unknown) {
   const text = typeof value === "string" ? value.trim() : "";
   return text || null;
@@ -81,6 +83,36 @@ export function extractAmountFromQrPayload(payload: string | null | undefined) {
 
   const match = text.match(/(?:amount|money|total_amount|total_fee)=([0-9]+(?:\.[0-9]{1,2})?)/i);
   return toAmount(match?.[1] ?? null);
+}
+
+export function detectPaymentPayloadChannel(payload: string | null | undefined): PaymentPayloadChannel {
+  const text = normalizeOptional(payload)?.toLowerCase();
+  if (!text) return "unknown";
+  if (
+    text.startsWith("wxp://") ||
+    text.startsWith("weixin://") ||
+    text.includes("tenpay.com") ||
+    text.includes("wx.tenpay.com")
+  ) {
+    return "wechat";
+  }
+  if (
+    text.startsWith("https://qr.alipay.com/") ||
+    text.startsWith("http://qr.alipay.com/") ||
+    text.startsWith("alipays://") ||
+    text.includes("alipay.com")
+  ) {
+    return "alipay";
+  }
+  return "unknown";
+}
+
+export function getPaymentPayloadChannelError(type: DirectPayType, payload: string | null | undefined) {
+  const channel = detectPaymentPayloadChannel(payload);
+  if (channel !== "unknown" && channel !== type) {
+    return "二维码渠道与选择渠道不一致，请切换渠道或重新上传正确二维码";
+  }
+  return null;
 }
 
 export function normalizeDirectPayFields(input: DirectPayInput) {

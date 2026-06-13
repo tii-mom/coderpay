@@ -33,6 +33,33 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private fun detectPaymentPayloadChannel(payload: String): String? {
+    val text = payload.trim().lowercase()
+    if (text.isBlank()) return null
+    if (
+        text.startsWith("wxp://") ||
+        text.startsWith("weixin://") ||
+        text.contains("tenpay.com") ||
+        text.contains("wx.tenpay.com")
+    ) {
+        return "wechat"
+    }
+    if (
+        text.startsWith("https://qr.alipay.com/") ||
+        text.startsWith("http://qr.alipay.com/") ||
+        text.startsWith("alipays://") ||
+        text.contains("alipay.com")
+    ) {
+        return "alipay"
+    }
+    return null
+}
+
+private fun paymentPayloadChannelError(payType: String, payload: String): String? {
+    val channel = detectPaymentPayloadChannel(payload) ?: return null
+    return if (channel != payType) "二维码渠道与选择渠道不一致，请切换渠道或重新上传正确二维码" else null
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentCodesScreen(
@@ -94,7 +121,7 @@ fun PaymentCodesScreen(
                     isUploadingImg = false
                     if (response.isSuccessful && response.body() != null) {
                         uploadedCodeUrl = response.body()!!.url
-                        onActionMessage("收款码图片上传成功！")
+                        onActionMessage("收款码图片上传成功。若这是固定金额码，请选择固定金额并填写金额后再创建。")
                     } else {
                         onActionMessage(ApiErrorHelper.formatApiError(response, "上传图片失败"))
                     }
@@ -248,6 +275,13 @@ fun PaymentCodesScreen(
                     fontSize = 11.sp,
                     color = if (uploadedCodeUrl.isBlank()) CpAmber else CpGreen
                 )
+                if (uploadedCodeUrl.isNotBlank()) {
+                    Text(
+                        text = "App 端不会自动识别图片中的固定金额。固定金额码请手动选择固定金额并填写金额；通用码可保持通用码。",
+                        fontSize = 10.sp,
+                        color = CpAmber
+                    )
+                }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
@@ -267,6 +301,12 @@ fun PaymentCodesScreen(
                             val amount = if (codeMode == "fixed") codeAmount.toDoubleOrNull() ?: 0.0 else 0.0
                             if (codeMode == "fixed" && amount <= 0.0) {
                                 onActionMessage("固定金额模式金额必须大于 0")
+                                return@Button
+                            }
+                            val channelError = paymentPayloadChannelError(codePayType, qrPayload)
+                                ?: paymentPayloadChannelError(codePayType, directPayUrl)
+                            if (channelError != null) {
+                                onActionMessage(channelError)
                                 return@Button
                             }
                             scope.launch(Dispatchers.IO) {
@@ -423,7 +463,7 @@ fun PaymentCodesScreen(
         }
 
         // Delete Alert Dialog
-        codeToDelete?.let { code ->
+        codeToDelete?.let {
             AlertDialog(
                 onDismissRequest = { codeToDelete = null },
                 title = { Text("确认删除通道？") },

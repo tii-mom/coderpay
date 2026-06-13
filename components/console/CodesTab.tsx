@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { PaymentCode, Device } from '@/types';
-import { buildAlipayQrScheme, extractAlipayUserId, extractAmountFromQrPayload, getPaymentCodeCapability } from '@/lib/direct-pay';
+import { buildAlipayQrScheme, extractAlipayUserId, extractAmountFromQrPayload, getPaymentCodeCapability, getPaymentPayloadChannelError } from '@/lib/direct-pay';
 import { 
   Plus, 
   Trash2, 
@@ -59,13 +59,26 @@ const decodeQrCodeFromFile = (file: File): Promise<string | null> => {
   });
 };
 
+const extractAmountFromFilename = (filename: string): number | null => {
+  if (!filename) return null;
+  const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.')) || filename;
+  const match = nameWithoutExt.match(/(\d+(?:\.\d{1,2})?)/);
+  if (match) {
+    const val = Number(match[1]);
+    if (Number.isFinite(val) && val > 0 && val < 50000) {
+      return val;
+    }
+  }
+  return null;
+};
+
 export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTabProps) {
   const [activeTab, setActiveTab] = useState<'list' | 'create'>('list');
 
   // Form Fields
   const [type, setType] = useState<'wechat' | 'alipay'>('wechat');
   const [codeType, setCodeType] = useState<'fixed' | 'any'>('any');
-  const [amount, setAmount] = useState<number>(0);
+  const [amount, setAmount] = useState<string>('0');
   const [imageUrl, setImageUrl] = useState('');
   const [deviceId, setDeviceId] = useState(devices[0]?.id || '');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
@@ -83,6 +96,17 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
   const getCodePendingCount = (codeId: string) => activeOrders.filter((o: any) => o.paymentCodeId === codeId).length;
   const fixedAmounts = Array.from(new Set(fixedCodes.map(code => `${code.type}:${code.amount.toFixed(2)}`))).length;
 
+  const validatePaymentCodeForm = () => {
+    const channelError = getPaymentPayloadChannelError(type, qrPayload) || getPaymentPayloadChannelError(type, directPayUrl);
+    if (channelError) {
+      return channelError;
+    }
+    if (codeType === 'fixed' && (!Number.isFinite(Number(amount)) || Number(amount) <= 0)) {
+      return '固定金额模式必须填写有效金额，最多保留两位小数。';
+    }
+    return null;
+  };
+
   const handleUploadCodeImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -96,12 +120,16 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
     setIsUploadingImage(true);
     try {
       const decodedPayload = await decodeQrCodeFromFile(file);
+      let detectedAmount = decodedPayload ? extractAmountFromQrPayload(decodedPayload) : null;
+      if (detectedAmount === null && file.name) {
+        detectedAmount = extractAmountFromFilename(file.name);
+      }
+
       if (decodedPayload) {
         setQrPayload(decodedPayload);
-        const detectedAmount = extractAmountFromQrPayload(decodedPayload);
         if (detectedAmount != null) {
           setCodeType('fixed');
-          setAmount(detectedAmount);
+          setAmount(detectedAmount.toString());
         }
 
         if (type === 'alipay') {
@@ -125,18 +153,35 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
             ? buildAlipayQrScheme(decodedPayload)
             : decodedPayload,
         }, 'mobile');
-        setQrAnalysis(`${capability.label}${detectedAmount != null ? ` · 已识别固定金额 ¥${detectedAmount.toFixed(2)}` : ' · 未识别固定金额'}`);
+
+        const channelError = getPaymentPayloadChannelError(type, decodedPayload);
+        setQrAnalysis(
+          channelError
+            ? channelError
+            : `${capability.label}${detectedAmount != null ? ` · 已识别固定金额 ¥${detectedAmount.toFixed(2)}，请确认后保存。` : ' · 未识别固定金额。如果这是固定金额码，请手动选择固定金额并填写金额。'}`
+        );
         onTriggerToast(
-          type === 'alipay'
+          channelError
+            ? channelError
+            : type === 'alipay'
             ? detectedAmount != null
               ? `已解析支付宝收款码，并识别固定金额 ¥${detectedAmount.toFixed(2)}。`
               : '已解析支付宝收款码。若补充支付宝 PID，买家可直接打开转账页并自动带入金额。'
-            : '已解析微信收款码内容，收银台将优先尝试唤起微信，失败时保留二维码兜底。',
-          'success'
+            : detectedAmount != null
+              ? `已解析微信收款码，并识别固定金额 ¥${detectedAmount.toFixed(2)}。`
+              : '已解析微信收款码内容，但未识别固定金额。如这是固定金额码，请手动填写金额。',
+          channelError ? 'error' : 'success'
         );
       } else {
-        setQrAnalysis('未能解析二维码内容。仍可保存图片作为二维码兜底，但无法自动判断直达能力或固定金额。');
-        onTriggerToast('未能从图片中解析出二维码内容，您可以稍后手动填写。', 'warning');
+        if (detectedAmount != null) {
+          setCodeType('fixed');
+          setAmount(detectedAmount.toString());
+          setQrAnalysis(`未能解析二维码内容，但从文件名 [${file.name}] 中提取并预填了固定金额 ¥${detectedAmount.toFixed(2)}。请确认后保存。`);
+          onTriggerToast(`未能解析二维码内容，但从文件名中识别出固定金额 ¥${detectedAmount.toFixed(2)}。`, 'success');
+        } else {
+          setQrAnalysis('未能解析二维码内容。如果这是固定金额码，请手动选择固定金额并填写金额；如果是通用收款码，可保持通用码保存。');
+          onTriggerToast('未能从图片中解析出二维码内容，请确认金额模式后再保存。', 'warning');
+        }
       }
 
       const formData = new FormData();
@@ -153,7 +198,9 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
       }
 
       setImageUrl(data.url);
-      onTriggerToast('收款码图片已上传，图片地址已自动填入。', 'success');
+      if (!decodedPayload) {
+        onTriggerToast('收款码图片已上传，请确认金额模式后再保存。', 'warning');
+      }
     } catch (err: any) {
       onTriggerToast(err.message || '收款码图片上传失败，请稍后重试。', 'error');
     } finally {
@@ -165,6 +212,11 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
     e.preventDefault();
     if (!imageUrl) {
       onTriggerToast('请先上传真实微信/支付宝收款码图片。', 'error');
+      return;
+    }
+    const validationError = validatePaymentCodeForm();
+    if (validationError) {
+      onTriggerToast(validationError, 'error');
       return;
     }
     
@@ -192,7 +244,7 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
       // Reset Form
       setType('wechat');
       setCodeType('any');
-      setAmount(0);
+      setAmount('0');
       setImageUrl('');
       setDeviceId(devices[0]?.id || '');
       setStatus('active');
@@ -342,8 +394,8 @@ export function CodesTab({ paymentCodes, devices, onTriggerToast, db }: CodesTab
                   step="0.01"
                   min="0.10"
                   placeholder="请输入要绑定的付款金额数，例如：9.90"
-                  value={amount === 0 ? '' : amount}
-                  onChange={(e) => setAmount(Number(e.target.value))}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
                   className="px-4 py-2.5 bg-[#0B1020] border border-[rgba(255,255,255,0.08)] rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
                   required
                 />
